@@ -21,7 +21,8 @@ export interface ZoomPaneProps extends FitOptions {
 }
 
 const DRAG_THRESHOLD = 4;
-const IGNORE = 'input, button, select, textarea, a, [data-zoom-ignore]';
+/** Pointers that start here operate the thing, not the pane: form controls, and the parts themselves (a knob turns, a button presses). */
+const IGNORE = 'input, button, select, textarea, a, [data-zoom-ignore], .robolance-wokwi';
 
 function ignores(target: EventTarget | null): boolean {
     return target instanceof Element && !!target.closest(IGNORE);

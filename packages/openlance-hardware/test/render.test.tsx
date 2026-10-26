@@ -129,6 +129,11 @@ test('ZoomPane wraps its content in a transformed layer with zoom controls', () 
     assert.match(html, /id="inner"/);
 });
 
+test('the parts opt out of panning so a knob turns instead of moving the stage', () => {
+    const html = renderToStaticMarkup(<CircuitView diagram={{ parts: [{ type: 'potentiometer', id: 'knob', pin: 'A0' }] } as never} states={{}} />);
+    assert.match(html, /class="robolance-wokwi robolance-graphic"/);
+});
+
 test('CircuitView lays the stage out at its natural size inside a zoom pane', () => {
     const html = renderToStaticMarkup(<CircuitView diagram={robotDiagram as never} states={{}} />);
     assert.match(html, /robolance-zoom-pane robolance-circuit/);
