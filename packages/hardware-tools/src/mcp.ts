@@ -231,6 +231,8 @@ function sha(text: string): string {
  */
 export class Recorder {
     private seq = 0;
+    /** Writes run one after another, so firmware.hex and build.json always describe the same build. */
+    private queue: Promise<unknown> = Promise.resolve();
 
     constructor(readonly dir: string, readonly keepRuns = 30) {}
 
@@ -238,30 +240,44 @@ export class Recorder {
         return this.dir !== '';
     }
 
+    private serialized<T>(work: () => Promise<T>): Promise<T> {
+        const next = this.queue.then(work, work);
+        this.queue = next.catch(() => undefined);
+        return next;
+    }
+
     async build(sketch: string, result: BuildResult): Promise<void> {
         if (!this.enabled || !result.hex) {
             return;
         }
-        try {
-            await mkdir(this.dir, { recursive: true });
-            await writeFile(join(this.dir, 'firmware.hex'), result.hex);
-            await writeFile(join(this.dir, 'build.json'), JSON.stringify({
-                version: 1,
-                at: new Date().toISOString(),
-                sketchSha: sha(sketch),
-                backend: result.backend,
-                size: result.size ?? null,
-            }, null, 2));
-        } catch {
-            // The workspace is not writable here; the tool result still has everything.
-        }
+        const hex = result.hex;
+        const record = JSON.stringify({
+            version: 1,
+            at: new Date().toISOString(),
+            sketchSha: sha(sketch),
+            backend: result.backend,
+            size: result.size ?? null,
+        }, null, 2);
+        await this.serialized(async () => {
+            try {
+                await mkdir(this.dir, { recursive: true });
+                await writeFile(join(this.dir, 'firmware.hex'), hex);
+                await writeFile(join(this.dir, 'build.json'), record);
+            } catch {
+                // The workspace is not writable here; the tool result still has everything.
+            }
+        });
     }
 
     /** Returns the path the run was written to, relative to the record dir. */
-    async run(record: RunRecord): Promise<string | undefined> {
+    run(record: RunRecord): Promise<string | undefined> {
         if (!this.enabled) {
-            return undefined;
+            return Promise.resolve(undefined);
         }
+        return this.serialized(() => this.writeRun(record));
+    }
+
+    private async writeRun(record: RunRecord): Promise<string | undefined> {
         try {
             const runs = join(this.dir, 'runs');
             await mkdir(runs, { recursive: true });
