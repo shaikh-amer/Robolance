@@ -7,8 +7,8 @@ import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { cornerMaze } from 'robolance-hardware-sim';
 import { ArenaView } from '../src/browser/ArenaView';
-import { describeState } from '../src/browser/CircuitView';
-import { HardwarePanelBody } from '../src/browser/HardwarePanel';
+import { describeState, stageOrigin } from '../src/browser/CircuitView';
+import { HardwarePanelBody, advanceReplay } from '../src/browser/HardwarePanel';
 import { hardwarePreviewTab } from '../src/browser/hardware-preview-tab';
 import { readHardwareProject } from '../src/browser/hardware-project';
 import { RunsView } from '../src/browser/RunsView';
@@ -99,4 +99,20 @@ test('describeState words each part', () => {
     assert.equal(describeState({ type: 'led', id: 'l', pin: 13 }, { on: true, brightness: 0.25 }), 'on 25%');
     assert.equal(describeState({ type: 'motor', id: 'm', in1: 1, in2: 2, en: 3 }, { speed: -0.5 }), 'backward 50%');
     assert.equal(describeState({ type: 'servo', id: 's', pin: 9 }, { angle: null }), 'no pulse');
+});
+
+test('wire origins add the wrapper position to the graphic position', () => {
+    assert.deepEqual(stageOrigin({ offsetLeft: 380, offsetTop: 24 }, { offsetLeft: 0, offsetTop: 3 }), { x: 380, y: 27 });
+    const same = { offsetLeft: 380, offsetTop: 100 };
+    assert.deepEqual(stageOrigin(same, same), { x: 380, y: 100 });
+});
+
+test('replay time accumulates across frames and stops at the end of the run', () => {
+    let t = 0;
+    for (let i = 0; i < 10; i++) {
+        t = advanceReplay(t, 16, 2000);
+    }
+    assert.equal(t, 160);
+    assert.equal(advanceReplay(1990, 50, 2000), 2000);
+    assert.equal(advanceReplay(100, -5, 2000), 100, 'a clock going backwards never rewinds the replay');
 });

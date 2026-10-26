@@ -96,13 +96,16 @@ export function CircuitView({ diagram, states, inputs }: CircuitViewProps): Reac
             const next: Wire[] = [];
             let bottom = BOARD_TOP + BOARD_HEIGHT;
             diagram.parts.forEach((part, index) => {
-                const el = partRefs.current.get(part.id);
-                if (!el) {
+                const wrapper = partRefs.current.get(part.id);
+                if (!wrapper) {
                     return;
                 }
-                const pins = part.type === 'motor' ? MOTOR_PINS : pinTable(el);
-                const origin = { x: el.offsetLeft, y: el.offsetTop };
-                bottom = Math.max(bottom, el.offsetTop + el.offsetHeight);
+                // The graphic sits inside the positioned wrapper, so its own
+                // offsets are relative to the wrapper, not the stage.
+                const graphic = (wrapper.querySelector('.robolance-graphic') as HTMLElement | null) ?? wrapper;
+                const pins = part.type === 'motor' ? MOTOR_PINS : pinTable(graphic);
+                const origin = stageOrigin(wrapper, graphic);
+                bottom = Math.max(bottom, wrapper.offsetTop + wrapper.offsetHeight);
                 for (const c of connections(part)) {
                     const from = pins.find(p => p.name === c.pin);
                     const to = boardPins.find(p => p.name === c.board);
@@ -199,6 +202,14 @@ export function CircuitView({ diagram, states, inputs }: CircuitViewProps): Reac
     );
 }
 
+/** Where a part's graphic sits in stage coordinates: the wrapper's place plus the graphic's place within it. */
+export function stageOrigin(wrapper: { offsetLeft: number; offsetTop: number }, graphic: { offsetLeft: number; offsetTop: number }): { x: number; y: number } {
+    if (wrapper === graphic) {
+        return { x: wrapper.offsetLeft, y: wrapper.offsetTop };
+    }
+    return { x: wrapper.offsetLeft + graphic.offsetLeft, y: wrapper.offsetTop + graphic.offsetTop };
+}
+
 function pinTable(el: HTMLElement): ElementPin[] {
     const info = (el as HTMLElement & { pinInfo?: ElementPin[] }).pinInfo;
     return Array.isArray(info) ? info : [];
@@ -227,6 +238,8 @@ function PartNode({ part, state, inputs, style, register }: PartNodeProps): Reac
     const ref = React.useRef<HTMLElement | null>(null);
     const setRef = React.useCallback((el: HTMLElement | null) => {
         ref.current = el;
+    }, []);
+    const setWrapper = React.useCallback((el: HTMLDivElement | null) => {
         register(part.id, el);
     }, [register, part.id]);
 
@@ -301,15 +314,15 @@ function PartNode({ part, state, inputs, style, register }: PartNodeProps): Reac
 
     if (!tag) {
         return (
-            <div ref={setRef as React.Ref<HTMLDivElement>} className="robolance-part robolance-motor" style={style} title={part.id}>
+            <div ref={setWrapper} className="robolance-part robolance-motor" style={style} title={part.id}>
                 <MotorGraphic speed={typeof state.speed === 'number' ? state.speed : 0} />
                 <span className="robolance-part-label">{part.id} · {label}</span>
             </div>
         );
     }
     return (
-        <div className="robolance-part" style={style}>
-            {React.createElement(tag, { ref: setRef, className: 'robolance-wokwi', title: part.id })}
+        <div ref={setWrapper} className="robolance-part" style={style}>
+            {React.createElement(tag, { ref: setRef, className: 'robolance-wokwi robolance-graphic', title: part.id })}
             <span className="robolance-part-label">{part.id} · {label}</span>
             {part.type === 'ultrasonic' && inputs && (
                 <input

@@ -81,9 +81,9 @@ export class Simulation {
         return out;
     }
 
-    /** Complete serial lines so far (the unfinished last line excluded). */
+    /** Serial output as lines; a line still being printed (no newline yet) is included, an empty tail is not. */
     get serialLines(): string[] {
         const lines = this.board.serialLines;
-        return lines.slice(0, lines.length - 1);
+        return lines[lines.length - 1] === '' ? lines.slice(0, lines.length - 1) : lines.slice();
     }
 }

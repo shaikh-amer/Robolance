@@ -147,3 +147,13 @@ test('Simulation steps the board and the arena together and takes live inputs', 
     assert.equal(robot.arena!.path[0].atMs, 0);
     assert.ok(robot.arena!.path.length >= 10 && robot.arena!.path.every((p, i) => i === 0 || p.atMs! > robot.arena!.path[i - 1].atMs!), 'path poses are timestamped in order');
 });
+
+test('Simulation.serialLines keeps a line that is still being printed', async () => {
+    const { Simulation } = await import('../src/index.js');
+    const sim = new Simulation(benchHex, benchDiagram);
+    sim.advance(300);
+    assert.deepEqual(sim.serialLines, ['ready'], 'a finished line, and no empty tail');
+    // The board keeps the line being printed as its last entry; a live view must see it.
+    sim.board.serialLines.push('pot=');
+    assert.deepEqual(sim.serialLines, ['ready', 'pot=']);
+});

@@ -55,9 +55,11 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
             return;
         }
         let last = performance.now();
+        let current = timeMs;
         let frame = requestAnimationFrame(function tick(now) {
-            const next = Math.min(runDuration, timeMs + (now - last));
+            const next = advanceReplay(current, now - last, runDuration);
             last = now;
+            current = next;
             setTimeMs(next);
             if (next >= runDuration) {
                 setPlaying(false);
@@ -235,6 +237,11 @@ function ArenaReadout({ timeMs, collisions, score, reachedGoal }: { timeMs: numb
             {score !== undefined && <span>score {score}</span>}
         </div>
     );
+}
+
+/** The replay position after `elapsedMs` more wall-clock time, clamped to the run. */
+export function advanceReplay(currentMs: number, elapsedMs: number, durationMs: number): number {
+    return Math.min(durationMs, Math.max(0, currentMs + Math.max(0, elapsedMs)));
 }
 
 export function hardwareTabApplies(files: ReadonlyMap<string, string>): boolean {
