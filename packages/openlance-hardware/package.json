@@ -18,8 +18,8 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "robolance-hardware-sim": "0.1.0",
-    "@wokwi/elements": "^1.9.2"
+    "@wokwi/elements": "^1.9.2",
+    "robolance-hardware-sim": "0.1.0"
   },
   "peerDependencies": {
     "inversify": "^6.0.0",
@@ -43,7 +43,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/shaikh-amer/robolance.git",
+    "url": "git+https://github.com/shaikh-amer/robolance.git",
     "directory": "packages/openlance-hardware"
   },
   "publishConfig": {
