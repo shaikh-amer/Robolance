@@ -154,6 +154,6 @@ test('Simulation.serialLines keeps a line that is still being printed', async ()
     sim.advance(300);
     assert.deepEqual(sim.serialLines, ['ready'], 'a finished line, and no empty tail');
     // The board keeps the line being printed as its last entry; a live view must see it.
-    sim.board.serialLines.push('pot=');
+    sim.board.serialLines[sim.board.serialLines.length - 1] = 'pot=';
     assert.deepEqual(sim.serialLines, ['ready', 'pot=']);
 });
