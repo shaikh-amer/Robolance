@@ -13,6 +13,7 @@ import { ArenaView } from './ArenaView';
 import { CircuitView, type CircuitInputs, type PartStates } from './CircuitView';
 import { poseIndexAt, readHardwareProject, statesAt, type HardwareProject, type RunEntry } from './hardware-project';
 import { RunsView } from './RunsView';
+import { ZoomPane } from './ZoomPane';
 import { useLiveSimulation } from './use-live-simulation';
 import type { PreviewTabContext } from './preview-tab';
 
@@ -172,14 +173,16 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
                 {view === 'circuit' && <CircuitView diagram={diagram} states={states} inputs={inputs} />}
                 {view === 'arena' && arenaSpec && (
                     <div className="robolance-arena-wrap">
-                        <ArenaView
-                            spec={arenaSpec}
-                            path={liveMode && live.live ? live.live.path : replayPath}
-                            events={liveMode ? undefined : run?.trace.arena?.events.filter(e => e.atMs <= timeMs)}
-                            distanceAheadCm={liveMode ? live.live?.distanceAheadCm : undefined}
-                            robotRadius={robotRadius}
-                            reachedGoal={liveMode ? live.live?.reachedGoal : (run?.trace.arena?.reachedGoalAtMs ?? Infinity) <= timeMs}
-                        />
+                        <ZoomPane className="robolance-arena-pane" contentWidth={arenaSpec.width + 8} contentHeight={arenaSpec.height + 8} mode="contain" maxScale={12} label="Arena">
+                            <ArenaView
+                                spec={arenaSpec}
+                                path={liveMode && live.live ? live.live.path : replayPath}
+                                events={liveMode ? undefined : run?.trace.arena?.events.filter(e => e.atMs <= timeMs)}
+                                distanceAheadCm={liveMode ? live.live?.distanceAheadCm : undefined}
+                                robotRadius={robotRadius}
+                                reachedGoal={liveMode ? live.live?.reachedGoal : (run?.trace.arena?.reachedGoalAtMs ?? Infinity) <= timeMs}
+                            />
+                        </ZoomPane>
                         <ArenaReadout
                             timeMs={liveMode ? live.live?.timeMs ?? 0 : timeMs}
                             collisions={liveMode ? live.live?.collisions ?? 0 : (run?.trace.arena?.events.filter(e => e.kind === 'collision' && e.atMs <= timeMs).length ?? 0)}

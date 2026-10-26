@@ -6,10 +6,13 @@
  * in a column on the right, wires drawn between the pins the diagram names.
  * Part graphics are Wokwi's web components (registered by the frontend
  * module); motors are drawn here because Wokwi has no DC motor element.
+ * The stage sits in a ZoomPane: it fits the panel's width at first and the
+ * user can zoom and pan it from there.
  */
 
 import * as React from 'react';
 import type { Diagram, PartSpec } from 'robolance-hardware-sim';
+import { ZoomPane } from './ZoomPane';
 
 export type PartStates = Record<string, Record<string, unknown>>;
 
@@ -44,6 +47,7 @@ const BOARD_WIDTH = 274;
 const BOARD_HEIGHT = 202;
 const PARTS_LEFT = BOARD_LEFT + BOARD_WIDTH + 90;
 const PART_GAP = 18;
+const STAGE_WIDTH = PARTS_LEFT + 220;
 
 const WIRE_COLORS: Record<string, string> = {
     GND: '#222',
@@ -81,7 +85,6 @@ export function CircuitView({ diagram, states, inputs }: CircuitViewProps): Reac
     const boardRef = React.useRef<HTMLElement | null>(null);
     const partRefs = React.useRef(new Map<string, HTMLElement>());
     const [wires, setWires] = React.useState<Wire[]>([]);
-    const [scale, setScale] = React.useState(1);
     const [stageHeight, setStageHeight] = React.useState(BOARD_TOP + BOARD_HEIGHT + 24);
 
     // Wire endpoints come from the elements' own pin tables once they are laid out.
@@ -128,22 +131,6 @@ export function CircuitView({ diagram, states, inputs }: CircuitViewProps): Reac
         return () => window.clearTimeout(timer);
     }, [diagram]);
 
-    // Fit the stage to the panel width.
-    React.useLayoutEffect(() => {
-        const stage = stageRef.current?.parentElement;
-        if (!stage || typeof ResizeObserver === 'undefined') {
-            return;
-        }
-        const fit = (): void => {
-            const width = PARTS_LEFT + 220;
-            setScale(Math.min(1, Math.max(0.4, (stage.clientWidth - 8) / width)));
-        };
-        fit();
-        const observer = new ResizeObserver(fit);
-        observer.observe(stage);
-        return () => observer.disconnect();
-    }, []);
-
     const registerPart = React.useCallback((id: string, el: HTMLElement | null) => {
         if (el) {
             partRefs.current.set(id, el);
@@ -161,13 +148,9 @@ export function CircuitView({ diagram, states, inputs }: CircuitViewProps): Reac
     });
 
     return (
-        <div className="robolance-circuit">
-            <div
-                ref={stageRef}
-                className="robolance-circuit-stage"
-                style={{ transform: `scale(${scale})`, height: stageHeight, width: PARTS_LEFT + 220 }}
-            >
-                <svg className="robolance-circuit-wires" width={PARTS_LEFT + 220} height={stageHeight} aria-hidden="true">
+        <ZoomPane className="robolance-circuit" contentWidth={STAGE_WIDTH} contentHeight={stageHeight} mode="width" maxScale={1} padding={4} label="Circuit">
+            <div ref={stageRef} className="robolance-circuit-stage" style={{ height: stageHeight, width: STAGE_WIDTH }}>
+                <svg className="robolance-circuit-wires" width={STAGE_WIDTH} height={stageHeight} aria-hidden="true">
                     {wires.map((w, i) => {
                         const dx = Math.abs(w.to.x - w.from.x) / 2;
                         return (
@@ -199,7 +182,7 @@ export function CircuitView({ diagram, states, inputs }: CircuitViewProps): Reac
                     />
                 ))}
             </div>
-        </div>
+        </ZoomPane>
     );
 }
 
