@@ -70,7 +70,7 @@ export function useLiveSimulation(hex: string | undefined, diagram: Diagram | un
     }, [stop]);
 
     const start = React.useCallback(() => {
-        if (!hex || !diagram) {
+        if (!hex || !diagram || frameRef.current !== undefined) {
             return;
         }
         if (!simRef.current) {

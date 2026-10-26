@@ -141,6 +141,14 @@ export function CircuitView({ diagram, states, inputs }: CircuitViewProps): Reac
         return () => observer.disconnect();
     }, []);
 
+    const registerPart = React.useCallback((id: string, el: HTMLElement | null) => {
+        if (el) {
+            partRefs.current.set(id, el);
+        } else {
+            partRefs.current.delete(id);
+        }
+    }, []);
+
     let top = BOARD_TOP;
     const placed = diagram.parts.map(part => {
         const height = partHeight(part);
@@ -183,13 +191,7 @@ export function CircuitView({ diagram, states, inputs }: CircuitViewProps): Reac
                         state={states[part.id] ?? {}}
                         inputs={inputs}
                         style={{ left: PARTS_LEFT, top: partTop }}
-                        register={el => {
-                            if (el) {
-                                partRefs.current.set(part.id, el);
-                            } else {
-                                partRefs.current.delete(part.id);
-                            }
-                        }}
+                        register={registerPart}
                     />
                 ))}
             </div>
@@ -218,15 +220,15 @@ interface PartNodeProps {
     state: Record<string, unknown>;
     inputs?: CircuitInputs;
     style: React.CSSProperties;
-    register: (el: HTMLElement | null) => void;
+    register: (id: string, el: HTMLElement | null) => void;
 }
 
 function PartNode({ part, state, inputs, style, register }: PartNodeProps): React.ReactElement {
     const ref = React.useRef<HTMLElement | null>(null);
     const setRef = React.useCallback((el: HTMLElement | null) => {
         ref.current = el;
-        register(el);
-    }, [register]);
+        register(part.id, el);
+    }, [register, part.id]);
 
     // Wokwi elements take their state as properties, not attributes.
     React.useLayoutEffect(() => {
