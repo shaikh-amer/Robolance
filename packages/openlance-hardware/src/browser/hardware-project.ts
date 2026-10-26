@@ -8,7 +8,7 @@
  * file change and nothing else has to be kept in sync.
  */
 
-import { validateDiagram, type Diagram, type RunTrace, type ScriptedEvent } from '@robolance/hardware-sim';
+import { validateDiagram, type Diagram, type RunTrace, type ScriptedEvent } from 'robolance-hardware-sim';
 
 export interface BuildInfo {
     at?: string;

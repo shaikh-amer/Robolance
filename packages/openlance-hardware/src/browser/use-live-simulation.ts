@@ -9,7 +9,7 @@
  */
 
 import * as React from 'react';
-import { Simulation, type Diagram, type RobotPose, type SimulationInput } from '@robolance/hardware-sim';
+import { Simulation, type Diagram, type RobotPose, type SimulationInput } from 'robolance-hardware-sim';
 import type { PartStates } from './CircuitView';
 
 export interface LiveState {

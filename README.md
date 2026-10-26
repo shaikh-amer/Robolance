@@ -13,9 +13,9 @@ robolance is an [OpenLance](https://openlance.ai) feature built in the open for 
 
 | Package | What it is |
 |---|---|
-| `packages/hardware-sim` | `@robolance/hardware-sim`: an Arduino Uno (avr8js) with functional part models, a `diagram.json` circuit format, a deterministic robot arena, and `runScenario()` which runs firmware with scripted inputs and returns a trace. Runs in Node and the browser. |
-| `packages/hardware-tools` | `@robolance/hardware-tools`: the agent's tools. `buildSketch()` compiles a sketch with arduino-cli or plain avr-gcc + ArduinoCore-avr. `createHardwareServer()` serves `hardware_parts`, `hardware_compile`, `hardware_run` and `hardware_arena` over MCP; `robolance-tools` is the stdio entry point. |
-| `packages/openlance-hardware` | `@robolance/openlance-hardware`: the OpenLance (Theia) extension. It adds a Hardware tab to the preview with a Circuit view (Wokwi part graphics wired to the Uno), an Arena view (walls, path, robot, sensor ray) and a Runs view (score curve across runs, serial output, notes). A scrubber replays the agent's last recorded run; "Go live" runs the built firmware in the browser so you can press the buttons and turn the knobs yourself. |
+| `packages/hardware-sim` | `robolance-hardware-sim`: an Arduino Uno (avr8js) with functional part models, a `diagram.json` circuit format, a deterministic robot arena, and `runScenario()` which runs firmware with scripted inputs and returns a trace. Runs in Node and the browser. |
+| `packages/hardware-tools` | `robolance-hardware-tools`: the agent's tools. `buildSketch()` compiles a sketch with arduino-cli or plain avr-gcc + ArduinoCore-avr. `createHardwareServer()` serves `hardware_parts`, `hardware_compile`, `hardware_run` and `hardware_arena` over MCP; `robolance-tools` is the stdio entry point. |
+| `packages/openlance-hardware` | `robolance-openlance-hardware`: the OpenLance (Theia) extension. It adds a Hardware tab to the preview with a Circuit view (Wokwi part graphics wired to the Uno), an Arena view (walls, path, robot, sensor ray) and a Runs view (score curve across runs, serial output, notes). A scrubber replays the agent's last recorded run; "Go live" runs the built firmware in the browser so you can press the buttons and turn the knobs yourself. |
 | `demo/` | (next) A standalone page for the demo video. |
 
 ## The loop

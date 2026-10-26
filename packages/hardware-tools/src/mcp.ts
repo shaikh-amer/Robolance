@@ -22,7 +22,7 @@ import {
     type Diagram,
     type RunTrace,
     type ScriptedEvent,
-} from '@robolance/hardware-sim';
+} from 'robolance-hardware-sim';
 import { buildSketch, type BuildOptions, type BuildResult } from './avrbuild.js';
 
 const pinSchema = z.union([z.number().int().min(0).max(13), z.enum(['A0', 'A1', 'A2', 'A3', 'A4', 'A5'])]);
