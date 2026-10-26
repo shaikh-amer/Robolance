@@ -129,3 +129,21 @@ test('the corner maze is bounded by its outer walls', () => {
     assert.equal(maze.width, 200);
     assert.ok(maze.goal.x < maze.width && maze.goal.y < maze.height);
 });
+
+test('Simulation steps the board and the arena together and takes live inputs', async () => {
+    const { Simulation } = await import('../src/index.js');
+    const sim = new Simulation(benchHex, benchDiagram);
+    sim.advance(300);
+    assert.equal(sim.timeMs, 300);
+    assert.equal(sim.serialLines[0], 'ready');
+    assert.equal(sim.apply({ action: 'press', part: 'btn' }), undefined);
+    sim.advance(600);
+    assert.ok(sim.serialLines.includes('pressed'));
+    assert.equal(sim.snapshot().arm.angle, 150);
+    assert.equal(sim.apply({ action: 'set', part: 'nothing', value: 1 }), 'unknown part nothing');
+    assert.equal(sim.apply({ action: 'set', part: 'btn', value: 1 }), 'set does not apply to button btn');
+    const robot = new Simulation(followerHex, robotDiagram);
+    robot.advance(1000);
+    assert.equal(robot.arena!.path[0].atMs, 0);
+    assert.ok(robot.arena!.path.length >= 10 && robot.arena!.path.every((p, i) => i === 0 || p.atMs! > robot.arena!.path[i - 1].atMs!), 'path poses are timestamped in order');
+});

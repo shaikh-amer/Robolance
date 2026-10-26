@@ -1,0 +1,43 @@
+{
+  "name": "@robolance/openlance-hardware",
+  "version": "0.1.0",
+  "description": "OpenLance preview tab for hardware projects: the circuit, the robot arena and the history of runs.",
+  "license": "Apache-2.0",
+  "keywords": [
+    "theia-extension"
+  ],
+  "main": "lib/browser/index.js",
+  "types": "lib/browser/index.d.ts",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.test.json && node --test '.build/test/*.test.js'"
+  },
+  "dependencies": {
+    "@robolance/hardware-sim": "0.1.0",
+    "@wokwi/elements": "^1.9.2"
+  },
+  "peerDependencies": {
+    "inversify": "^6.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "inversify": "^6.2.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "reflect-metadata": "^0.2.2",
+    "typescript": "^5.6.0"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/frontend-module"
+    }
+  ]
+}
