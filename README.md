@@ -48,6 +48,8 @@ node scripts/bench-smoke.mjs  # compile + run the bench circuit
 node scripts/arena-smoke.mjs  # compile + drive the robot
 ```
 
+Every successful compile writes `.robolance/firmware.hex` and `.robolance/build.json` into the working directory, and every run writes `.robolance/runs/<timestamp>.json` (the last 30 are kept). The IDE's Hardware tab reads those files. Set `ROBOLANCE_RECORD_DIR` to write elsewhere, or to an empty string to record nothing.
+
 To use the tools from any MCP client, point it at:
 
 ```json

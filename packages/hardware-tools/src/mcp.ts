@@ -10,6 +10,9 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createHash } from 'node:crypto';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { z } from 'zod';
 import {
     PART_TYPES,
@@ -49,7 +52,29 @@ export interface ServerOptions extends BuildOptions {
     maxDurationMs?: number;
     /** Replaces the compiler (tests, or a remote build service). */
     compile?: (sketch: string) => Promise<BuildResult>;
+    /**
+     * Where compile and run results are written for the IDE to show:
+     * `firmware.hex`, `build.json` and `runs/<timestamp>.json`. Default
+     * ROBOLANCE_RECORD_DIR, else `.robolance` under the working directory;
+     * an empty string records nothing.
+     */
+    recordDir?: string;
+    /** How many run records to keep (oldest are removed). */
+    keepRuns?: number;
 }
+
+/** A run as recorded for the IDE: the trace plus what produced it. */
+export interface RunRecord {
+    version: 1;
+    at: string;
+    sketchSha: string;
+    diagram: Diagram;
+    durationMs: number;
+    events: ScriptedEvent[];
+    trace: RunTrace;
+}
+
+export const DEFAULT_RECORD_DIR = '.robolance';
 
 /** Builds the MCP server; the caller connects it to a transport. */
 export function createHardwareServer(options: ServerOptions = {}): McpServer {
@@ -57,6 +82,7 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
     const maxDurationMs = options.maxDurationMs ?? 60_000;
     const hexCache = new Map<string, string>();
     const compile = options.compile ?? ((sketch: string) => buildSketch(sketch, options));
+    const recorder = new Recorder(options.recordDir ?? process.env.ROBOLANCE_RECORD_DIR ?? join(process.cwd(), DEFAULT_RECORD_DIR), options.keepRuns ?? 30);
 
     server.registerTool('hardware_parts', {
         description: 'The parts and the diagram.json format the simulator understands, with wiring conventions the sketch must follow.',
@@ -70,6 +96,7 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
         const result = await compile(sketch);
         if (result.ok && result.hex) {
             hexCache.set(sketch, result.hex);
+            await recorder.build(sketch, result);
         }
         return {
             content: [{ type: 'text', text: JSON.stringify({ ok: result.ok, backend: result.backend, size: result.size ?? null, output: result.output }, null, 2) }],
@@ -111,6 +138,7 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
             hex = result.hex;
             buildOutput = result.output;
             hexCache.set(sketch, hex);
+            await recorder.build(sketch, result);
         }
         let trace: RunTrace;
         try {
@@ -118,7 +146,17 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
         } catch (err) {
             return { content: [{ type: 'text', text: `run failed: ${err instanceof Error ? err.message : err}` }], isError: true };
         }
-        const text = JSON.stringify(detail === 'full' ? trace : summarize(trace), null, 1);
+        const recorded = await recorder.run({
+            version: 1,
+            at: new Date().toISOString(),
+            sketchSha: sha(sketch),
+            diagram: diagram as unknown as Diagram,
+            durationMs,
+            events: (events ?? []) as ScriptedEvent[],
+            trace,
+        });
+        const summary = detail === 'full' ? trace : summarize(trace);
+        const text = JSON.stringify(recorded ? { ...summary, recordedAs: recorded } : summary, null, 1);
         return { content: [{ type: 'text', text: buildOutput ? `${buildOutput}\n${text}` : text }] };
     });
 
@@ -180,4 +218,63 @@ function compactParts(parts: Record<string, Record<string, unknown>>): Record<st
         }
     }
     return out;
+}
+
+function sha(text: string): string {
+    return createHash('sha256').update(text).digest('hex').slice(0, 16);
+}
+
+/**
+ * Writes what the tools produced into the project so the IDE's Hardware
+ * tab can show the firmware running and the history of runs. Failures to
+ * write never fail a tool call.
+ */
+export class Recorder {
+    private seq = 0;
+
+    constructor(readonly dir: string, readonly keepRuns = 30) {}
+
+    get enabled(): boolean {
+        return this.dir !== '';
+    }
+
+    async build(sketch: string, result: BuildResult): Promise<void> {
+        if (!this.enabled || !result.hex) {
+            return;
+        }
+        try {
+            await mkdir(this.dir, { recursive: true });
+            await writeFile(join(this.dir, 'firmware.hex'), result.hex);
+            await writeFile(join(this.dir, 'build.json'), JSON.stringify({
+                version: 1,
+                at: new Date().toISOString(),
+                sketchSha: sha(sketch),
+                backend: result.backend,
+                size: result.size ?? null,
+            }, null, 2));
+        } catch {
+            // The workspace is not writable here; the tool result still has everything.
+        }
+    }
+
+    /** Returns the path the run was written to, relative to the record dir. */
+    async run(record: RunRecord): Promise<string | undefined> {
+        if (!this.enabled) {
+            return undefined;
+        }
+        try {
+            const runs = join(this.dir, 'runs');
+            await mkdir(runs, { recursive: true });
+            this.seq = (this.seq + 1) % 1000;
+            const name = `${Date.now().toString().padStart(13, '0')}-${this.seq.toString().padStart(3, '0')}.json`;
+            await writeFile(join(runs, name), JSON.stringify(record));
+            const existing = (await readdir(runs)).filter(f => /^\d+-\d+\.json$/.test(f)).sort();
+            for (const old of existing.slice(0, Math.max(0, existing.length - this.keepRuns))) {
+                await rm(join(runs, old), { force: true });
+            }
+            return `runs/${name}`;
+        } catch {
+            return undefined;
+        }
+    }
 }

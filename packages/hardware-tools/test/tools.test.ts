@@ -47,7 +47,7 @@ const fakeCompile = async (sketch: string): Promise<BuildResult> => sketch.inclu
     : { ok: true, hex: benchHex, output: '', size: { flashBytes: 4358, ramBytes: 200 }, backend: 'avr-gcc' };
 
 async function connect() {
-    const server = createHardwareServer({ compile: fakeCompile, maxDurationMs: 10_000 });
+    const server = createHardwareServer({ compile: fakeCompile, maxDurationMs: 10_000, recordDir: '' });
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
     await server.connect(serverSide);
     const client = new Client({ name: 'test', version: '0.0.0' });
@@ -146,4 +146,37 @@ test('summarize keeps a trace short enough for a model turn', () => {
     assert.equal((out.serial as string[]).length, 61);
     assert.ok((out.samples as unknown[]).length <= 40);
     assert.deepEqual((out.samples as Record<string, unknown>[])[0], { atMs: 0, led: 'on', arm: '90°' });
+});
+
+test('runs and builds are recorded in the project for the IDE', async () => {
+    const { mkdtemp, readFile, readdir, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const dir = await mkdtemp(join(tmpdir(), 'robolance-record-'));
+    try {
+        const server = createHardwareServer({ compile: fakeCompile, recordDir: dir, keepRuns: 2 });
+        const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+        await server.connect(serverSide);
+        const client = new Client({ name: 'test', version: '0.0.0' });
+        await client.connect(clientSide);
+        try {
+            await client.callTool({ name: 'hardware_compile', arguments: { sketch: benchSketch } });
+            assert.equal(await readFile(join(dir, 'firmware.hex'), 'utf8'), benchHex);
+            assert.equal(JSON.parse(await readFile(join(dir, 'build.json'), 'utf8')).size.flashBytes, 4358);
+            for (let i = 0; i < 3; i++) {
+                const result = await client.callTool({ name: 'hardware_run', arguments: { sketch: benchSketch, diagram: { parts: [{ type: 'led', id: 'led13', pin: 13 }] }, durationMs: 100 } });
+                assert.match(JSON.parse(text(result)).recordedAs, /^runs\/\d+-\d+\.json$/);
+            }
+            const runs = (await readdir(join(dir, 'runs'))).sort();
+            assert.equal(runs.length, 2, 'only keepRuns records are kept');
+            const record = JSON.parse(await readFile(join(dir, 'runs', runs[1]), 'utf8'));
+            assert.equal(record.version, 1);
+            assert.equal(record.durationMs, 100);
+            assert.equal(record.trace.ranMs, 100);
+            assert.deepEqual(record.diagram.parts[0], { type: 'led', id: 'led13', pin: 13 });
+        } finally {
+            await Promise.all([client.close(), server.close()]);
+        }
+    } finally {
+        await rm(dir, { recursive: true, force: true });
+    }
 });
