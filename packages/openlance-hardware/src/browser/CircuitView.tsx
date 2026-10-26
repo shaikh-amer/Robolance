@@ -184,7 +184,8 @@ export function CircuitView({ diagram, states, inputs }: CircuitViewProps): Reac
                 </svg>
                 {React.createElement('wokwi-arduino-uno', {
                     ref: (el: HTMLElement | null) => { boardRef.current = el; },
-                    className: 'robolance-circuit-board',
+                    // React 18 passes `class`, not `className`, through to a custom element.
+                    class: 'robolance-circuit-board',
                     style: { left: BOARD_LEFT, top: BOARD_TOP },
                 })}
                 {placed.map(({ part, top: partTop }) => (
@@ -215,14 +216,15 @@ function pinTable(el: HTMLElement): ElementPin[] {
     return Array.isArray(info) ? info : [];
 }
 
+/** Room for the graphic plus its label, in stage px. */
 function partHeight(part: PartSpec): number {
     switch (part.type) {
-        case 'led': return 50;
-        case 'button': return 46;
-        case 'servo': return 120;
-        case 'ultrasonic': return 95;
-        case 'potentiometer': return 76;
-        case 'motor': return 56;
+        case 'led': return 78;
+        case 'button': return 64;
+        case 'servo': return 138;
+        case 'ultrasonic': return 112;
+        case 'potentiometer': return 94;
+        case 'motor': return 74;
     }
 }
 
@@ -256,13 +258,11 @@ function PartNode({ part, state, inputs, style, register }: PartNodeProps): Reac
                 el.value = on;
                 el.brightness = on ? Math.max(0.15, brightness) : 0;
                 el.color = part.color ?? 'red';
-                el.label = part.id;
                 break;
             }
             case 'button':
                 el.pressed = state.pressed === true;
                 el.color = 'green';
-                el.label = part.id;
                 break;
             case 'servo':
                 el.angle = typeof state.angle === 'number' ? state.angle : 90;
@@ -322,7 +322,7 @@ function PartNode({ part, state, inputs, style, register }: PartNodeProps): Reac
     }
     return (
         <div ref={setWrapper} className="robolance-part" style={style}>
-            {React.createElement(tag, { ref: setRef, className: 'robolance-wokwi robolance-graphic', title: part.id })}
+            {React.createElement(tag, { ref: setRef, class: 'robolance-wokwi robolance-graphic', title: part.id })}
             <span className="robolance-part-label">{part.id} · {label}</span>
             {part.type === 'ultrasonic' && inputs && (
                 <input
