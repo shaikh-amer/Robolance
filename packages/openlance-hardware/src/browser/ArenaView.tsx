@@ -27,6 +27,8 @@ export function ArenaView({ spec, path, events = [], distanceAheadCm, robotRadiu
     return (
         <svg
             className="robolance-arena"
+            width={spec.width + 8}
+            height={spec.height + 8}
             viewBox={`-4 -4 ${spec.width + 8} ${spec.height + 8}`}
             role="img"
             aria-label={`Arena ${spec.width} by ${spec.height} centimetres`}

@@ -100,9 +100,61 @@
 
 /* Circuit */
 
+/* Zoom pane: the content moves inside, the page never does. */
+
+.robolance-zoom-pane {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    touch-action: none;
+    overscroll-behavior: contain;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
+}
+
+.robolance-zoom-pane:active {
+    cursor: grabbing;
+}
+
+.robolance-zoom-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
+.robolance-zoom-controls {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 8px;
+    background: var(--openlance-layer-2, rgba(127, 127, 127, 0.18));
+    border: 1px solid var(--openlance-border, rgba(127, 127, 127, 0.25));
+    backdrop-filter: blur(6px);
+}
+
+.robolance-panel .robolance-zoom-controls button {
+    min-width: 28px;
+    height: 26px;
+    padding: 0 6px;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.robolance-panel .robolance-zoom-controls .robolance-zoom-level {
+    font-size: 11px;
+    min-width: 44px;
+    color: var(--openlance-muted, #9a9a9a);
+    font-variant-numeric: tabular-nums;
+}
+
 .robolance-circuit {
-    padding: 4px;
-    overflow: auto;
     height: 100%;
 }
 
@@ -155,15 +207,16 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 8px;
     gap: 6px;
 }
 
-.robolance-arena {
+.robolance-arena-pane {
     flex: 1 1 0;
     min-height: 0;
-    width: 100%;
-    height: auto;
+}
+
+.robolance-arena {
+    display: block;
 }
 
 .robolance-arena-floor {
@@ -230,6 +283,7 @@
 .robolance-arena-readout {
     display: flex;
     gap: 14px;
+    padding: 0 8px 6px;
     color: var(--openlance-muted, #9a9a9a);
     flex-shrink: 0;
 }

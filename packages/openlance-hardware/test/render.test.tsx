@@ -7,7 +7,8 @@ import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { cornerMaze } from 'robolance-hardware-sim';
 import { ArenaView } from '../src/browser/ArenaView';
-import { describeState, stageOrigin } from '../src/browser/CircuitView';
+import { CircuitView, describeState, stageOrigin } from '../src/browser/CircuitView';
+import { ZoomPane } from '../src/browser/ZoomPane';
 import { HardwarePanelBody, advanceReplay } from '../src/browser/HardwarePanel';
 import { hardwarePreviewTab } from '../src/browser/hardware-preview-tab';
 import { readHardwareProject } from '../src/browser/hardware-project';
@@ -115,4 +116,30 @@ test('replay time accumulates across frames and stops at the end of the run', ()
     assert.equal(t, 160);
     assert.equal(advanceReplay(1990, 50, 2000), 2000);
     assert.equal(advanceReplay(100, -5, 2000), 100, 'a clock going backwards never rewinds the replay');
+});
+
+test('ZoomPane wraps its content in a transformed layer with zoom controls', () => {
+    const html = renderToStaticMarkup(<ZoomPane contentWidth={300} contentHeight={200} label="Circuit"><span id="inner">x</span></ZoomPane>);
+    assert.match(html, /robolance-zoom-pane/);
+    assert.match(html, /aria-label="Circuit"/);
+    assert.match(html, /robolance-zoom-content[^>]*transform:translate\(/);
+    assert.match(html, /aria-label="Zoom in"/);
+    assert.match(html, /aria-label="Zoom out"/);
+    assert.match(html, /aria-label="Fit to the panel"/);
+    assert.match(html, /id="inner"/);
+});
+
+test('CircuitView lays the stage out at its natural size inside a zoom pane', () => {
+    const html = renderToStaticMarkup(<CircuitView diagram={robotDiagram as never} states={{}} />);
+    assert.match(html, /robolance-zoom-pane robolance-circuit/);
+    assert.match(html, /robolance-circuit-stage/);
+    assert.doesNotMatch(html, /robolance-circuit-stage[^>]*scale\(/);
+    assert.match(html, /wokwi-arduino-uno/);
+    assert.match(html, /wokwi-hc-sr04/);
+});
+
+test('the arena is drawn at viewBox size so the zoom pane can fit it', () => {
+    const html = renderToStaticMarkup(<ArenaView spec={cornerMaze()} path={[]} />);
+    const spec = cornerMaze();
+    assert.match(html, new RegExp(`width="${spec.width + 8}" height="${spec.height + 8}"`));
 });

@@ -7,4 +7,6 @@ export * from './hardware-preview-tab';
 export { HardwarePanel, hardwareTabApplies } from './HardwarePanel';
 export { ArenaView } from './ArenaView';
 export { CircuitView, describeState } from './CircuitView';
+export { ZoomPane } from './ZoomPane';
+export * from './zoom-pane';
 export { RunsView, ScoreChart } from './RunsView';
