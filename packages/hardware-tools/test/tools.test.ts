@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { buildSketch, createHardwareServer, summarize, withPrototypes, type BuildResult } from '../src/index.js';
+import { Recorder } from '../src/mcp.js';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'hardware-sim', 'fixtures');
 const benchHex = readFileSync(join(fixtures, 'bench.hex'), 'utf8');
@@ -176,6 +177,22 @@ test('runs and builds are recorded in the project for the IDE', async () => {
         } finally {
             await Promise.all([client.close(), server.close()]);
         }
+    } finally {
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('concurrent builds never leave firmware.hex and build.json from different builds', async () => {
+    const { mkdtemp, readFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const dir = await mkdtemp(join(tmpdir(), 'robolance-record-'));
+    try {
+        const recorder = new Recorder(dir);
+        const a: BuildResult = { ok: true, hex: ':A', output: '', size: { flashBytes: 1, ramBytes: 1 }, backend: 'avr-gcc' };
+        const b: BuildResult = { ok: true, hex: ':B', output: '', size: { flashBytes: 2, ramBytes: 2 }, backend: 'avr-gcc' };
+        await Promise.all([recorder.build('sketch a', a), recorder.build('sketch b', b), recorder.run({ version: 1, at: '', sketchSha: 'x', diagram: { parts: [] }, durationMs: 1, events: [], trace: { durationMs: 1, ranMs: 1, serial: [], samples: [], final: {}, notes: [] } })]);
+        assert.equal(await readFile(join(dir, 'firmware.hex'), 'utf8'), ':B', 'the last build wins');
+        assert.equal(JSON.parse(await readFile(join(dir, 'build.json'), 'utf8')).size.flashBytes, 2, 'and build.json describes that same build');
     } finally {
         await rm(dir, { recursive: true, force: true });
     }
