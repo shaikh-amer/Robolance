@@ -8,10 +8,9 @@
  * replays it.
  */
 
-import { Board } from './board.js';
-import { Button, Potentiometer, type Component } from './components.js';
-import { buildCircuit, type Diagram } from './diagram.js';
+import type { Diagram } from './diagram.js';
 import type { ArenaEvent, RobotPose } from './arena.js';
+import { Simulation } from './simulation.js';
 
 export type ScriptedEvent =
     | { atMs: number; action: 'press' | 'release'; part: string }
@@ -61,9 +60,8 @@ export interface RunTrace {
 
 /** Runs `hex` on the circuit described by `diagram`. */
 export function runScenario(hex: string, diagram: Diagram, options: RunOptions): RunTrace {
-    const board = new Board(hex);
-    const circuit = buildCircuit(diagram, board);
     const tickMs = options.tickMs ?? 5;
+    const sim = new Simulation(hex, diagram, tickMs);
     const sampleEveryMs = options.sampleEveryMs ?? 250;
     const events = [...(options.events ?? [])].sort((a, b) => a.atMs - b.atMs);
     const expanded: ScriptedEvent[] = [];
@@ -86,26 +84,21 @@ export function runScenario(hex: string, diagram: Diagram, options: RunOptions):
     let nextEvent = 0;
     let timedOut = false;
 
-    const snapshot = (): Record<string, Record<string, unknown>> => {
-        const parts: Record<string, Record<string, unknown>> = {};
-        for (const [id, part] of circuit.parts) {
-            parts[id] = part.state();
-        }
-        return parts;
-    };
-
     while (timeMs < options.durationMs) {
         while (nextEvent < expanded.length && expanded[nextEvent].atMs <= timeMs) {
-            apply(expanded[nextEvent], circuit.parts, board, notes);
+            const event = expanded[nextEvent];
+            const problem = sim.apply(event as Exclude<ScriptedEvent, { action: 'tap' }>);
+            if (problem) {
+                notes.push(`scripted event at ${event.atMs} ms: ${problem}`);
+            }
             nextEvent += 1;
         }
         if (timeMs >= nextSampleMs) {
-            samples.push({ atMs: timeMs, parts: snapshot() });
+            samples.push({ atMs: timeMs, parts: sim.snapshot() });
             nextSampleMs += sampleEveryMs;
         }
-        board.step(tickMs * 1000);
-        timeMs += tickMs;
-        circuit.arena?.tick(tickMs);
+        sim.advance(tickMs);
+        timeMs = sim.timeMs;
         options.onTick?.(timeMs);
         if (Date.now() - started > maxRealMs) {
             timedOut = true;
@@ -115,12 +108,12 @@ export function runScenario(hex: string, diagram: Diagram, options: RunOptions):
     if (timedOut) {
         notes.push(`the simulation stopped at ${timeMs} ms of ${options.durationMs} ms: the wall-clock limit was reached`);
     }
-    const final = snapshot();
-    const serial = board.serialLines.filter((line, i, all) => line !== '' || i < all.length - 1);
+    const final = sim.snapshot();
+    const serial = sim.serialLines;
     if (serial.length === 0) {
         notes.push('nothing was printed on Serial');
     }
-    for (const [id, part] of circuit.parts) {
+    for (const [id, part] of sim.parts) {
         if (part.kind === 'led' && !samples.some(s => s.parts[id]?.on === true) && final[id]?.on !== true) {
             notes.push(`${id} (led on pin ${final[id]?.pin}) never turned on`);
         }
@@ -129,7 +122,7 @@ export function runScenario(hex: string, diagram: Diagram, options: RunOptions):
         }
     }
     const trace: RunTrace = { durationMs: options.durationMs, ranMs: timeMs, serial, samples, final, notes };
-    const arena = circuit.arena;
+    const arena = sim.arena;
     if (arena) {
         const reached = arena.reachedGoalAtMs !== undefined;
         const startDistance = Math.hypot(arena.spec.start.x - arena.spec.goal.x, arena.spec.start.y - arena.spec.goal.y);
@@ -154,33 +147,4 @@ export function runScenario(hex: string, diagram: Diagram, options: RunOptions):
         }
     }
     return trace;
-}
-
-function apply(event: ScriptedEvent, parts: Map<string, Component>, board: Board, notes: string[]): void {
-    if (event.action === 'serial') {
-        board.serialIn(event.text);
-        return;
-    }
-    const part = parts.get(event.part);
-    if (!part) {
-        notes.push(`scripted event at ${event.atMs} ms names an unknown part ${event.part}`);
-        return;
-    }
-    if ((event.action === 'press' || event.action === 'release') && part instanceof Button) {
-        if (event.action === 'press') {
-            part.press();
-        } else {
-            part.release();
-        }
-        return;
-    }
-    if (event.action === 'set' && part instanceof Potentiometer) {
-        part.set(event.value);
-        return;
-    }
-    if (event.action === 'set' && 'distanceCm' in part) {
-        (part as { distanceCm: number }).distanceCm = event.value;
-        return;
-    }
-    notes.push(`scripted event at ${event.atMs} ms: ${event.action} does not apply to ${part.kind} ${event.part}`);
 }

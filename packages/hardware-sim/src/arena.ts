@@ -40,6 +40,8 @@ export interface RobotPose {
     x: number;
     y: number;
     headingDeg: number;
+    /** Simulated time of this pose, ms (present on recorded path entries). */
+    atMs?: number;
 }
 
 export interface ArenaEvent {
@@ -87,7 +89,7 @@ export class Arena {
     ) {
         this.pose = { ...spec.start };
         this.bestDistanceToGoal = this.distanceToGoal();
-        this.path.push({ ...this.pose });
+        this.path.push({ ...this.pose, atMs: 0 });
         this.updateSensor();
     }
 
@@ -125,14 +127,11 @@ export class Arena {
             this.reachedGoalAtMs = this.timeMs;
             this.events.push({ atMs: this.timeMs, kind: 'goal', pose: { ...this.pose } });
         }
-        if (this.path.length === 0 || this.timeMs - this.pathTimes[this.pathTimes.length - 1] >= 100) {
-            this.path.push({ ...this.pose });
-            this.pathTimes.push(this.timeMs);
+        if (this.timeMs - (this.path[this.path.length - 1]?.atMs ?? 0) >= 100) {
+            this.path.push({ ...this.pose, atMs: this.timeMs });
         }
         this.updateSensor();
     }
-
-    private readonly pathTimes: number[] = [0];
 
     distanceToGoal(): number {
         return Math.hypot(this.pose.x - this.spec.goal.x, this.pose.y - this.spec.goal.y);

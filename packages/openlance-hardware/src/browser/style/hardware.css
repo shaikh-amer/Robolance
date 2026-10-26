@@ -1,0 +1,387 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+.robolance-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    color: var(--openlance-fg, var(--theia-foreground, #e6e6e6));
+    background: var(--openlance-bg, var(--theia-editor-background, #0a0a0a));
+    font: 12px/1.4 var(--theia-ui-font-family, system-ui, sans-serif);
+}
+
+.robolance-toolbar,
+.robolance-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    min-height: 30px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.08));
+}
+
+.robolance-footer {
+    border-bottom: none;
+    border-top: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.08));
+    flex-wrap: wrap;
+}
+
+.robolance-toolbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.robolance-views {
+    display: flex;
+    gap: 2px;
+}
+
+.robolance-panel button {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    padding: 3px 9px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.robolance-panel button:hover:not(:disabled) {
+    background: var(--openlance-hover, rgba(255, 255, 255, 0.06));
+}
+
+.robolance-panel button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.robolance-view-btn.active {
+    background: var(--openlance-wash-accent, rgba(99, 102, 241, 0.18));
+    border-color: var(--openlance-accent, #6366f1);
+}
+
+.robolance-live-btn.active {
+    background: var(--openlance-success, #16a34a);
+    color: #fff;
+}
+
+.robolance-build {
+    color: var(--openlance-muted, #9a9a9a);
+}
+
+.robolance-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    position: relative;
+}
+
+.robolance-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 100%;
+    padding: 24px;
+    text-align: center;
+    color: var(--openlance-muted, #9a9a9a);
+}
+
+.robolance-empty code {
+    font-family: var(--theia-code-font-family, monospace);
+    color: var(--openlance-fg, #e6e6e6);
+}
+
+/* Circuit */
+
+.robolance-circuit {
+    padding: 4px;
+    overflow: auto;
+    height: 100%;
+}
+
+.robolance-circuit-stage {
+    position: relative;
+    transform-origin: 0 0;
+}
+
+.robolance-circuit-wires {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+}
+
+.robolance-circuit-board,
+.robolance-part {
+    position: absolute;
+}
+
+.robolance-part {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.robolance-wokwi {
+    display: inline-block;
+}
+
+.robolance-part-label {
+    font-size: 11px;
+    color: var(--openlance-muted, #9a9a9a);
+    white-space: nowrap;
+}
+
+.robolance-part-slider {
+    width: 120px;
+}
+
+@keyframes robolance-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Arena */
+
+.robolance-arena-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 8px;
+    gap: 6px;
+}
+
+.robolance-arena {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.robolance-arena-floor {
+    fill: var(--openlance-layer-1, rgba(255, 255, 255, 0.04));
+}
+
+.robolance-arena-wall {
+    stroke: var(--openlance-fg, #e6e6e6);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.robolance-arena-goal {
+    fill: rgba(22, 163, 74, 0.18);
+    stroke: #16a34a;
+    stroke-width: 0.8;
+    stroke-dasharray: 2 1.5;
+}
+
+.robolance-arena-goal.reached {
+    fill: rgba(22, 163, 74, 0.5);
+}
+
+.robolance-arena-text {
+    font-size: 5px;
+    fill: var(--openlance-muted, #9a9a9a);
+}
+
+.robolance-arena-start {
+    fill: var(--openlance-muted, #9a9a9a);
+}
+
+.robolance-arena-path {
+    fill: none;
+    stroke: var(--openlance-accent, #6366f1);
+    stroke-width: 1.2;
+    stroke-linejoin: round;
+    opacity: 0.9;
+}
+
+.robolance-arena-collision line {
+    stroke: #ef4444;
+    stroke-width: 1;
+}
+
+.robolance-arena-ray {
+    stroke: #f59e0b;
+    stroke-width: 0.6;
+    stroke-dasharray: 1.5 1;
+}
+
+.robolance-arena-robot {
+    fill: rgba(99, 102, 241, 0.35);
+    stroke: var(--openlance-accent, #6366f1);
+    stroke-width: 1;
+}
+
+.robolance-arena-heading {
+    stroke: var(--openlance-fg, #e6e6e6);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+}
+
+.robolance-arena-readout {
+    display: flex;
+    gap: 14px;
+    color: var(--openlance-muted, #9a9a9a);
+    flex-shrink: 0;
+}
+
+.robolance-goal-yes {
+    color: var(--openlance-success-text, #22c55e);
+}
+
+/* Runs */
+
+.robolance-runs {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.robolance-score-chart {
+    width: 100%;
+    max-height: 90px;
+    flex-shrink: 0;
+    padding: 6px 8px 0;
+}
+
+.robolance-score-axis {
+    stroke: var(--openlance-border, rgba(255, 255, 255, 0.15));
+}
+
+.robolance-score-goal-line {
+    stroke: #16a34a;
+    stroke-dasharray: 3 3;
+    opacity: 0.6;
+}
+
+.robolance-score-line {
+    fill: none;
+    stroke: var(--openlance-accent, #6366f1);
+    stroke-width: 1.5;
+}
+
+.robolance-score-dot {
+    fill: var(--openlance-accent, #6366f1);
+    cursor: pointer;
+}
+
+.robolance-score-dot.selected {
+    fill: #fff;
+    stroke: var(--openlance-accent, #6366f1);
+}
+
+.robolance-runs-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    overflow: auto;
+    max-height: 45%;
+    flex-shrink: 0;
+}
+
+.robolance-run {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    padding: 4px 8px;
+}
+
+.robolance-run.selected {
+    background: var(--openlance-wash-accent, rgba(99, 102, 241, 0.18));
+}
+
+.robolance-run-index {
+    color: var(--openlance-muted, #9a9a9a);
+    min-width: 28px;
+}
+
+.robolance-run-time {
+    font-variant-numeric: tabular-nums;
+    color: var(--openlance-muted, #9a9a9a);
+}
+
+.robolance-run-summary {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.robolance-score {
+    min-width: 28px;
+    text-align: center;
+    border-radius: 10px;
+    padding: 1px 6px;
+    font-weight: 600;
+    background: rgba(239, 68, 68, 0.25);
+}
+
+.robolance-score.mid {
+    background: rgba(245, 158, 11, 0.3);
+}
+
+.robolance-score.good {
+    background: rgba(22, 163, 74, 0.35);
+}
+
+.robolance-run-detail {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.08));
+}
+
+.robolance-run-notes {
+    margin: 0;
+    padding: 6px 8px 6px 24px;
+    color: #f59e0b;
+    flex-shrink: 0;
+}
+
+.robolance-run-serial,
+.robolance-live-serial {
+    margin: 0;
+    padding: 6px 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    font: 11px/1.4 var(--theia-code-font-family, monospace);
+    color: var(--openlance-fg, #e6e6e6);
+    background: var(--openlance-layer-1, rgba(255, 255, 255, 0.03));
+    white-space: pre-wrap;
+}
+
+.robolance-live-serial {
+    flex-basis: 100%;
+    max-height: 90px;
+}
+
+.robolance-scrubber {
+    flex: 1 1 auto;
+    min-width: 60px;
+}
+
+.robolance-time,
+.robolance-run-name {
+    color: var(--openlance-muted, #9a9a9a);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.robolance-error {
+    color: #ef4444;
+}
