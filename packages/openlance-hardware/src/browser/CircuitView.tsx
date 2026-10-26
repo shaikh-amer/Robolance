@@ -9,7 +9,7 @@
  */
 
 import * as React from 'react';
-import type { Diagram, PartSpec } from '@robolance/hardware-sim';
+import type { Diagram, PartSpec } from 'robolance-hardware-sim';
 
 export type PartStates = Record<string, Record<string, unknown>>;
 

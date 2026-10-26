@@ -1,5 +1,5 @@
 {
-  "name": "@robolance/openlance-hardware",
+  "name": "robolance-openlance-hardware",
   "version": "0.1.0",
   "description": "OpenLance preview tab for hardware projects: the circuit, the robot arena and the history of runs.",
   "license": "Apache-2.0",
@@ -14,10 +14,11 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.test.json && node --test '.build/test/*.test.js'"
+    "test": "tsc -p tsconfig.test.json && node --test '.build/test/*.test.js'",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@robolance/hardware-sim": "0.1.0",
+    "robolance-hardware-sim": "0.1.0",
     "@wokwi/elements": "^1.9.2"
   },
   "peerDependencies": {
@@ -39,5 +40,13 @@
     {
       "frontend": "lib/browser/frontend-module"
     }
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shaikh-amer/robolance.git",
+    "directory": "packages/openlance-hardware"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

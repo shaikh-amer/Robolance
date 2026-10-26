@@ -4,7 +4,7 @@
 /** Top-down drawing of the arena: walls, goal, the path so far and the robot. */
 
 import * as React from 'react';
-import { DEFAULT_ROBOT, type ArenaEvent, type ArenaSpec, type RobotPose } from '@robolance/hardware-sim';
+import { DEFAULT_ROBOT, type ArenaEvent, type ArenaSpec, type RobotPose } from 'robolance-hardware-sim';
 
 export interface ArenaViewProps {
     spec: ArenaSpec;

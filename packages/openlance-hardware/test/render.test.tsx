@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { cornerMaze } from '@robolance/hardware-sim';
+import { cornerMaze } from 'robolance-hardware-sim';
 import { ArenaView } from '../src/browser/ArenaView';
 import { describeState } from '../src/browser/CircuitView';
 import { HardwarePanelBody } from '../src/browser/HardwarePanel';

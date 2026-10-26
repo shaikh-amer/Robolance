@@ -8,7 +8,7 @@
  */
 
 import * as React from 'react';
-import { cornerMaze, DEFAULT_ROBOT, type ArenaSpec, type Diagram } from '@robolance/hardware-sim';
+import { cornerMaze, DEFAULT_ROBOT, type ArenaSpec, type Diagram } from 'robolance-hardware-sim';
 import { ArenaView } from './ArenaView';
 import { CircuitView, type CircuitInputs, type PartStates } from './CircuitView';
 import { poseIndexAt, readHardwareProject, statesAt, type HardwareProject, type RunEntry } from './hardware-project';
