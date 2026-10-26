@@ -1,0 +1,13 @@
+{
+  "name": "robolance",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tell your robot what to do in plain words; a Meta-powered agent codes, runs, watches and fixes it until it works.",
+  "license": "Apache-2.0",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": { "node": ">=20" }
+}
