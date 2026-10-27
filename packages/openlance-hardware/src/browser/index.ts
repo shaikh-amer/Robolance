@@ -10,3 +10,5 @@ export { CircuitView, describeState } from './CircuitView';
 export { ZoomPane } from './ZoomPane';
 export * from './zoom-pane';
 export { RunsView, ScoreChart } from './RunsView';
+export * from './arena-editor';
+export { ArenaEditor } from './ArenaEditor';

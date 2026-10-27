@@ -20,6 +20,8 @@ export interface PreviewTabContext {
     openFile?: (path: string) => void;
     /** Sends a message to the agent chat. */
     askAgent?: (prompt: string) => void;
+    /** Writes a project file (the arena editor saves diagram.json). */
+    writeFile?: (path: string, content: string) => Promise<void> | void;
 }
 
 export interface PreviewTab {

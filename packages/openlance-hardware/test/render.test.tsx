@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { cornerMaze } from 'robolance-hardware-sim';
+import { ArenaEditor } from '../src/browser/ArenaEditor';
 import { ArenaView } from '../src/browser/ArenaView';
 import { CircuitView, describeState, stageOrigin } from '../src/browser/CircuitView';
 import { ZoomPane } from '../src/browser/ZoomPane';
@@ -88,6 +89,23 @@ test('HardwarePanel renders the arena of the newest run at its end, and the empt
 
     const broken = renderToStaticMarkup(<HardwarePanelBody project={readHardwareProject(new Map([['diagram.json', '{']]))} context={{ files: new Map(), theme: 'light' }} />);
     assert.match(broken, /not valid JSON/);
+});
+
+test('the arena can be edited when the host can write files', () => {
+    const files = new Map<string, string>([['diagram.json', JSON.stringify(robotDiagram)]]);
+    const project = readHardwareProject(files);
+    const readOnly = renderToStaticMarkup(<HardwarePanelBody project={project} context={{ files, theme: 'dark' }} />);
+    assert.doesNotMatch(readOnly, /Edit arena/);
+    const writable = renderToStaticMarkup(<HardwarePanelBody project={project} context={{ files, theme: 'dark', writeFile: () => undefined, askAgent: () => undefined }} />);
+    assert.match(writable, /Edit arena/);
+
+    const editor = renderToStaticMarkup(<ArenaEditor diagram={robotDiagram as never} spec={cornerMaze()} diagramPath="diagram.json" writeFile={() => undefined} askAgent={() => undefined} onClose={() => undefined} />);
+    assert.match(editor, /robolance-arena-editor/);
+    assert.match(editor, /data-zoom-ignore/);
+    assert.match(editor, /Draw wall/);
+    assert.match(editor, /Save and ask the agent to run it/);
+    assert.match(editor, /2 inner walls/);
+    assert.equal((editor.match(/robolance-wall-ends/g) ?? []).length, 2, 'inner walls get handles, the border does not');
 });
 
 test('the preview tab applies to hardware projects only', () => {
