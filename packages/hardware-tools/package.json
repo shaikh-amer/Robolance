@@ -1,6 +1,6 @@
 {
   "name": "robolance-hardware-tools",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The agent's hardware tools: compile a sketch, run it in the simulator, inspect the result. Served over MCP.",
   "license": "Apache-2.0",
   "type": "module",

@@ -196,6 +196,7 @@ export function summarize(trace: RunTrace): Record<string, unknown> {
             bestDistanceToGoalCm: trace.arena.bestDistanceToGoalCm,
             finalDistanceToGoalCm: trace.arena.finalDistanceToGoalCm,
             state: trace.arena.state,
+            ...(trace.arena.line ? { line: trace.arena.line } : {}),
             events: trace.arena.events.slice(0, 20),
             path: trace.arena.path.filter((_, i) => i % pathEvery === 0).map(p => [Math.round(p.x), Math.round(p.y), Math.round(p.headingDeg)]),
         };

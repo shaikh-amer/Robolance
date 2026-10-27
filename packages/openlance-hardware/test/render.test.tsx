@@ -52,6 +52,14 @@ function arenaRun(score: number, stamp: number): [string, string] {
     })];
 }
 
+test('the panel shows the preset the diagram names', () => {
+    const lineDiagram = { ...robotDiagram, arena: { preset: 'line', left: 'left', right: 'right' } };
+    const files = new Map<string, string>([['diagram.json', JSON.stringify(lineDiagram)]]);
+    const html = renderToStaticMarkup(<HardwarePanelBody project={readHardwareProject(files)} context={{ files, theme: 'dark' }} />);
+    assert.match(html, /robolance-arena-line/, 'the line course is drawn, not the corner maze');
+    assert.equal((html.match(/robolance-arena-wall/g) ?? []).length, 4, 'the open room has only its border');
+});
+
 test('ArenaView draws the line of a line course under the walls', () => {
     const html = renderToStaticMarkup(<ArenaView spec={lineCourse()} path={[]} />);
     assert.match(html, /robolance-arena-line/);

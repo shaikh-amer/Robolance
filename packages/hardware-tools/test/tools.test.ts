@@ -197,3 +197,18 @@ test('concurrent builds never leave firmware.hex and build.json from different b
         await rm(dir, { recursive: true, force: true });
     }
 });
+
+test('the default run summary keeps the line metrics of a line course', () => {
+    const trace = {
+        durationMs: 1000, ranMs: 1000, serial: [], samples: [], final: {}, notes: [],
+        arena: {
+            path: [], events: [], collisions: 0, reachedGoalAtMs: null, bestDistanceToGoalCm: 10, finalDistanceToGoalCm: 10, score: 42, state: {},
+            line: { onLine: true, coverage: 0.7, onLineMs: 900, lostAtMs: null },
+        },
+    } as unknown as Parameters<typeof summarize>[0];
+    const summary = summarize(trace) as { arena: { line?: unknown; score: number } };
+    assert.deepEqual(summary.arena.line, { onLine: true, coverage: 0.7, onLineMs: 900, lostAtMs: null });
+    assert.equal(summary.arena.score, 42);
+    const plain = summarize({ ...trace, arena: { ...trace.arena!, line: undefined } }) as { arena: { line?: unknown } };
+    assert.equal('line' in plain.arena, false, 'no line, no line key');
+});
