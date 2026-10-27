@@ -14,7 +14,7 @@ robolance gives a coding agent a real feedback loop for embedded code: it compil
 
 Pre-existing: OpenLance, the open-source web IDE and agent harness this plugs into, and the open-source libraries avr8js (ATmega328p emulation), Wokwi elements (part graphics), avr-gcc, ArduinoCore-avr and the MCP SDK.
 
-New, built during the event, all in https://github.com/shaikh-amer/robolance: the circuit and robot-arena simulation, the compile and run tools served over MCP, the agent prompting around them, the Hardware tab (circuit, arena, runs, live mode), the Meta model provider in OpenLance, and the OpenLance glue (preview tabs, robot template, built-in hardware tools, sandbox toolchain).
+New, built during the event, all in https://github.com/shaikh-amer/robolance: the circuit and robot-arena simulation (wall avoidance and line following), the compile and run tools served over MCP, the agent prompting and the closed compile-run-fix loop around them, the Hardware tab (circuit, arena with a drawable editor, runs, live mode), the wiring check from a photo of the real board, shareable run links and the replay page, the Meta model provider in OpenLance, and the OpenLance glue (preview tabs, robot template, built-in hardware tools, sandbox toolchain).
 
 ## Demo video script (3 minutes)
 
@@ -24,17 +24,21 @@ New, built during the event, all in https://github.com/shaikh-amer/robolance: th
 
 0:35 OpenLance Home. Click "New robot project". Show the three files: sketch.ino, diagram.json, README. Show the Hardware tab opening with the Uno, the LED and the button wired.
 
-0:55 First ask, typed in chat: "Add a servo on pin 9 that sweeps 0 to 180 while the button is held, and print the angle." Show the agent calling hardware_parts, editing the files, hardware_compile, hardware_run. Point at the trace: serial output, part states, the notes line.
+0:55 First ask, typed in chat: "Add a servo on pin 9 that sweeps 0 to 180 while the button is held, and print the angle." Show the agent calling hardware_parts, editing the files, hardware_compile, hardware_run, and the harness nudging it to run again after an edit. Point at the trace: serial output, part states, the notes line.
 
-1:30 Hardware tab: scrub the recorded run; press "Go live", hold the button yourself, watch the servo move and the serial lines. "Everything you see is the real firmware, running in your browser."
+1:20 Hardware tab: scrub the recorded run; press "Go live", hold the button yourself, watch the servo move and the serial lines. "Everything you see is the real firmware, running in your browser."
 
-1:50 The robot. Ask: "Make a two-wheel robot with an ultrasonic sensor that reaches the goal in the corner arena without touching the walls." Show the agent's first run: path, collision marks, score. Show it reading the notes ("got within 60 cm, 2 collisions"), changing the turn logic, running again. Runs view: the score curve going up over three or four runs, then "goal reached".
+1:35 The robot. Ask: "Build a wall-avoiding robot for the corner arena. Keep running and fixing until it reaches the goal with zero collisions." Show the first run: path, collision marks, score. Show it reading the notes ("got within 60 cm, 2 collisions"), changing the turn logic, running again without being asked. Runs view: the score curve going up over three or four runs, then "goal reached". Five seconds on "Edit arena": drag a wall, "Save and ask the agent to run it".
 
-2:30 Meta. Open the model picker: Muse Spark 1.3 on the Meta Model API, Muse Spark Open on Fireworks. "The agent you just watched ran on Muse Spark Open." One sentence on why open weights matter for a classroom or a factory that cannot send code out.
+2:10 The real board (Meta tooling). Hold a phone over the breadboard. Hardware tab, Circuit, "Check wiring from a photo", take the photo. The chat shows the photo and Muse Spark's answer: "2 things to fix: ECHO is on D10, move it to D11; the LED has no resistor." "The same model that wrote the code checks the wiring you did with your hands."
 
-2:45 Close. "Same sketch, same diagram, flashes to a real Uno when you have one. robolance is open source, built on OpenLance. Link in the description."
+2:30 Share. Runs view, "Share this run", paste the link in a message, open it on the phone: the arena replays on a page with no account. "The link carries the run; nothing is uploaded."
 
-Recording notes: 1080p, browser at 125 percent zoom, dark theme, chat on the left and the Hardware tab on the right. Pre-run every prompt once before recording so the toolchain is warm; keep the agent's model on Muse Spark Open for the whole take.
+2:40 Meta. Open the model picker: Muse Spark 1.3 on the Meta Model API, Muse Spark Open on Baseten and Fireworks. "The agent you just watched ran on Muse Spark Open; the photo went to Muse Spark." One sentence on why open weights matter for a classroom or a factory that cannot send code out.
+
+2:50 Close. "Same sketch, same diagram, flashes to a real Uno when you have one. robolance is open source, built on OpenLance. Link in the description."
+
+Recording notes: 1080p, browser at 125 percent zoom, dark theme, chat on the left and the Hardware tab on the right. Pre-run every prompt once before recording so the toolchain is warm; keep the agent's model on Muse Spark Open for the agent turns and Muse Spark for the photo turn. Wire the breadboard with one deliberate mistake (ECHO on the wrong pin) before the take so the wiring check has something to find. Have the replay link ready on the phone in case the clipboard step stumbles.
 
 ## X post (Most Viral prize, by November 8)
 
@@ -52,22 +56,23 @@ Project name: robolance
 
 Category / track: Startup
 
-Meta products used: Meta Model API (Muse Spark 1.3 as the coding agent's model), Muse Spark Open via Fireworks AI (open-weight option for the same agent). Planned: a Muse Glimmer 30B fine-tune on the agent's run logs (the compile-run-fix traces are a natural supervised dataset).
+Meta products used: Meta Model API (Muse Spark 1.3 as the coding agent's model, and its vision for the wiring check: a photo of the real breadboard compared with the circuit the agent designed), Muse Spark Open via Baseten and Fireworks AI (open-weight option for the same agent). Planned: a Muse Glimmer 30B fine-tune on the agent's run logs (the compile-run-fix traces are a natural supervised dataset).
 
-How it works: the agent gets four MCP tools (hardware_parts, hardware_compile, hardware_run, hardware_arena). hardware_run executes the sketch on an avr8js Uno wired to the parts in diagram.json, with scripted inputs, and returns serial output, part states over time, the robot's path, collisions and a 0-100 score, plus notes that say what went wrong. The agent iterates on that the way it iterates on a failing test. Each run is recorded into the project, and the IDE's Hardware tab replays it or runs the firmware live.
+How it works: the agent gets four MCP tools (hardware_parts, hardware_compile, hardware_run, hardware_arena). hardware_run executes the sketch on an avr8js Uno wired to the parts in diagram.json, with scripted inputs, and returns serial output, part states over time, the robot's path, collisions and a 0-100 score, plus notes that say what went wrong. The agent iterates on that the way it iterates on a failing test, and the harness keeps it in the loop: an edit after a run means run again, a failed run comes back with its error, a run short of the goal comes back with the numbers. Each run is recorded into the project; the IDE's Hardware tab replays it or runs the firmware live, lets the user draw the arena, checks a photo of the real wiring against the circuit, and shares any run as a link that replays on a public page.
 
 Why it matters: embedded and robotics are where "vibe coding" stops today because the model cannot see the result. A deterministic simulator in the loop makes the agent's iteration visible, checkable and cheap, and takes the hardware off the desk for learners and teams.
 
-What is next: more boards (ESP32, RP2040), more parts, real-board flashing from the browser over WebSerial, arena presets as shareable challenges, and the fine-tuned Glimmer model trained on the run traces.
+What is next: more boards (ESP32, RP2040), more parts, real-board flashing from the browser over WebSerial, arenas as shareable challenges with a leaderboard of shared runs, and the fine-tuned Glimmer model trained on the run traces.
 
 Repository: https://github.com/shaikh-amer/robolance (hackathon work only). OpenLance: https://github.com/shaikh-amer/openlance.
 
 ## Checklist before submitting
 
-- [ ] Packages published to npm (done: robolance-hardware-sim, robolance-hardware-tools, robolance-openlance-hardware 0.1.0)
-- [ ] OpenLance glue merged and deployed; sandbox template rebuilt
-- [ ] A Meta Model API key and a Fireworks key saved in OpenLance Settings
-- [ ] Both demo prompts run end to end on the deployed IDE
+- [ ] Packages published to npm: robolance-hardware-sim 0.2.1, robolance-hardware-tools 0.2.2, robolance-openlance-hardware 0.5.0
+- [ ] OpenLance go-backend and frontend deployed from main; sandbox template rebuilt from robolance main (`scripts/build-e2b-template.sh`)
+- [ ] GitHub Pages enabled for the repository (Settings → Pages → Source: GitHub Actions); https://shaikh-amer.github.io/Robolance/replay/ opens a shared link
+- [ ] A Meta Model API key and a Baseten or Fireworks key saved in OpenLance Settings
+- [ ] Both demo prompts (wall avoider, line follower) run end to end on the deployed IDE; a wiring-check photo gets a verdict; a share link opens on a phone
 - [ ] Video recorded, under 3 minutes, opens with the pre-existing vs new line
 - [ ] README on main matches what the video shows
 - [ ] Submission form filled on cerebralvalley.ai; X post scheduled
