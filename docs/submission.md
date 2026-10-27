@@ -14,7 +14,9 @@ robolance gives a coding agent a real feedback loop for embedded code: it compil
 
 Pre-existing: OpenLance, the open-source web IDE and agent harness this plugs into, and the open-source libraries avr8js (ATmega328p emulation), Wokwi elements (part graphics), avr-gcc, ArduinoCore-avr and the MCP SDK.
 
-New, built during the event, all in https://github.com/shaikh-amer/robolance: the circuit and robot-arena simulation (wall avoidance and line following), the compile and run tools served over MCP, the agent prompting and the closed compile-run-fix loop around them, the Hardware tab (circuit, arena with a drawable editor, runs, live mode), the wiring check from a photo of the real board, shareable run links and the replay page, the Meta model provider in OpenLance, and the OpenLance glue (preview tabs, robot template, built-in hardware tools, sandbox toolchain).
+New, built during the event, in https://github.com/shaikh-amer/robolance: the circuit and robot-arena simulation (wall avoidance and line following), the compile and run tools served over MCP, the Hardware tab extension (circuit, arena with a drawable editor, runs, live mode), the wiring check from a photo of the real board, shareable run links and the replay page.
+
+New, built during the event, in OpenLance (https://github.com/shaikh-amer/openlance, a separate repository): the agent prompting and the closed compile-run-fix loop around the tools, the Meta model provider, and the glue that hosts the extension (preview tabs, photo attachments from a tab, robot template, built-in hardware tools, sandbox toolchain).
 
 ## Demo video script (3 minutes)
 
@@ -30,7 +32,7 @@ New, built during the event, all in https://github.com/shaikh-amer/robolance: th
 
 1:35 The robot. Ask: "Build a wall-avoiding robot for the corner arena. Keep running and fixing until it reaches the goal with zero collisions." Show the first run: path, collision marks, score. Show it reading the notes ("got within 60 cm, 2 collisions"), changing the turn logic, running again without being asked. Runs view: the score curve going up over three or four runs, then "goal reached". Five seconds on "Edit arena": drag a wall, "Save and ask the agent to run it".
 
-2:10 The real board (Meta tooling). Hold a phone over the breadboard. Hardware tab, Circuit, "Check wiring from a photo", take the photo. The chat shows the photo and Muse Spark's answer: "2 things to fix: ECHO is on D10, move it to D11; the LED has no resistor." "The same model that wrote the code checks the wiring you did with your hands."
+2:10 The real board (Meta tooling). Hold a phone over the breadboard. Hardware tab, Circuit, "Check wiring from a photo", take the photo. The chat shows the photo and Muse Spark's answer: "2 things to fix: ECHO is on D10, move it to D11; the LED has no resistor." "Muse Spark checks the wiring you did with your hands against the circuit the agent designed."
 
 2:30 Share. Runs view, "Share this run", paste the link in a message, open it on the phone: the arena replays on a page with no account. "The link carries the run; nothing is uploaded."
 
