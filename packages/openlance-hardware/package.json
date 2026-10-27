@@ -1,6 +1,6 @@
 {
   "name": "robolance-openlance-hardware",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "OpenLance preview tab for hardware projects: the circuit, the robot arena and the history of runs.",
   "license": "Apache-2.0",
   "keywords": [
@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@wokwi/elements": "^1.9.2",
-    "robolance-hardware-sim": "0.2.0"
+    "robolance-hardware-sim": "0.2.1"
   },
   "peerDependencies": {
     "inversify": "^6.0.0",
