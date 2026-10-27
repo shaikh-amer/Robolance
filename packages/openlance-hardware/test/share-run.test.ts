@@ -8,7 +8,7 @@ import { decodeShare, encodeShare, parseShareHash, sharedRunToEntry, shareRunUrl
 
 function bigRun(): RunEntry {
     const path = Array.from({ length: 4000 }, (_, i) => ({ x: 30 + i / 40, y: 95, headingDeg: 0, atMs: i * 5 }));
-    const samples = Array.from({ length: 80 }, (_, i) => ({ atMs: i * 250, parts: { left: { speed: 1 }, right: { speed: 1 }, eyes: { distanceCm: 100 - i } } }));
+    const samples = Array.from({ length: 400 }, (_, i) => ({ atMs: i * 50, parts: { left: { speed: 1 }, right: { speed: 1 }, eyes: { distanceCm: 100 - i / 4 } } }));
     return {
         path: '.robolance/runs/1700000000000.json',
         stamp: 1700000000000,
@@ -32,7 +32,10 @@ function bigRun(): RunEntry {
 test('a shared run keeps what the replay needs and drops the rest', () => {
     const shared = trimRunForShare(bigRun());
     assert.equal(shared.v, 1);
-    assert.equal((shared as { trace: { samples?: unknown } }).trace.samples, undefined, 'part samples are not shared');
+    assert.equal(shared.trace.samples!.length, 120, 'part samples are thinned, so the circuit replays over time');
+    assert.deepEqual(shared.trace.samples![0], bigRun().trace.samples[0]);
+    assert.deepEqual(shared.trace.samples![119], bigRun().trace.samples[399], 'the last sample is kept');
+    assert.equal(trimRunForShare({ ...bigRun(), trace: { ...bigRun().trace, samples: [] } }).trace.samples, undefined, 'no samples, nothing carried');
     assert.equal(shared.trace.arena!.path.length, 600, 'the path is thinned');
     assert.deepEqual(shared.trace.arena!.path[0], { x: 30, y: 95, headingDeg: 0, atMs: 0 });
     assert.deepEqual(shared.trace.arena!.path[599], { x: 30 + 3999 / 40, y: 95, headingDeg: 0, atMs: 3999 * 5 }, 'the last pose is kept');
@@ -61,7 +64,8 @@ test('a run survives the link: deflated into the fragment and back', async () =>
     const entry = sharedRunToEntry(decoded as never);
     assert.equal(entry.stamp, 1700000000000);
     assert.equal(entry.trace.arena!.score, 83);
-    assert.deepEqual(entry.trace.samples, []);
+    assert.equal(entry.trace.samples.length, 120);
+    assert.deepEqual(sharedRunToEntry({ ...trimRunForShare(run), trace: { ...trimRunForShare(run).trace, samples: undefined } }).trace.samples, [], 'an older link without samples still opens');
     assert.equal(entry.trace.arena!.path.length, 600);
     assert.equal(entry.diagram!.parts.length, 2);
     assert.deepEqual(entry.events, run.events);
