@@ -8,7 +8,7 @@
  * (demo/) decodes it with the same module.
  */
 
-import type { Diagram, RunTrace, ScriptedEvent } from 'robolance-hardware-sim';
+import type { Diagram, RunTrace, Sample, ScriptedEvent } from 'robolance-hardware-sim';
 import type { RunEntry } from './hardware-project';
 
 /** Where shared runs open. */
@@ -20,7 +20,10 @@ export const SHARE_PARAM = 'r';
 /** Poses kept on a shared path; a 20 s run records thousands. */
 export const SHARE_MAX_POSES = 600;
 
-/** What a link carries. Part samples are left out (the circuit replay needs them, the arena replay does not). */
+/** Part-state samples kept, so the circuit replays over time too (one every 250 ms in a recording). */
+export const SHARE_MAX_SAMPLES = 120;
+
+/** What a link carries: the trace with its path and samples thinned. */
 export interface SharedRun {
     v: 1;
     at?: string;
@@ -28,12 +31,15 @@ export interface SharedRun {
     diagram?: Diagram;
     durationMs: number;
     events: ScriptedEvent[];
-    trace: Omit<RunTrace, 'samples'>;
+    trace: Omit<RunTrace, 'samples'> & { samples?: Sample[] };
 }
 
-export function trimRunForShare(run: RunEntry, maxPoses: number = SHARE_MAX_POSES): SharedRun {
-    const { samples: _samples, ...rest } = run.trace;
+export function trimRunForShare(run: RunEntry, maxPoses: number = SHARE_MAX_POSES, maxSamples: number = SHARE_MAX_SAMPLES): SharedRun {
+    const { samples, ...rest } = run.trace;
     const trace: SharedRun['trace'] = { ...rest, serial: run.trace.serial.slice(-200), notes: [...run.trace.notes] };
+    if (samples?.length) {
+        trace.samples = thinPath(samples, maxSamples);
+    }
     if (run.trace.arena) {
         trace.arena = { ...run.trace.arena, path: thinPath(run.trace.arena.path, maxPoses) };
     }
@@ -64,7 +70,7 @@ export function thinPath<T>(path: T[], maxPoses: number): T[] {
 /** A shared run as the panel's RunEntry, so the same views replay it. */
 export function sharedRunToEntry(shared: SharedRun): RunEntry {
     const stamp = shared.at ? Date.parse(shared.at) : NaN;
-    const trace: RunTrace = { ...shared.trace, samples: [] };
+    const trace: RunTrace = { ...shared.trace, samples: shared.trace.samples ?? [] };
     return {
         path: `.robolance/runs/${Number.isFinite(stamp) ? stamp : 0}.json`,
         stamp: Number.isFinite(stamp) ? stamp : 0,

@@ -17,7 +17,13 @@ test('every part type gets its real-world wiring', () => {
     assert.match(expectedWiring({ type: 'motor', id: 'left', in1: 4, in2: 5, en: 6 }), /IN1 to pin D4, IN2 to pin D5, EN to pin D6 \(PWM\)/);
     assert.match(expectedWiring({ type: 'linesensor', id: 'eyeL', pin: 2, forwardCm: 9, leftCm: 2.5 }), /OUT to pin D2; .* 9 cm forward and 2.5 cm left of centre/);
     assert.match(expectedWiring({ type: 'linesensor', id: 'eyeR', pin: 3, forwardCm: 9, leftCm: -2.5 }), /2.5 cm right of centre/);
-    assert.doesNotMatch(expectedWiring({ type: 'linesensor', id: 'eye', pin: 3 }), /forward/);
+    assert.match(expectedWiring({ type: 'linesensor', id: 'eye', pin: 3 }), /8 cm forward and centred/, 'an unplaced sensor sits where the simulator puts it');
+    assert.match(expectedWiring({ type: 'linesensor', id: 'eye', pin: 3, leftCm: 2.5 }, 10), /10 cm forward and 2.5 cm left/, 'the robot radius of the diagram');
+});
+
+test('the prompt places line sensors with the diagram robot radius', () => {
+    const prompt = wiringCheckPrompt({ parts: [{ type: 'linesensor', id: 'eye', pin: 2, leftCm: -2.5 }], arena: { preset: 'line', left: 'l', right: 'r', robot: { radius: 6 } } } as never);
+    assert.match(prompt, /6 cm forward and 2.5 cm right of centre/);
 });
 
 test('the prompt lists the circuit, names the robot roles and asks for a verdict and fixes', () => {

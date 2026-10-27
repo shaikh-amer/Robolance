@@ -8,7 +8,7 @@
  * the button lives in WiringCheck.tsx.
  */
 
-import type { Diagram, PartSpec } from 'robolance-hardware-sim';
+import { DEFAULT_ROBOT, type Diagram, type PartSpec } from 'robolance-hardware-sim';
 import type { PreviewImage } from './preview-tab';
 
 /** What the chat shows for the message (the prompt itself is long). */
@@ -21,8 +21,12 @@ function pin(p: string | number): string {
     return typeof p === 'number' ? `D${p}` : p;
 }
 
-/** One line per part: how it should be wired on a real Uno and breadboard. */
-export function expectedWiring(part: PartSpec): string {
+/**
+ * One line per part: how it should be wired on a real Uno and breadboard.
+ * `robotRadius` is where an unplaced line sensor sits (the simulator mounts
+ * it at the front of the robot, centred).
+ */
+export function expectedWiring(part: PartSpec, robotRadius: number = DEFAULT_ROBOT.radius): string {
     switch (part.type) {
         case 'led': {
             const colour = part.color ? `${part.color} ` : '';
@@ -43,25 +47,24 @@ export function expectedWiring(part: PartSpec): string {
         case 'motor':
             return `Motor "${part.id}" on one H-bridge channel (L298N or L293D): IN1 to pin ${pin(part.in1)}, IN2 to pin ${pin(part.in2)}, EN to pin ${pin(part.en)} (PWM); the motor on that channel's outputs; driver GND joined to the Uno's GND; motor supply to the driver, not to the Uno's 5V.`;
         case 'linesensor':
-            return `Line (reflectance) sensor "${part.id}": VCC to 5V, GND to GND, OUT to pin ${pin(part.pin)}; mounted under the robot${placement(part)}.`;
+            return `Line (reflectance) sensor "${part.id}": VCC to 5V, GND to GND, OUT to pin ${pin(part.pin)}; mounted under the robot ${placement(part, robotRadius)}.`;
         default:
             return `${(part as { type: string }).type} "${(part as { id: string }).id}".`;
     }
 }
 
-function placement(part: Extract<PartSpec, { type: 'linesensor' }>): string {
-    const forward = part.forwardCm ?? 0;
+/** The same defaults the simulator resolves: the front of the robot, centred. */
+function placement(part: Extract<PartSpec, { type: 'linesensor' }>, robotRadius: number): string {
+    const forward = part.forwardCm ?? robotRadius;
     const left = part.leftCm ?? 0;
-    if (!forward && !left) {
-        return '';
-    }
     const side = left > 0 ? `${left} cm left of centre` : left < 0 ? `${-left} cm right of centre` : 'centred';
-    return `, ${forward} cm forward and ${side}`;
+    return `${forward} cm forward and ${side}`;
 }
 
 /** The prompt that goes with the photo. */
 export function wiringCheckPrompt(diagram: Diagram): string {
-    const lines = diagram.parts.map(part => `- ${expectedWiring(part)}`);
+    const robotRadius = diagram.arena?.robot?.radius ?? DEFAULT_ROBOT.radius;
+    const lines = diagram.parts.map(part => `- ${expectedWiring(part, robotRadius)}`);
     const robot = diagram.arena
         ? `\nThe board drives a two-wheel robot: motors "${diagram.arena.left}" (left) and "${diagram.arena.right}" (right)${diagram.arena.sensor ? `, distance sensor "${diagram.arena.sensor}" facing forward` : ''}.`
         : '';
