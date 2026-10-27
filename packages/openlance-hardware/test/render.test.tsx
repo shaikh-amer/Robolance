@@ -87,6 +87,9 @@ test('RunsView lists runs newest first with scores and a chart when there are se
     assert.match(html, /aria-current="true"/);
     assert.match(html, /cm=100\ncm=80/);
     assert.match(html, /did not reach the goal/);
+    assert.match(html, /Share this run/);
+    const replayPage = renderToStaticMarkup(<RunsView runs={project.runs} selected={0} onSelect={() => undefined} shareBase={false} />);
+    assert.doesNotMatch(replayPage, /Share this run/, 'the replay page does not offer to share what it shows');
 });
 
 test('HardwarePanel renders the arena of the newest run at its end, and the empty states', () => {

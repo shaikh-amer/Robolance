@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 OpenLance
 
-/** Registers the Hardware preview tab with OpenLance and the Wokwi part graphics with the browser. */
+/** Registers the Hardware preview tab with OpenLance. */
 
-import '@wokwi/elements';
 import '../../src/browser/style/hardware.css';
 import { ContainerModule } from 'inversify';
 import { hardwarePreviewTab } from './hardware-preview-tab';

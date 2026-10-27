@@ -1,0 +1,23 @@
+{
+  "name": "robolance-demo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The replay page: opens a shared run link and replays it with the same views as the IDE's Hardware tab.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "tsc -p tsconfig.test.json && node --test '.build/test/*.test.js'"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "robolance-hardware-sim": "0.2.1",
+    "robolance-openlance-hardware": "0.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.6.0"
+  }
+}
