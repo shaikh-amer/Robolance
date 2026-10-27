@@ -8,7 +8,7 @@
  */
 
 import { Board } from './board.js';
-import { Button, Potentiometer, Ultrasonic, type Component } from './components.js';
+import { Button, LineSensor, Potentiometer, Ultrasonic, type Component } from './components.js';
 import { buildCircuit, type Circuit, type Diagram } from './diagram.js';
 import type { Arena } from './arena.js';
 
@@ -67,6 +67,10 @@ export class Simulation {
         }
         if (input.action === 'set' && part instanceof Ultrasonic) {
             part.distanceCm = input.value;
+            return undefined;
+        }
+        if (input.action === 'set' && part instanceof LineSensor) {
+            part.set(input.value >= 0.5);
             return undefined;
         }
         return `${input.action} does not apply to ${part.kind} ${input.part}`;

@@ -179,6 +179,50 @@ export class Ultrasonic implements Component {
     }
 }
 
+/**
+ * A reflectance (IR line) sensor looking at the floor under the robot. Over
+ * a dark line a digital module's output reads HIGH (LOW on the floor;
+ * `activeHigh: false` for the opposite kind), and an analog pin reads low
+ * (about 0.6 V on the line, 4.4 V on the floor). The arena sets `onLine`
+ * from where the sensor is mounted on the robot.
+ */
+export class LineSensor implements Component {
+    readonly kind = 'linesensor';
+    onLine = false;
+    private board?: Board;
+
+    constructor(readonly id: string, readonly pin: PinName, readonly activeHigh = true) {}
+
+    attach(board: Board): void {
+        this.board = board;
+        this.apply();
+    }
+
+    set(onLine: boolean): void {
+        this.onLine = onLine;
+        this.apply();
+    }
+
+    private apply(): void {
+        if (!this.board) {
+            return;
+        }
+        if (typeof this.pin === 'string') {
+            this.board.setAnalog(this.pin, this.onLine ? 0.6 : 4.4);
+        } else {
+            this.board.setInput(this.pin, this.onLine === this.activeHigh);
+        }
+    }
+
+    state(): Record<string, unknown> {
+        const out: Record<string, unknown> = { pin: this.pin, onLine: this.onLine };
+        if (typeof this.pin === 'string') {
+            out.volts = this.onLine ? 0.6 : 4.4;
+        }
+        return out;
+    }
+}
+
 /** A potentiometer on an analog pin: `position` 0–1 maps to 0–5 V. */
 export class Potentiometer implements Component {
     readonly kind = 'potentiometer';

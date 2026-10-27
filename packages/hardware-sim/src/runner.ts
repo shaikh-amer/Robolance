@@ -9,7 +9,7 @@
  */
 
 import type { Diagram } from './diagram.js';
-import type { ArenaEvent, RobotPose } from './arena.js';
+import type { ArenaEvent, LineState, RobotPose } from './arena.js';
 import { Simulation } from './simulation.js';
 
 export type ScriptedEvent =
@@ -53,6 +53,8 @@ export interface RunTrace {
         finalDistanceToGoalCm: number;
         score: number;
         state: Record<string, unknown>;
+        /** Present when the arena has a line to follow. */
+        line?: LineState;
     };
     /** What the agent should know that the numbers do not say. */
     notes: string[];
@@ -128,7 +130,12 @@ export function runScenario(hex: string, diagram: Diagram, options: RunOptions):
         const startDistance = Math.hypot(arena.spec.start.x - arena.spec.goal.x, arena.spec.start.y - arena.spec.goal.y);
         const progress = Math.max(0, Math.min(1, 1 - arena.bestDistanceToGoal / startDistance));
         const timeBonus = reached ? Math.max(0, 20 * (1 - arena.reachedGoalAtMs! / options.durationMs)) : 0;
-        const score = Math.round(Math.max(0, (reached ? 80 : progress * 60) + timeBonus - arena.collisions * 5));
+        const line = arena.spec.line ? arena.lineState() : undefined;
+        // On a line course the line is the task: most of the score is how
+        // much of it the robot covered, the rest is reaching its end.
+        const score = line
+            ? Math.round(Math.max(0, line.coverage * 60 + (reached ? 30 : 0) + timeBonus / 2 - arena.collisions * 5))
+            : Math.round(Math.max(0, (reached ? 80 : progress * 60) + timeBonus - arena.collisions * 5));
         trace.arena = {
             path: arena.path,
             events: arena.events,
@@ -138,8 +145,19 @@ export function runScenario(hex: string, diagram: Diagram, options: RunOptions):
             finalDistanceToGoalCm: Math.round(arena.distanceToGoal() * 10) / 10,
             score,
             state: arena.state(),
+            ...(line ? { line } : {}),
         };
-        if (!reached) {
+        if (line) {
+            const pct = Math.round(line.coverage * 100);
+            if (line.coverage < 0.05 && line.onLineMs < 500) {
+                notes.push('the robot never followed the line: the line sensors read HIGH (digital) or low volts (analog) over the dark line, and the robot starts on it');
+            } else if (line.lostAtMs !== null) {
+                notes.push(`the robot lost the line at ${line.lostAtMs} ms and did not find it again; it covered ${pct}% of it`);
+            } else if (!reached) {
+                notes.push(`the robot stayed near the line and covered ${pct}% of it without reaching its end`);
+            }
+        }
+        if (!reached && !line) {
             const moved = arena.path.length > 1 && Math.hypot(arena.path[arena.path.length - 1].x - arena.spec.start.x, arena.path[arena.path.length - 1].y - arena.spec.start.y) > 1;
             notes.push(moved
                 ? `the robot did not reach the goal; it got within ${trace.arena.bestDistanceToGoalCm} cm, with ${arena.collisions} collision(s)`

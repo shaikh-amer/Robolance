@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { cornerMaze } from 'robolance-hardware-sim';
+import { cornerMaze, lineCourse } from 'robolance-hardware-sim';
 import { ArenaEditor } from '../src/browser/ArenaEditor';
 import { ArenaView } from '../src/browser/ArenaView';
 import { CircuitView, describeState, stageOrigin } from '../src/browser/CircuitView';
@@ -51,6 +51,15 @@ function arenaRun(score: number, stamp: number): [string, string] {
         },
     })];
 }
+
+test('ArenaView draws the line of a line course under the walls', () => {
+    const html = renderToStaticMarkup(<ArenaView spec={lineCourse()} path={[]} />);
+    assert.match(html, /robolance-arena-line/);
+    assert.ok(html.indexOf('robolance-arena-line') < html.indexOf('robolance-arena-wall'), 'the line is painted before the walls');
+    const circuit = renderToStaticMarkup(<CircuitView diagram={{ parts: [{ type: 'linesensor', id: 'eye', pin: 2 }] } as never} states={{ eye: { onLine: true } }} />);
+    assert.match(circuit, /wokwi-photoresistor-sensor/);
+    assert.match(circuit, /on the line/);
+});
 
 test('ArenaView draws walls, goal, path, collisions and the robot', () => {
     const html = renderToStaticMarkup(<ArenaView spec={cornerMaze()} path={[{ x: 30, y: 95, headingDeg: 0 }, { x: 50, y: 95, headingDeg: 45 }]} events={[{ atMs: 1, kind: 'collision', pose: { x: 40, y: 95, headingDeg: 0 } }]} distanceAheadCm={30} />);

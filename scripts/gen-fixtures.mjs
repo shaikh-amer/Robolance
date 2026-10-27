@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { buildSketch } from '../packages/hardware-tools/lib/index.js';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), '..', 'packages', 'hardware-sim', 'fixtures');
-for (const name of ['bench', 'wall-follower']) {
+for (const name of ['bench', 'wall-follower', 'line-follower']) {
   const r = await buildSketch(await readFile(join(fixtures, `${name}.ino`), 'utf8'));
   if (!r.ok) { console.error(name, r.output); process.exit(1); }
   await writeFile(join(fixtures, `${name}.hex`), r.hex);

@@ -213,6 +213,7 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
                             collisions={liveMode ? live.live?.collisions ?? 0 : (run?.trace.arena?.events.filter(e => e.kind === 'collision' && e.atMs <= timeMs).length ?? 0)}
                             score={liveMode ? undefined : run?.trace.arena?.score}
                             reachedGoal={liveMode ? live.live?.reachedGoal ?? false : (run?.trace.arena?.reachedGoalAtMs ?? Infinity) <= timeMs}
+                            lineCoverage={liveMode ? undefined : run?.trace.arena?.line?.coverage}
                         />
                     </div>
                 )}
@@ -256,12 +257,13 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
     );
 }
 
-function ArenaReadout({ timeMs, collisions, score, reachedGoal }: { timeMs: number; collisions: number; score?: number; reachedGoal: boolean }): React.ReactElement {
+function ArenaReadout({ timeMs, collisions, score, reachedGoal, lineCoverage }: { timeMs: number; collisions: number; score?: number; reachedGoal: boolean; lineCoverage?: number }): React.ReactElement {
     return (
         <div className="robolance-arena-readout">
             <span>{(timeMs / 1000).toFixed(1)} s</span>
             <span>{collisions} collision{collisions === 1 ? '' : 's'}</span>
             <span className={reachedGoal ? 'robolance-goal-yes' : ''}>{reachedGoal ? 'goal reached' : 'goal not reached'}</span>
+            {lineCoverage !== undefined && <span>line {Math.round(lineCoverage * 100)}%</span>}
             {score !== undefined && <span>score {score}</span>}
         </div>
     );

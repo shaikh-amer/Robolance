@@ -7,9 +7,9 @@
  * motors and a distance sensor on a robot in a maze.
  */
 
-import { Arena, cornerMaze, DEFAULT_ROBOT, type ArenaSpec, type RobotSpec } from './arena.js';
+import { Arena, ARENA_PRESET_NAMES, arenaPreset, DEFAULT_ROBOT, type ArenaPreset, type ArenaSpec, type LineSensorMount, type RobotSpec } from './arena.js';
 import type { Board, PinName } from './board.js';
-import { Button, Led, Motor, Potentiometer, Servo, Ultrasonic, type Component } from './components.js';
+import { Button, Led, LineSensor, Motor, Potentiometer, Servo, Ultrasonic, type Component } from './components.js';
 
 export type PartSpec =
     | { type: 'led'; id: string; pin: PinName; color?: string; activeLow?: boolean }
@@ -17,11 +17,13 @@ export type PartSpec =
     | { type: 'servo'; id: string; pin: PinName }
     | { type: 'ultrasonic'; id: string; trig: PinName; echo: PinName }
     | { type: 'potentiometer'; id: string; pin: `A${0 | 1 | 2 | 3 | 4 | 5}` }
-    | { type: 'motor'; id: string; in1: PinName; in2: PinName; en: PinName };
+    | { type: 'motor'; id: string; in1: PinName; in2: PinName; en: PinName }
+    /** A reflectance sensor under the robot; forwardCm/leftCm say where (defaults: at the front, centred). */
+    | { type: 'linesensor'; id: string; pin: PinName; forwardCm?: number; leftCm?: number; activeHigh?: boolean };
 
 export interface ArenaBinding {
-    /** A built-in maze, or a full spec. */
-    preset?: 'corner';
+    /** A built-in arena, or a full spec. */
+    preset?: ArenaPreset;
     spec?: ArenaSpec;
     robot?: Partial<RobotSpec>;
     /** Part ids of the two motors and the forward-facing distance sensor. */
@@ -36,7 +38,7 @@ export interface Diagram {
     arena?: ArenaBinding;
 }
 
-export const PART_TYPES = ['led', 'button', 'servo', 'ultrasonic', 'potentiometer', 'motor'] as const;
+export const PART_TYPES = ['led', 'button', 'servo', 'ultrasonic', 'potentiometer', 'motor', 'linesensor'] as const;
 
 /** Checks a diagram and names the first problem, or returns undefined. */
 export function validateDiagram(diagram: unknown): string | undefined {
@@ -99,6 +101,9 @@ export function validateDiagram(diagram: unknown): string | undefined {
         if (!d.arena.preset && !d.arena.spec) {
             return 'arena needs a preset or a spec';
         }
+        if (d.arena.preset && !ARENA_PRESET_NAMES.includes(d.arena.preset)) {
+            return `arena.preset must be one of ${ARENA_PRESET_NAMES.join(', ')}`;
+        }
     }
     return undefined;
 }
@@ -127,14 +132,21 @@ export function buildCircuit(diagram: Diagram, board: Board): Circuit {
     }
     let arena: Arena | undefined;
     if (diagram.arena) {
-        const spec = diagram.arena.spec ?? cornerMaze();
+        const spec = diagram.arena.spec ?? arenaPreset(diagram.arena.preset);
         const robot = { ...DEFAULT_ROBOT, ...diagram.arena.robot };
+        const mounts: LineSensorMount[] = [];
+        for (const part of diagram.parts) {
+            if (part.type === 'linesensor') {
+                mounts.push({ sensor: parts.get(part.id) as LineSensor, forwardCm: part.forwardCm ?? robot.radius, leftCm: part.leftCm ?? 0 });
+            }
+        }
         arena = new Arena(
             spec,
             parts.get(diagram.arena.left) as Motor,
             parts.get(diagram.arena.right) as Motor,
             diagram.arena.sensor ? parts.get(diagram.arena.sensor) as Ultrasonic : undefined,
             robot,
+            mounts,
         );
     }
     return { parts, arena };
@@ -148,5 +160,6 @@ function makePart(spec: PartSpec): Component {
         case 'ultrasonic': return new Ultrasonic(spec.id, spec.trig, spec.echo);
         case 'potentiometer': return new Potentiometer(spec.id, spec.pin);
         case 'motor': return new Motor(spec.id, spec.in1, spec.in2, spec.en);
+        case 'linesensor': return new LineSensor(spec.id, spec.pin, spec.activeHigh ?? true);
     }
 }
