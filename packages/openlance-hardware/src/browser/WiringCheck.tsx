@@ -2,9 +2,9 @@
 // Copyright 2026 OpenLance
 
 /**
- * "Check wiring from a photo": the user photographs the real board (the
- * camera on a phone, a file elsewhere) and the agent compares it with the
- * circuit in diagram.json. The answer arrives in the chat.
+ * "Check wiring from a photo": the user photographs the real board (a phone
+ * offers its camera or library, a desktop a file) and the agent compares it
+ * with the circuit in diagram.json. The answer arrives in the chat.
  */
 
 import * as React from 'react';
@@ -21,7 +21,13 @@ export function WiringCheck({ diagram, askAgent }: WiringCheckProps): React.Reac
     const inputRef = React.useRef<HTMLInputElement>(null);
     const [status, setStatus] = React.useState<'idle' | 'reading' | 'sent' | 'failed'>('idle');
     const timer = React.useRef<ReturnType<typeof setTimeout>>();
-    React.useEffect(() => () => { if (timer.current) { clearTimeout(timer.current); } }, []);
+    const mounted = React.useRef(true);
+    React.useEffect(() => () => {
+        mounted.current = false;
+        if (timer.current) {
+            clearTimeout(timer.current);
+        }
+    }, []);
 
     const onFile = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
         const file = event.target.files?.[0];
@@ -30,13 +36,18 @@ export function WiringCheck({ diagram, askAgent }: WiringCheckProps): React.Reac
             return;
         }
         setStatus('reading');
+        let outcome: 'sent' | 'failed';
         try {
             const image = await readPhoto(file);
             askAgent(wiringCheckPrompt(diagram), { images: [image], displayText: WIRING_CHECK_DISPLAY_TEXT });
-            setStatus('sent');
+            outcome = 'sent';
         } catch {
-            setStatus('failed');
+            outcome = 'failed';
         }
+        if (!mounted.current) {
+            return;
+        }
+        setStatus(outcome);
         if (timer.current) {
             clearTimeout(timer.current);
         }
@@ -49,7 +60,6 @@ export function WiringCheck({ diagram, askAgent }: WiringCheckProps): React.Reac
                 ref={inputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 hidden
                 aria-hidden="true"
                 tabIndex={-1}
