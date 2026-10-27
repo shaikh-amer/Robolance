@@ -68,6 +68,8 @@ test('validation names what is wrong', () => {
     assert.match(validateArenaSpec({ ...spec, width: 10 })!, /between 50 and 1000/);
     assert.match(validateArenaSpec({ ...spec, walls: [...spec.walls, { x1: 5, y1: 5, x2: 5, y2: 5 }] })!, /no length/);
     assert.match(validateArenaSpec({ ...spec, start: { x: 2, y: 2, headingDeg: 0 } })!, /room for the robot/);
+    assert.match(validateArenaSpec({ ...spec, start: { x: 62, y: 30, headingDeg: 0 } })!, /overlaps a wall/);
+    assert.equal(validateArenaSpec({ ...spec, start: { x: 75, y: 30, headingDeg: 0 } }), undefined, 'clear of the wall by more than the radius');
     assert.match(validateArenaSpec({ ...spec, goal: { x: 500, y: 5, radius: 10 } })!, /inside the arena/);
     assert.match(validateArenaSpec({ ...spec, goal: { x: 50, y: 50, radius: 0 } })!, /radius/);
 });

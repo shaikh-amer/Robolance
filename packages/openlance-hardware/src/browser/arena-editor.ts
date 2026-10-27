@@ -110,6 +110,11 @@ export function validateArenaSpec(spec: ArenaSpec, robotRadius: number = DEFAULT
     if (!inside(spec.start, robotRadius)) {
         return 'the start must leave room for the robot inside the arena';
     }
+    // A robot placed over an inner wall cannot take its first step: the
+    // simulator refuses every move that keeps it overlapping.
+    if (spec.walls.some(w => !isBorderWall(spec, w) && pointSegmentDistance(spec.start.x, spec.start.y, w) < robotRadius)) {
+        return 'the start overlaps a wall; move the robot clear of it';
+    }
     if (!finite(spec.goal.radius) || spec.goal.radius <= 0) {
         return 'the goal needs a radius';
     }
