@@ -108,6 +108,17 @@ test('HardwarePanel renders the arena of the newest run at its end, and the empt
     assert.match(broken, /not valid JSON/);
 });
 
+test('the Circuit view offers the wiring check when the chat can take a photo', () => {
+    const files = new Map<string, string>([['diagram.json', JSON.stringify({ parts: [{ type: 'led', id: 'led1', pin: 13 }] })]]);
+    const project = readHardwareProject(files);
+    const withChat = renderToStaticMarkup(<HardwarePanelBody project={project} context={{ files, theme: 'dark', askAgent: () => undefined }} />);
+    assert.match(withChat, /Check wiring from a photo/);
+    assert.match(withChat, /type="file"[^>]*accept="image\/\*"/, 'a phone offers its camera and library');
+    assert.doesNotMatch(withChat, /capture=/, 'the library stays available, not only the camera');
+    const withoutChat = renderToStaticMarkup(<HardwarePanelBody project={project} context={{ files, theme: 'dark' }} />);
+    assert.doesNotMatch(withoutChat, /Check wiring from a photo/);
+});
+
 test('the arena can be edited when the host can write files', () => {
     const files = new Map<string, string>([['diagram.json', JSON.stringify(robotDiagram)]]);
     const project = readHardwareProject(files);

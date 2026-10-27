@@ -70,6 +70,19 @@
     color: #fff;
 }
 
+.robolance-wiring-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.robolance-wiring-status {
+    color: var(--openlance-muted, #9a9a9a);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
 .robolance-build {
     color: var(--openlance-muted, #9a9a9a);
 }
