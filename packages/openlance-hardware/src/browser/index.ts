@@ -12,3 +12,5 @@ export * from './zoom-pane';
 export { RunsView, ScoreChart } from './RunsView';
 export * from './arena-editor';
 export { ArenaEditor } from './ArenaEditor';
+export * from './wiring-check';
+export { WiringCheck } from './WiringCheck';

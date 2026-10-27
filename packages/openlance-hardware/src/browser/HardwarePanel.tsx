@@ -16,6 +16,7 @@ import { poseIndexAt, readHardwareProject, statesAt, type HardwareProject, type 
 import { RunsView } from './RunsView';
 import { ZoomPane } from './ZoomPane';
 import { useLiveSimulation } from './use-live-simulation';
+import { WiringCheck } from './WiringCheck';
 import type { PreviewTabContext } from './preview-tab';
 
 export type HardwareView = 'circuit' | 'arena' | 'runs';
@@ -155,6 +156,9 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
                     ))}
                 </div>
                 <div className="robolance-toolbar-right">
+                    {view === 'circuit' && context.askAgent && diagram.parts.length > 0 && (
+                        <WiringCheck diagram={diagram} askAgent={context.askAgent} />
+                    )}
                     {view === 'arena' && canEditArena && !liveMode && (
                         <button
                             type="button"
