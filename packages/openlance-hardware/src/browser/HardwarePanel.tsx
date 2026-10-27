@@ -9,6 +9,7 @@
 
 import * as React from 'react';
 import { cornerMaze, DEFAULT_ROBOT, type ArenaSpec, type Diagram } from 'robolance-hardware-sim';
+import { ArenaEditor } from './ArenaEditor';
 import { ArenaView } from './ArenaView';
 import { CircuitView, type CircuitInputs, type PartStates } from './CircuitView';
 import { poseIndexAt, readHardwareProject, statesAt, type HardwareProject, type RunEntry } from './hardware-project';
@@ -37,7 +38,9 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
     const [timeMs, setTimeMs] = React.useState(() => project.runs[0]?.trace.ranMs ?? 0);
     const [playing, setPlaying] = React.useState(false);
     const [liveMode, setLiveMode] = React.useState(false);
+    const [editingArena, setEditingArena] = React.useState(false);
     const live = useLiveSimulation(liveMode ? project.hex : undefined, liveMode ? diagram : undefined);
+    const canEditArena = hasArena && !!context.writeFile && !!project.diagramPath;
 
     const run: RunEntry | undefined = project.runs[Math.min(selectedRun, Math.max(0, project.runs.length - 1))];
     const runDuration = run?.trace.ranMs ?? 0;
@@ -152,6 +155,16 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
                     ))}
                 </div>
                 <div className="robolance-toolbar-right">
+                    {view === 'arena' && canEditArena && !liveMode && (
+                        <button
+                            type="button"
+                            className={`robolance-edit-btn${editingArena ? ' active' : ''}`}
+                            title={editingArena ? 'Back to the recorded run' : 'Draw walls, move the start and the goal'}
+                            onClick={() => setEditingArena(v => !v)}
+                        >
+                            {editingArena ? 'Editing' : 'Edit arena'}
+                        </button>
+                    )}
                     {project.build?.size && (
                         <span className="robolance-build" title={`built with ${project.build.backend ?? 'the toolchain'}`}>
                             {Math.round(project.build.size.flashBytes / 1024 * 10) / 10} KB flash
@@ -171,7 +184,19 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
 
             <div className="robolance-body">
                 {view === 'circuit' && <CircuitView diagram={diagram} states={states} inputs={inputs} />}
-                {view === 'arena' && arenaSpec && (
+                {view === 'arena' && arenaSpec && editingArena && diagram && context.writeFile && project.diagramPath && (
+                    <ZoomPane className="robolance-arena-pane" contentWidth={arenaSpec.width + 8} contentHeight={arenaSpec.height + 8} mode="contain" maxScale={12} label="Arena editor">
+                        <ArenaEditor
+                            diagram={diagram}
+                            spec={arenaSpec}
+                            diagramPath={project.diagramPath}
+                            writeFile={context.writeFile}
+                            askAgent={context.askAgent}
+                            onClose={() => setEditingArena(false)}
+                        />
+                    </ZoomPane>
+                )}
+                {view === 'arena' && arenaSpec && !editingArena && (
                     <div className="robolance-arena-wrap">
                         <ZoomPane className="robolance-arena-pane" contentWidth={arenaSpec.width + 8} contentHeight={arenaSpec.height + 8} mode="contain" maxScale={12} label="Arena">
                             <ArenaView

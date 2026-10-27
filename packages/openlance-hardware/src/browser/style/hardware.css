@@ -280,6 +280,99 @@
     stroke-linecap: round;
 }
 
+/* Arena editor */
+
+.robolance-arena-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 100%;
+}
+
+.robolance-editor-bar,
+.robolance-editor-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    font-size: 11px;
+    color: var(--openlance-muted, #9a9a9a);
+}
+
+.robolance-editor-bar label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.robolance-editor-bar input[type="number"] {
+    width: 52px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.12));
+    background: var(--openlance-layer-1, rgba(255, 255, 255, 0.04));
+    color: var(--openlance-fg, #e6e6e6);
+}
+
+.robolance-editor-bar select {
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.12));
+    background: var(--openlance-layer-1, rgba(255, 255, 255, 0.04));
+    color: var(--openlance-fg, #e6e6e6);
+}
+
+.robolance-editor-tools {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.robolance-panel .robolance-editor-tools button.active,
+.robolance-panel .robolance-edit-btn.active {
+    background: color-mix(in srgb, var(--openlance-accent, #6366f1) 35%, transparent);
+    border-color: color-mix(in srgb, var(--openlance-accent, #6366f1) 60%, transparent);
+}
+
+.robolance-editor-canvas {
+    display: block;
+}
+
+.robolance-arena.editing {
+    cursor: default;
+    touch-action: none;
+}
+
+.robolance-arena.editing.tool-wall {
+    cursor: crosshair;
+}
+
+.robolance-arena-wall.selected {
+    stroke: var(--openlance-accent, #6366f1);
+    stroke-width: 3;
+}
+
+.robolance-arena-wall.pending {
+    stroke: var(--openlance-accent, #6366f1);
+    stroke-dasharray: 2 1.5;
+    stroke-width: 2;
+}
+
+.robolance-wall-ends circle {
+    fill: var(--openlance-accent, #6366f1);
+    opacity: 0.8;
+}
+
+.robolance-editor-hint {
+    flex: 1 1 auto;
+}
+
+.robolance-panel .robolance-primary {
+    background: color-mix(in srgb, var(--openlance-accent, #6366f1) 45%, transparent);
+    border-color: color-mix(in srgb, var(--openlance-accent, #6366f1) 70%, transparent);
+    color: var(--openlance-fg, #e6e6e6);
+}
+
 .robolance-arena-readout {
     display: flex;
     gap: 14px;

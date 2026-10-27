@@ -15,9 +15,14 @@ export interface ArenaViewProps {
     distanceAheadCm?: number;
     robotRadius?: number;
     reachedGoal?: boolean;
+    /** Extra drawing in arena coordinates (the editor's handles). */
+    children?: React.ReactNode;
+    /** Handlers and attributes for the SVG element itself (the editor's pointer events). */
+    svgProps?: React.SVGProps<SVGSVGElement>;
+    svgRef?: React.Ref<SVGSVGElement>;
 }
 
-export function ArenaView({ spec, path, events = [], distanceAheadCm, robotRadius = DEFAULT_ROBOT.radius, reachedGoal = false }: ArenaViewProps): React.ReactElement {
+export function ArenaView({ spec, path, events = [], distanceAheadCm, robotRadius = DEFAULT_ROBOT.radius, reachedGoal = false, children, svgProps, svgRef }: ArenaViewProps): React.ReactElement {
     const pose = path[path.length - 1] ?? spec.start;
     const heading = (pose.headingDeg * Math.PI) / 180;
     const dx = Math.cos(heading);
@@ -32,6 +37,8 @@ export function ArenaView({ spec, path, events = [], distanceAheadCm, robotRadiu
             viewBox={`-4 -4 ${spec.width + 8} ${spec.height + 8}`}
             role="img"
             aria-label={`Arena ${spec.width} by ${spec.height} centimetres`}
+            ref={svgRef}
+            {...svgProps}
         >
             <rect x={0} y={0} width={spec.width} height={spec.height} className="robolance-arena-floor" />
             {spec.walls.map((w, i) => (
@@ -60,6 +67,7 @@ export function ArenaView({ spec, path, events = [], distanceAheadCm, robotRadiu
                 <circle r={robotRadius} className="robolance-arena-robot" />
                 <line x1={0} y1={0} x2={dx * robotRadius} y2={dy * robotRadius} className="robolance-arena-heading" />
             </g>
+            {children}
         </svg>
     );
 }
