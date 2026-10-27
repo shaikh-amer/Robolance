@@ -11,6 +11,9 @@
  */
 
 import * as React from 'react';
+// The Wokwi custom elements register themselves on import; every host of
+// the circuit view (the IDE, the replay page) needs them defined.
+import '@wokwi/elements';
 import type { Diagram, PartSpec } from 'robolance-hardware-sim';
 import { ZoomPane } from './ZoomPane';
 

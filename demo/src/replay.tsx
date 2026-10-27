@@ -1,0 +1,119 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 OpenLance
+
+/**
+ * The replay page. A share link from the IDE's Hardware tab opens here:
+ * the same Circuit, Arena and Runs views replay the run, with no account
+ * and nothing uploaded (the link carries the run).
+ */
+
+import 'robolance-openlance-hardware/src/browser/style/hardware.css';
+import './replay.css';
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import { HardwarePanelBody } from 'robolance-openlance-hardware/lib/browser/HardwarePanel';
+import type { HardwareProject, RunEntry } from 'robolance-openlance-hardware/lib/browser/hardware-project';
+import { headline, runFromRecordText, runFromShare, runSource } from './load-run';
+
+const REPO = 'https://github.com/shaikh-amer/robolance';
+
+type State =
+    | { kind: 'loading' }
+    | { kind: 'empty' }
+    | { kind: 'error'; message: string }
+    | { kind: 'run'; run: RunEntry; source: string };
+
+function theme(): 'light' | 'dark' {
+    return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+function App(): React.ReactElement {
+    const [state, setState] = React.useState<State>({ kind: 'loading' });
+    const [dragging, setDragging] = React.useState(false);
+
+    const load = React.useCallback(async () => {
+        const source = runSource(window.location);
+        try {
+            if (source.kind === 'share') {
+                setState({ kind: 'run', run: await runFromShare(source.encoded), source: 'shared link' });
+            } else if (source.kind === 'url') {
+                const response = await fetch(source.url);
+                if (!response.ok) {
+                    throw new Error(`Could not fetch the run (${response.status}).`);
+                }
+                setState({ kind: 'run', run: runFromRecordText(await response.text(), source.url), source: source.url });
+            } else {
+                setState({ kind: 'empty' });
+            }
+        } catch (err) {
+            setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
+        }
+    }, []);
+
+    React.useEffect(() => {
+        void load();
+        window.addEventListener('hashchange', load);
+        return () => window.removeEventListener('hashchange', load);
+    }, [load]);
+
+    const openFile = async (file: File): Promise<void> => {
+        try {
+            setState({ kind: 'run', run: runFromRecordText(await file.text(), file.name), source: file.name });
+        } catch (err) {
+            setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
+        }
+    };
+
+    const onDrop = (event: React.DragEvent): void => {
+        event.preventDefault();
+        setDragging(false);
+        const file = event.dataTransfer.files?.[0];
+        if (file) {
+            void openFile(file);
+        }
+    };
+
+    const project: HardwareProject | undefined = state.kind === 'run'
+        ? { diagram: state.run.diagram, diagramPath: state.run.diagram ? 'diagram.json' : undefined, runs: [state.run] }
+        : undefined;
+
+    return (
+        <div
+            className={`replay-page${dragging ? ' dragging' : ''}`}
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+        >
+            <header className="replay-header">
+                <a className="replay-brand" href={REPO} target="_blank" rel="noreferrer">robolance</a>
+                <span className="replay-title">run replay</span>
+                {state.kind === 'run' && (
+                    <span className="replay-headline">
+                        {headline(state.run)}
+                        {state.run.at && <span className="replay-when"> · {new Date(state.run.at).toLocaleString()}</span>}
+                    </span>
+                )}
+                <label className="replay-open">
+                    Open a run file
+                    <input type="file" accept="application/json,.json" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { void openFile(f); } }} />
+                </label>
+            </header>
+            {state.kind === 'loading' && <p className="replay-note">Loading the run…</p>}
+            {state.kind === 'error' && <p className="replay-note replay-error">{state.message}</p>}
+            {(state.kind === 'empty' || state.kind === 'error') && (
+                <div className="replay-empty">
+                    <p>Open a run shared from OpenLance's Hardware tab, or drop a <code>.robolance/runs/&lt;time&gt;.json</code> file here.</p>
+                    <p>A share link carries the whole run in its fragment: nothing is uploaded, and it works without an account.</p>
+                    <p><a href={REPO} target="_blank" rel="noreferrer">What is robolance?</a></p>
+                </div>
+            )}
+            {state.kind === 'run' && project && (
+                <div className="replay-panel">
+                    <HardwarePanelBody project={project} context={{ files: new Map(), theme: theme() }} shareBase={false} />
+                </div>
+            )}
+        </div>
+    );
+}
+
+createRoot(document.getElementById('root')!).render(<App />);

@@ -29,9 +29,11 @@ export function HardwarePanel(context: PreviewTabContext): React.ReactElement {
 export interface HardwarePanelBodyProps {
     project: HardwareProject;
     context: PreviewTabContext;
+    /** The replay page share links open; false hides sharing. */
+    shareBase?: string | false;
 }
 
-export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps): React.ReactElement {
+export function HardwarePanelBody({ project, context, shareBase }: HardwarePanelBodyProps): React.ReactElement {
     const diagram = project.diagram;
     const hasArena = Boolean(diagram?.arena);
     const [view, setView] = React.useState<HardwareView>(() => (hasArena ? 'arena' : 'circuit'));
@@ -223,7 +225,7 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
                 )}
                 {view === 'runs' && (
                     project.runs.length > 0
-                        ? <RunsView runs={project.runs} selected={selectedRun} onSelect={i => { setSelectedRun(i); setTimeMs(project.runs[i].trace.ranMs); setPlaying(false); }} />
+                        ? <RunsView runs={project.runs} selected={selectedRun} onSelect={i => { setSelectedRun(i); setTimeMs(project.runs[i].trace.ranMs); setPlaying(false); }} shareBase={shareBase} />
                         : <div className="robolance-empty"><p>No runs yet. When the agent runs the sketch, each run shows up here with its serial output, notes and score.</p></div>
                 )}
             </div>

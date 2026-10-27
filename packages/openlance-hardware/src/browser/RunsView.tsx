@@ -8,14 +8,17 @@
 
 import * as React from 'react';
 import { describeRun, formatRunTime, type RunEntry } from './hardware-project';
+import { REPLAY_PAGE_URL, shareRunUrl } from './share-run';
 
 export interface RunsViewProps {
     runs: RunEntry[];
     selected: number;
     onSelect(index: number): void;
+    /** The replay page a share link opens; false hides sharing (the replay page itself). */
+    shareBase?: string | false;
 }
 
-export function RunsView({ runs, selected, onSelect }: RunsViewProps): React.ReactElement {
+export function RunsView({ runs, selected, onSelect, shareBase = REPLAY_PAGE_URL }: RunsViewProps): React.ReactElement {
     const run = runs[selected];
     const scored = runs.filter(r => r.trace.arena);
     return (
@@ -40,6 +43,7 @@ export function RunsView({ runs, selected, onSelect }: RunsViewProps): React.Rea
             </ol>
             {run && (
                 <div className="robolance-run-detail">
+                    {shareBase && <ShareRun run={run} base={shareBase} />}
                     {run.trace.notes.length > 0 && (
                         <ul className="robolance-run-notes">
                             {run.trace.notes.map((note, i) => <li key={i}>{note}</li>)}
@@ -49,6 +53,63 @@ export function RunsView({ runs, selected, onSelect }: RunsViewProps): React.Rea
                         {run.trace.serial.length > 0 ? run.trace.serial.join('\n') : '(nothing printed on Serial)'}
                     </pre>
                 </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * "Share this run": the link carries the run itself (deflated into the
+ * fragment), so anyone can open the replay without an account.
+ */
+export function ShareRun({ run, base }: { run: RunEntry; base: string }): React.ReactElement {
+    const [state, setState] = React.useState<{ kind: 'idle' | 'working' | 'copied' | 'failed' | 'show'; url?: string }>({ kind: 'idle' });
+    const timer = React.useRef<ReturnType<typeof setTimeout>>();
+    const mounted = React.useRef(true);
+    React.useEffect(() => () => {
+        mounted.current = false;
+        if (timer.current) {
+            clearTimeout(timer.current);
+        }
+    }, []);
+    React.useEffect(() => { setState({ kind: 'idle' }); }, [run.path]);
+
+    const share = async (): Promise<void> => {
+        setState({ kind: 'working' });
+        let next: typeof state;
+        try {
+            const url = await shareRunUrl(run, base);
+            try {
+                await navigator.clipboard.writeText(url);
+                next = { kind: 'copied', url };
+            } catch {
+                // No clipboard (an iframe without the permission, an insecure page): show the link instead.
+                next = { kind: 'show', url };
+            }
+        } catch {
+            next = { kind: 'failed' };
+        }
+        if (!mounted.current) {
+            return;
+        }
+        setState(next);
+        if (next.kind === 'copied' || next.kind === 'failed') {
+            if (timer.current) {
+                clearTimeout(timer.current);
+            }
+            timer.current = setTimeout(() => setState({ kind: 'idle' }), 4000);
+        }
+    };
+
+    return (
+        <div className="robolance-share">
+            <button type="button" className="robolance-share-btn" disabled={state.kind === 'working'} title="Copy a link that replays this run; the link carries the run, nothing is uploaded" onClick={() => { void share(); }}>
+                {state.kind === 'working' ? 'Making link…' : 'Share this run'}
+            </button>
+            {state.kind === 'copied' && <span className="robolance-share-status" role="status">Link copied.</span>}
+            {state.kind === 'failed' && <span className="robolance-share-status robolance-error" role="status">Could not make the link.</span>}
+            {state.kind === 'show' && state.url && (
+                <input className="robolance-share-url" readOnly value={state.url} aria-label="Share link" onFocus={e => e.currentTarget.select()} />
             )}
         </div>
     );
