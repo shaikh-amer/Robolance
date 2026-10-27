@@ -8,7 +8,7 @@
  */
 
 import * as React from 'react';
-import { cornerMaze, DEFAULT_ROBOT, type ArenaSpec, type Diagram } from 'robolance-hardware-sim';
+import { arenaPreset, DEFAULT_ROBOT, type ArenaSpec, type Diagram } from 'robolance-hardware-sim';
 import { ArenaEditor } from './ArenaEditor';
 import { ArenaView } from './ArenaView';
 import { CircuitView, type CircuitInputs, type PartStates } from './CircuitView';
@@ -92,7 +92,7 @@ export function HardwarePanelBody({ project, context }: HardwarePanelBodyProps):
         set: (id, value) => live.apply({ action: 'set', part: id, value }),
     } : undefined, [liveMode, live.apply]);
 
-    const arenaSpec: ArenaSpec | undefined = diagram?.arena ? (diagram.arena.spec ?? cornerMaze()) : undefined;
+    const arenaSpec: ArenaSpec | undefined = diagram?.arena ? (diagram.arena.spec ?? arenaPreset(diagram.arena.preset)) : undefined;
     const robotRadius = diagram?.arena?.robot?.radius ?? DEFAULT_ROBOT.radius;
 
     let states: PartStates = {};
