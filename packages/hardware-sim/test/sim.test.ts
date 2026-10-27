@@ -6,11 +6,22 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { Board, cornerMaze, loadHex, runScenario, validateDiagram, type Diagram } from '../src/index.js';
+import { Arena, Board, cornerMaze, LineSensor, lineCourse, loadHex, Motor, runScenario, validateDiagram, type Diagram } from '../src/index.js';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'fixtures');
 const benchHex = readFileSync(join(fixtures, 'bench.hex'), 'utf8');
 const followerHex = readFileSync(join(fixtures, 'wall-follower.hex'), 'utf8');
+const lineHex = readFileSync(join(fixtures, 'line-follower.hex'), 'utf8');
+
+const lineDiagram: Diagram = {
+    parts: [
+        { type: 'motor', id: 'left', in1: 4, in2: 5, en: 6 },
+        { type: 'motor', id: 'right', in1: 7, in2: 8, en: 10 },
+        { type: 'linesensor', id: 'leftEye', pin: 2, forwardCm: 9, leftCm: 2.5 },
+        { type: 'linesensor', id: 'rightEye', pin: 3, forwardCm: 9, leftCm: -2.5 },
+    ],
+    arena: { preset: 'line', left: 'left', right: 'right' },
+};
 
 const benchDiagram: Diagram = {
     parts: [
@@ -83,7 +94,7 @@ test('scripted events that do not fit a part are reported, not dropped silently'
 
 test('validateDiagram names the first problem', () => {
     assert.equal(validateDiagram(null), 'diagram must be an object');
-    assert.equal(validateDiagram({ parts: [{ type: 'laser', id: 'x' }] }), 'unknown part type "laser"; use one of led, button, servo, ultrasonic, potentiometer, motor');
+    assert.equal(validateDiagram({ parts: [{ type: 'laser', id: 'x' }] }), 'unknown part type "laser"; use one of led, button, servo, ultrasonic, potentiometer, motor, linesensor');
     assert.equal(validateDiagram({ parts: [{ type: 'led', id: 'a', pin: 13 }, { type: 'led', id: 'b', pin: 13 }] }), 'led b and led a both use pin 13');
     assert.equal(validateDiagram({ parts: [{ type: 'led', id: 'a', pin: 14 }] }), 'led a: 14 is not an Uno pin (0-13 or A0-A5)');
     assert.equal(validateDiagram({ parts: [{ type: 'potentiometer', id: 'p', pin: 3 }] }), 'potentiometer p: a potentiometer needs an analog pin (A0-A5)');
@@ -121,6 +132,48 @@ test('a robot whose motors are not driven never moves', () => {
     assert.equal(arena.collisions, 0);
     assert.ok(trace.notes.some(n => n.includes('the robot never moved')));
     assert.equal(arena.score, 0);
+});
+
+test('line sensors read the floor under the robot and coverage follows its centre', () => {
+    const spec = lineCourse();
+    const left = new LineSensor('l', 2, true);
+    const right = new LineSensor('r', 'A0');
+    const arena = new Arena(spec, new Motor('m1', 4, 5, 6), new Motor('m2', 7, 8, 10), undefined, undefined, [
+        { sensor: left, forwardCm: 9, leftCm: 2.5 },
+        { sensor: right, forwardCm: 9, leftCm: -2.5 },
+    ]);
+    // Centred on the 2 cm line at the start, heading east along it: the robot
+    // is on the line, and the sensors 2.5 cm either side straddle it.
+    assert.equal(arena.lineState().onLine, true);
+    assert.equal(left.onLine, false);
+    assert.equal(right.onLine, false);
+    assert.equal(right.state().volts, 4.4);
+    // Nudged 3 cm to the left (north): the left sensor loses it first.
+    arena.pose = { x: 40, y: 57, headingDeg: 0 };
+    arena.tick(5);
+    assert.equal(arena.lineState().onLine, false);
+    assert.equal(left.onLine, false);
+    assert.equal(right.onLine, true, 'the right sensor, 2.5 cm right of centre, is 0.5 cm from the line centre');
+    // Walk the centre along the first straight: coverage grows.
+    for (let x = 20; x <= 60; x += 2) {
+        arena.pose = { x, y: 60, headingDeg: 0 };
+        arena.tick(5);
+    }
+    const state = arena.lineState();
+    assert.ok(state.coverage > 0.2 && state.coverage < 0.5, `coverage ${state.coverage}`);
+    assert.equal(state.lostAtMs, null);
+    assert.equal(validateDiagram({ ...lineDiagram, arena: { ...lineDiagram.arena, preset: 'maze' } }), 'arena.preset must be one of corner, line');
+});
+
+test('line follower keeps to the line and is scored on coverage', () => {
+    const trace = runScenario(lineHex, lineDiagram, { durationMs: 8000, maxRealMs: 60_000 });
+    const arena = trace.arena!;
+    assert.ok(trace.serial.some(l => /^eyes=[01][01]$/.test(l)), 'the sensors were read');
+    assert.ok(arena.line, 'a line course reports its line state');
+    assert.ok(arena.line!.coverage > 0.3, `the robot covered some of the line: ${JSON.stringify(arena.line)}`);
+    assert.ok(arena.line!.onLineMs > 1000, 'it spent time on the line');
+    assert.ok(arena.score > 15 && arena.score <= 100, `score ${arena.score}`);
+    assert.equal(typeof trace.final.leftEye.onLine, 'boolean');
 });
 
 test('the corner maze is bounded by its outer walls', () => {

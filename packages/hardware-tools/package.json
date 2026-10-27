@@ -1,6 +1,6 @@
 {
   "name": "robolance-hardware-tools",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The agent's hardware tools: compile a sketch, run it in the simulator, inspect the result. Served over MCP.",
   "license": "Apache-2.0",
   "type": "module",
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "robolance-hardware-sim": "0.1.0",
+    "robolance-hardware-sim": "0.2.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

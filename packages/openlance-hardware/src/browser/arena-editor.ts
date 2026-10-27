@@ -13,7 +13,7 @@
  * layout with no tool change.
  */
 
-import { cornerMaze, DEFAULT_ROBOT, type ArenaSpec, type Diagram, type Wall } from 'robolance-hardware-sim';
+import { cornerMaze, DEFAULT_ROBOT, lineCourse, type ArenaSpec, type Diagram, type Wall } from 'robolance-hardware-sim';
 
 export const GRID_CM = 5;
 export const MIN_SIZE_CM = 50;
@@ -70,6 +70,7 @@ export const ARENA_PRESETS: readonly ArenaPresetEntry[] = [
     { id: 'corner', label: 'Corner', spec: cornerMaze },
     { id: 'room', label: 'Open room', spec: openRoom },
     { id: 'slalom', label: 'Slalom', spec: slalom },
+    { id: 'line', label: 'Line course', spec: lineCourse },
 ];
 
 export function snap(value: number, grid: number = GRID_CM): number {
@@ -88,6 +89,7 @@ export function cloneSpec(spec: ArenaSpec): ArenaSpec {
         walls: spec.walls.map(w => ({ ...w })),
         start: { ...spec.start },
         goal: { ...spec.goal },
+        ...(spec.line ? { line: { widthCm: spec.line.widthCm, points: spec.line.points.map(p => ({ ...p })) } } : {}),
     };
 }
 
@@ -196,7 +198,11 @@ export function resizeArena(spec: ArenaSpec, width: number, height: number): Are
     const inner = spec.walls.filter(wall => !isBorderWall(spec, wall)).map(wall => ({
         x1: clamp(wall.x1, 0, w), y1: clamp(wall.y1, 0, h), x2: clamp(wall.x2, 0, w), y2: clamp(wall.y2, 0, h),
     })).filter(wall => (wall.x1 !== wall.x2 || wall.y1 !== wall.y2) && !isBorderWall(frame, wall));
-    const resized: ArenaSpec = { ...frame, walls: [...frame.walls, ...inner] };
+    const resized: ArenaSpec = {
+        ...frame,
+        walls: [...frame.walls, ...inner],
+        ...(spec.line ? { line: { ...spec.line, points: spec.line.points.map(pt => ({ x: clamp(pt.x, 0, w), y: clamp(pt.y, 0, h) })) } } : {}),
+    };
     return moveGoal(moveStart(resized, spec.start.x, spec.start.y), spec.goal.x, spec.goal.y);
 }
 

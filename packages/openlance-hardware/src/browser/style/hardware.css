@@ -223,6 +223,14 @@
     fill: var(--openlance-layer-1, rgba(255, 255, 255, 0.04));
 }
 
+.robolance-arena-line {
+    fill: none;
+    stroke: #111;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.85;
+}
+
 .robolance-arena-wall {
     stroke: var(--openlance-fg, #e6e6e6);
     stroke-width: 2;

@@ -70,6 +70,8 @@ function connections(part: PartSpec): { pin: string; board: string; role: 'GND' 
             return [{ pin: 'SIG', board: part.pin, role: 'signal' }, { pin: 'VCC', board: '5V', role: 'VCC' }, { pin: 'GND', board: 'GND.3', role: 'GND' }];
         case 'motor':
             return [{ pin: 'IN1', board: String(part.in1), role: 'signal' }, { pin: 'IN2', board: String(part.in2), role: 'signal' }, { pin: 'EN', board: String(part.en), role: 'signal' }];
+        case 'linesensor':
+            return [{ pin: typeof part.pin === 'string' ? 'AO' : 'DO', board: String(part.pin), role: 'signal' }, { pin: 'VCC', board: '5V', role: 'VCC' }, { pin: 'GND', board: 'GND.3', role: 'GND' }];
     }
 }
 
@@ -208,6 +210,7 @@ function partHeight(part: PartSpec): number {
         case 'ultrasonic': return 112;
         case 'potentiometer': return 94;
         case 'motor': return 74;
+        case 'linesensor': return 84;
     }
 }
 
@@ -291,6 +294,7 @@ function PartNode({ part, state, inputs, style, register }: PartNodeProps): Reac
         : part.type === 'servo' ? 'wokwi-servo'
         : part.type === 'ultrasonic' ? 'wokwi-hc-sr04'
         : part.type === 'potentiometer' ? 'wokwi-potentiometer'
+        : part.type === 'linesensor' ? 'wokwi-photoresistor-sensor'
         : undefined;
 
     const label = describeState(part, state);
@@ -334,6 +338,8 @@ export function describeState(part: PartSpec, state: Record<string, unknown>): s
             return typeof state.distanceCm === 'number' ? `${state.distanceCm} cm` : '';
         case 'potentiometer':
             return typeof state.position === 'number' ? `${Math.round(state.position * 100)}%` : '';
+        case 'linesensor':
+            return state.onLine ? 'on the line' : 'floor';
         case 'motor': {
             const speed = typeof state.speed === 'number' ? state.speed : 0;
             return speed === 0 ? 'stopped' : `${speed > 0 ? 'forward' : 'backward'} ${Math.round(Math.abs(speed) * 100)}%`;

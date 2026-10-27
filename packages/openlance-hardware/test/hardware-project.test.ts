@@ -60,7 +60,7 @@ test('readHardwareProject finds the diagram, firmware and runs, newest first', (
 
 test('a bad diagram is reported instead of shown', () => {
     assert.match(readHardwareProject(new Map([['diagram.json', '{']])).diagramError ?? '', /not valid JSON/);
-    assert.equal(readHardwareProject(new Map([['diagram.json', '{"parts": [{"type": "laser", "id": "x"}]}']])).diagramError, 'unknown part type "laser"; use one of led, button, servo, ultrasonic, potentiometer, motor');
+    assert.equal(readHardwareProject(new Map([['diagram.json', '{"parts": [{"type": "laser", "id": "x"}]}']])).diagramError, 'unknown part type "laser"; use one of led, button, servo, ultrasonic, potentiometer, motor, linesensor');
 });
 
 test('statesAt picks the last sample at or before the time, and the final state at the end', () => {

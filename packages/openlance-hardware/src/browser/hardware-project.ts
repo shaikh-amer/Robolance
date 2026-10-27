@@ -190,5 +190,6 @@ export function describeRun(run: RunEntry): string {
         return `${seconds} · ${run.trace.serial.length} serial lines${notes ? ` · ${notes} note${notes === 1 ? '' : 's'}` : ''}`;
     }
     const goal = arena.reachedGoalAtMs !== null ? `goal at ${(arena.reachedGoalAtMs / 1000).toFixed(1)} s` : `${arena.bestDistanceToGoalCm} cm from goal`;
-    return `${seconds} · score ${arena.score} · ${goal} · ${arena.collisions} collision${arena.collisions === 1 ? '' : 's'}`;
+    const line = arena.line ? ` · line ${Math.round(arena.line.coverage * 100)}%` : '';
+    return `${seconds} · score ${arena.score} · ${goal}${line} · ${arena.collisions} collision${arena.collisions === 1 ? '' : 's'}`;
 }

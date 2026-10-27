@@ -9,6 +9,15 @@ import {
     openRoom, removeWall, resizeArena, setGoalRadius, setStartHeading, slalom, snap, validateArenaSpec,
 } from '../src/browser/arena-editor';
 
+test('the line course keeps its line through cloning and resizing', () => {
+    const line = ARENA_PRESETS.find(p => p.id === 'line')!.spec();
+    assert.ok(line.line && line.line.points.length > 3);
+    const resized = resizeArena(line, 150, 100);
+    assert.ok(resized.line!.points.every(p => p.x <= 150 && p.y <= 100));
+    assert.equal(resized.line!.widthCm, 2);
+    assert.equal(validateArenaSpec(line), undefined);
+});
+
 test('presets are valid arenas with a closed border', () => {
     for (const preset of ARENA_PRESETS) {
         const spec = preset.spec();

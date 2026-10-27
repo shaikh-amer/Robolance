@@ -41,6 +41,13 @@ export function ArenaView({ spec, path, events = [], distanceAheadCm, robotRadiu
             {...svgProps}
         >
             <rect x={0} y={0} width={spec.width} height={spec.height} className="robolance-arena-floor" />
+            {spec.line && spec.line.points.length > 1 && (
+                <polyline
+                    points={spec.line.points.map(p => `${p.x},${p.y}`).join(' ')}
+                    className="robolance-arena-line"
+                    style={{ strokeWidth: spec.line.widthCm }}
+                />
+            )}
             {spec.walls.map((w, i) => (
                 <line key={i} x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2} className="robolance-arena-wall" />
             ))}

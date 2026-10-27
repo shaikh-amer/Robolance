@@ -15,8 +15,9 @@ import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 import {
+    ARENA_PRESET_NAMES,
     PART_TYPES,
-    cornerMaze,
+    arenaPreset,
     runScenario,
     validateDiagram,
     type Diagram,
@@ -42,8 +43,12 @@ export const PARTS_HELP = `Parts a diagram can hold (every pin is an Uno pin: 0-
 - potentiometer: { "type": "potentiometer", "id": "pot", "pin": "A0" }  — analogRead gives 0-1023 for position 0-1.
 - motor: { "type": "motor", "id": "left", "in1": 4, "in2": 5, "en": 6 }  — one H-bridge channel: in1 HIGH/in2 LOW forward, in2 HIGH/in1 LOW backward, analogWrite(en, 0-255) speed. Use a PWM pin for en (3, 5, 6, 9, 10, 11).
 
+- linesensor: { "type": "linesensor", "id": "leftEye", "pin": 2, "forwardCm": 9, "leftCm": 2.5 }  — a reflectance (IR line) sensor under the robot, forwardCm/leftCm from its centre (negative leftCm is right). On a digital pin it reads HIGH over the dark line and LOW over the floor ("activeHigh": false for the opposite kind); on an analog pin (A0-A5) analogRead gives about 120 over the line and 900 over the floor. Mount one 2.5 cm left and one 2.5 cm right of centre, 9 cm forward: on a 2 cm line neither sees it while the robot is centred, and the one that does says which way it drifted.
+
 Robot arena (optional): "arena": { "preset": "corner", "left": "<motor id>", "right": "<motor id>", "sensor": "<ultrasonic id>" }
 puts a two-wheel robot (12 cm track, 8 cm radius, 25 cm/s at full speed) with the sensor facing forward in a maze. The "corner" preset is a 200×120 cm room with two inner walls: start at (30, 95) facing east (heading 0°, counter-clockwise positive), goal at (170, 25) radius 15. The run reports the path, collisions, whether the goal was reached and a score 0-100 (80 for reaching the goal + up to 20 for speed, else up to 60 for progress; 5 off per collision).
+The "line" preset is an open 200×120 cm room with a 2 cm dark line winding from the start (20, 60), facing east, to the goal at (180, 80): a line-following task for linesensor parts. Its run also reports line.coverage (fraction of the line the robot's centre passed over), line.onLineMs and line.lostAtMs, and the score is 60 × coverage + 30 for reaching the end (+ up to 10 for speed), 5 off per collision.
+A diagram may carry "arena": { "spec": {...} } instead of a preset: the user drew that arena in the IDE; keep it unchanged. hardware_arena returns a preset's geometry.
 
 Scripted events for a run: press/release/tap a button, set a potentiometer (0-1) or an ultrasonic sensor's distance (cm), or send serial text.`;
 
@@ -112,7 +117,7 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
                 board: z.literal('uno').optional(),
                 parts: z.array(z.object({ type: z.enum(PART_TYPES), id: z.string() }).passthrough()),
                 arena: z.object({
-                    preset: z.literal('corner').optional(),
+                    preset: z.enum(ARENA_PRESET_NAMES).optional(),
                     left: z.string(),
                     right: z.string(),
                     sensor: z.string().optional(),
@@ -161,9 +166,9 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
     });
 
     server.registerTool('hardware_arena', {
-        description: 'The geometry of an arena preset: walls, start and goal, in centimetres.',
-        inputSchema: { preset: z.literal('corner').default('corner') },
-    }, async () => ({ content: [{ type: 'text', text: JSON.stringify(cornerMaze()) }] }));
+        description: 'The geometry of an arena preset: walls, start, goal and (for "line") the line on the floor, in centimetres.',
+        inputSchema: { preset: z.enum(ARENA_PRESET_NAMES).default('corner') },
+    }, async ({ preset }) => ({ content: [{ type: 'text', text: JSON.stringify(arenaPreset(preset)) }] }));
 
     return server;
 }
