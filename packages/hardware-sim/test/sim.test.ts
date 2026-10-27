@@ -176,6 +176,14 @@ test('line follower keeps to the line and is scored on coverage', () => {
     assert.equal(typeof trace.final.leftEye.onLine, 'boolean');
 });
 
+test('motors without an arena binding are called out', () => {
+    const noArena: Diagram = { parts: robotDiagram.parts };
+    const trace = runScenario(followerHex, noArena, { durationMs: 500 });
+    assert.ok(trace.notes.some(n => n.includes('no "arena" binding')), trace.notes.join(' | '));
+    const bench = runScenario(benchHex, benchDiagram, { durationMs: 500 });
+    assert.ok(!bench.notes.some(n => n.includes('arena')), 'a circuit without motors is not asked for an arena');
+});
+
 test('the corner maze is bounded by its outer walls', () => {
     const maze = cornerMaze();
     assert.equal(maze.walls.length, 6);

@@ -164,5 +164,11 @@ export function runScenario(hex: string, diagram: Diagram, options: RunOptions):
                 : 'the robot never moved: check the motor pins (in1/in2 direction, en PWM) and that the sketch drives them');
         }
     }
+    if (!arena) {
+        const motors = [...sim.parts.values()].filter(p => p.kind === 'motor');
+        if (motors.length >= 2) {
+            notes.push(`the circuit has motors (${motors.map(m => m.id).join(', ')}) but diagram.json has no "arena" binding, so the robot was not placed in an arena and could not drive anywhere: add "arena": { "preset": "corner", "left": "<motor id>", "right": "<motor id>", "sensor": "<ultrasonic id>" } and run again`);
+        }
+    }
     return trace;
 }
