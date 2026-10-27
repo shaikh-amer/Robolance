@@ -7,7 +7,8 @@ robolance is an [OpenLance](https://openlance.ai) feature built in the open for 
 ## What is pre-existing and what is new
 
 - **Pre-existing**: OpenLance, the web IDE and agent harness this plugs into (separate repository, not part of the hackathon submission). Open-source libraries: [avr8js](https://github.com/wokwi/avr8js) (ATmega328p emulation, MIT), [@wokwi/elements](https://github.com/wokwi/wokwi-elements) (part graphics, MIT), avr-gcc and [ArduinoCore-avr](https://github.com/arduino/ArduinoCore-avr), the [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk).
-- **New, written during the event, all in this repository**: everything under `packages/` and `demo/`: the circuit and robot-arena simulation, the compile and run tools served over MCP, the agent prompting around them, the IDE extension that shows the circuit, arena and runs, and the demo.
+- **New, written during the event, in this repository**: everything under `packages/` and `demo/`: the circuit and robot-arena simulation (wall avoidance and line following), the compile and run tools served over MCP, the IDE extension that shows the circuit, arena and runs (with the arena editor, the wiring check from a photo and shareable run links), and the replay page.
+- **New, written during the event, in OpenLance** (separate repository): the agent prompting and the closed compile-run-fix loop around the tools, the Meta model provider, and the glue that hosts the extension (preview tabs, photo attachments, robot template, built-in hardware tools, sandbox toolchain).
 
 ## Packages
 
