@@ -81,7 +81,7 @@ export class DuckStage {
     private readonly disposers: Array<() => void> = [];
 
     constructor(private readonly host: HTMLElement, private readonly model: ViewerModel) {
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
