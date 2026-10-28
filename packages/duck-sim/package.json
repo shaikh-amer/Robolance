@@ -1,6 +1,6 @@
 {
   "name": "robolance-duck-sim",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Microduck in a physics simulator: the official trained skills on MuJoCo, a ball-into-goal field and a mission API an agent programs.",
   "license": "Apache-2.0",
   "type": "module",
@@ -9,7 +9,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "tsc -p tsconfig.test.json && node --test '.build/test/*.test.js'",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "export-viewer": "npm run build && node scripts/export-viewer.mjs"
   },
   "dependencies": {
     "@mujoco/mujoco": "3.13.0",
@@ -23,6 +24,7 @@
     "lib",
     "assets",
     "examples",
+    "viewer",
     "README.md",
     "THIRD_PARTY_NOTICES.md"
   ],
@@ -44,6 +46,11 @@
       "default": "./lib/node-assets.js"
     },
     "./examples/*": "./examples/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./viewer": {
+      "types": "./lib/viewer.d.ts",
+      "default": "./lib/viewer.js"
+    },
+    "./viewer/duck.json": "./viewer/duck.json"
   }
 }
