@@ -137,6 +137,13 @@ test('the arena can be edited when the host can write files', () => {
     assert.match(editor, /Save and ask the agent to run it/);
     assert.match(editor, /2 inner walls/);
     assert.equal((editor.match(/robolance-wall-ends/g) ?? []).length, 2, 'inner walls get handles, the border does not');
+    // Only the drawing is zoomed: the controls sit outside the zoomed content,
+    // so on a phone they keep their size.
+    const zoomStart = editor.indexOf('robolance-zoom-content');
+    assert.ok(zoomStart > 0, 'the drawing is in a zoom pane');
+    assert.ok(editor.indexOf('robolance-editor-bar') < editor.indexOf('robolance-zoom-pane'), 'the toolbar comes before the zoom pane');
+    assert.ok(editor.indexOf('robolance-editor-footer') > editor.lastIndexOf('</svg>'), 'the footer comes after the drawing');
+    assert.match(editor, /class="robolance-editor-canvas" data-zoom-ignore/, 'drawing gestures are not taken for panning');
 });
 
 test('the preview tab applies to hardware projects only', () => {
