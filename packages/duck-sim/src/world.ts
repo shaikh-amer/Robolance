@@ -12,8 +12,15 @@ import type { MainModule, MjData, MjModel } from '@mujoco/mujoco';
 import * as ort from 'onnxruntime-web';
 import { CONTROL_DT, HOME, JOINTS, observation, targets } from './controller.js';
 import { BALL_RADIUS, DEFAULT_FIELD, sceneXml, type FieldSpec } from './field.js';
+import { decimate } from './decimate.js';
+import type { Quat, Vec3, ViewerBody, ViewerGeom, ViewerMesh, ViewerModel } from './viewer.js';
 
+const OBJ_BODY = 1;
 const OBJ_JOINT = 3;
+const OBJ_MESH = 8;
+const GEOM_MESH = 7;
+/** Geom group MuJoCo models use for visual-only meshes. */
+const VISUAL_GROUP = 2;
 const OBJ_ACTUATOR = 19;
 /** How far the duck keeps going after it is told to stop. */
 const COAST_M = 0.02;
@@ -219,6 +226,76 @@ export class DuckWorld {
     get over(): boolean {
         const decided = this.scoredAtS ?? this.outAtS;
         return this.fallen || this.time >= this.limitS || (decided !== null && this.time >= decided + AFTER_BALL_DECIDED_S);
+    }
+
+    /**
+     * The model a viewer needs to draw replay frames: bodies and joints,
+     * and the visual meshes decimated to `cell` metres.
+     */
+    viewerModel(cell = 0.003): ViewerModel {
+        const { mj, model: m } = this;
+        const v3 = (arr: ArrayLike<number>, i: number): Vec3 => [arr[3 * i], arr[3 * i + 1], arr[3 * i + 2]].map(x => round(x, 6)) as Vec3;
+        const q4 = (arr: ArrayLike<number>, i: number): Quat => [arr[4 * i], arr[4 * i + 1], arr[4 * i + 2], arr[4 * i + 3]].map(x => round(x, 6)) as Quat;
+        const bodies: ViewerBody[] = [];
+        for (let b = 0; b < m.nbody; b++) {
+            let joint: ViewerBody['joint'] = null;
+            if (m.body_jntnum[b] > 0) {
+                const j = m.body_jntadr[b];
+                joint = m.jnt_type[j] === 0
+                    ? { type: 'free', qpos: m.jnt_qposadr[j] }
+                    : { type: 'hinge', qpos: m.jnt_qposadr[j], axis: v3(m.jnt_axis, j), pos: v3(m.jnt_pos, j) };
+            }
+            bodies.push({ name: mj.mj_id2name(m, OBJ_BODY, b) ?? `body${b}`, parent: m.body_parentid[b], pos: v3(m.body_pos, b), quat: q4(m.body_quat, b), joint });
+        }
+        const geoms: ViewerGeom[] = [];
+        const meshes: ViewerMesh[] = [];
+        const meshIndex = new Map<number, number>();
+        for (let g = 0; g < m.ngeom; g++) {
+            if (m.geom_type[g] !== GEOM_MESH || m.geom_group[g] !== VISUAL_GROUP) {
+                continue;
+            }
+            const id = m.geom_dataid[g];
+            let index = meshIndex.get(id);
+            if (index === undefined) {
+                const va = m.mesh_vertadr[id];
+                const fa = m.mesh_faceadr[id];
+                const small = decimate(
+                    m.mesh_vert.subarray(3 * va, 3 * (va + m.mesh_vertnum[id])),
+                    m.mesh_face.subarray(3 * fa, 3 * (fa + m.mesh_facenum[id])),
+                    cell,
+                );
+                const wide = small.positions.length / 3 > 65535;
+                index = meshes.length;
+                meshIndex.set(id, index);
+                meshes.push({
+                    name: mj.mj_id2name(m, OBJ_MESH, id) ?? `mesh${id}`,
+                    positions: Buffer.from(small.positions.buffer).toString('base64'),
+                    indices: Buffer.from((wide ? small.indices : Uint16Array.from(small.indices)).buffer).toString('base64'),
+                    indexType: wide ? 'u32' : 'u16',
+                });
+            }
+            const mat = m.geom_matid[g];
+            const rgbaSource: ArrayLike<number> = mat >= 0 ? m.mat_rgba.subarray(4 * mat, 4 * mat + 4) : m.geom_rgba.subarray(4 * g, 4 * g + 4);
+            const rgba = Array.from(rgbaSource, x => round(x, 3)) as ViewerGeom['rgba'];
+            geoms.push({ body: m.geom_bodyid[g], mesh: index, pos: v3(m.geom_pos, g), quat: q4(m.geom_quat, g), rgba });
+        }
+        return { version: 1, nq: m.nq, bodies, geoms, meshes };
+    }
+
+    /** World pose of every body as MuJoCo computed it for the current state (for checking a viewer). */
+    bodyWorldPoses(): Array<{ pos: Vec3; quat: Quat }> {
+        const d = this.data;
+        // mj_step leaves xpos from the start of the step; recompute for the current qpos.
+        this.mj.mj_kinematics(this.model, d);
+        return Array.from({ length: this.model.nbody }, (_, b) => ({
+            pos: [d.xpos[3 * b], d.xpos[3 * b + 1], d.xpos[3 * b + 2]] as Vec3,
+            quat: [d.xquat[4 * b], d.xquat[4 * b + 1], d.xquat[4 * b + 2], d.xquat[4 * b + 3]] as Quat,
+        }));
+    }
+
+    /** The current state as a replay frame (unrounded). */
+    qpos(): number[] {
+        return Array.from(this.data.qpos as ArrayLike<number>);
     }
 
     get qposSize(): number {

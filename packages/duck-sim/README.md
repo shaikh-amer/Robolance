@@ -47,6 +47,15 @@ Pass `field` to `runMission` for another layout; `validateField` lists the rules
 
 `turnTo`, `walkTo`, `walkForward` and `kick` handle these.
 
+## Drawing a replay
+
+`robolance-duck-sim/viewer` is browser-safe and has no MuJoCo dependency. It contains:
+- `bodyPoses(model, frame)`: turns a replay frame (`result.replay.frames[i]`) into every body's world pose, the same way MuJoCo does (a test checks the two agree);
+- `geomPose(body, geom)`: places each visual mesh relative to its body;
+- `decodeMesh(mesh)`: unpacks a mesh's vertices and triangles.
+
+`viewer/duck.json` holds the body tree and the visual meshes, decimated to 27k triangles (400 KB). Regenerate it with `npm run export-viewer` if the robot model changes.
+
 ## Running a mission
 
 Missions run in a worker thread with only `duck`, `field` and `log` in scope. Each run has two limits:

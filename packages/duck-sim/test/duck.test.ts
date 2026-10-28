@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     DEFAULT_FIELD, DuckFell, DuckWorld, HOME, RunOver, missionNotes, missionScore, observation, runMission, sceneXml, targets,
-    validateField, type FieldSpec,
+    validateField, bodyPoses, decimate, decodeMesh, type FieldSpec, type ViewerModel,
 } from '../src/index.js';
 import { loadAssets } from '../src/node-assets.js';
 
@@ -196,4 +196,46 @@ test('the run ends a second after a goal, even if the mission carries on', async
 test('a mission that swallows the time limit still reports', async () => {
     const r = await runMission('while (true) { try { await duck.stand(1); } catch {} }', { limitS: 3, wallMs: 30_000 });
     assert.equal(r.outcome, 'time-up');
+});
+
+test('viewer kinematics match MuJoCo while the duck walks', async () => {
+    const world = await DuckWorld.create(await loadAssets(), { field: OPEN });
+    try {
+        const model = world.viewerModel();
+        await world.walk(0.4, 0.6, 1.2);
+        for (let i = 0; i < 3; i++) {
+            await world.walk(0.3, -0.5, 0.3);
+            const mine = bodyPoses(model, world.qpos());
+            const ref = world.bodyWorldPoses();
+            for (let b = 0; b < ref.length; b++) {
+                const dp = Math.hypot(...mine[b].pos.map((v, k) => v - ref[b].pos[k]));
+                const dq = 1 - Math.abs(mine[b].quat.reduce((s, v, k) => s + v * ref[b].quat[k], 0));
+                assert.ok(dp < 1e-5 && dq < 1e-5, `body ${model.bodies[b].name}: ${dp} m, ${dq}`);
+            }
+        }
+    } finally {
+        world.dispose();
+    }
+});
+
+test('viewer/duck.json is current (regenerate with npm run export-viewer)', async () => {
+    const world = await DuckWorld.create(await loadAssets());
+    try {
+        const shipped = JSON.parse(readFileSync(new URL('../../viewer/duck.json', import.meta.url), 'utf8')) as ViewerModel;
+        assert.deepEqual(shipped, JSON.parse(JSON.stringify(world.viewerModel(0.003))), 'compared as JSON, where -0 is 0');
+        assert.equal(shipped.nq, world.qposSize);
+        const mesh = decodeMesh(shipped.meshes[0]);
+        assert.ok(mesh.positions.length > 0 && mesh.indices.length % 3 === 0);
+        assert.ok(Math.max(...mesh.indices) < mesh.positions.length / 3);
+    } finally {
+        world.dispose();
+    }
+});
+
+test('decimate merges vertices in one cell and drops collapsed triangles', () => {
+    // Two triangles sharing an edge, plus a sliver that collapses at 1 cm.
+    const positions = [0, 0, 0, 0.1, 0, 0, 0, 0.1, 0, 0.1, 0.1, 0, 0.1, 0.1, 0.001];
+    const out = decimate(positions, [0, 1, 2, 1, 3, 2, 3, 4, 1], 0.01);
+    assert.equal(out.indices.length, 6);
+    assert.equal(out.positions.length, 12);
 });
