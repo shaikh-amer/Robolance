@@ -23,17 +23,15 @@ export function seededRandom(seed: number): () => number {
 
 /**
  * Blade-scale grass noise, -1 to 1 per pixel: white noise smeared along
- * short vertical runs (blades) with a little of the neighbour columns
- * mixed in. Pixel arithmetic, not strokes, so a 2048 px pitch takes
- * milliseconds.
+ * short vertical runs (blades, `run` pixels long; 1 gives plain grain).
+ * Pixel arithmetic, not strokes, so a 2048 px pitch takes milliseconds.
  */
-export function turfNoise(width: number, height: number, rand: () => number): Float32Array {
+export function turfNoise(width: number, height: number, rand: () => number, run = 4): Float32Array {
     const raw = new Float32Array(width * height);
     for (let i = 0; i < raw.length; i++) {
         raw[i] = rand() * 2 - 1;
     }
     const out = new Float32Array(width * height);
-    const run = 4;
     for (let x = 0; x < width; x++) {
         let sum = 0;
         // A running vertical average: each pixel is the mean of the `run` above it.
@@ -64,8 +62,9 @@ export function paintTurf(
     height: number,
     strength: number,
     rand: () => number,
+    run = 4,
 ): void {
-    const noise = turfNoise(width, height, rand);
+    const noise = turfNoise(width, height, rand, run);
     const image = ctx.getImageData(0, 0, width, height);
     const px = image.data;
     for (let i = 0; i < noise.length; i++) {
