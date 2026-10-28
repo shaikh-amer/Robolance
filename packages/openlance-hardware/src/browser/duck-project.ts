@@ -16,6 +16,8 @@ export interface DuckRun {
     stamp: number;
     at?: string;
     mission: string;
+    /** The project's own policies the run used, by skill name (path in the project). */
+    skills?: Record<string, { path: string; sha?: string }>;
     result: MissionResult;
 }
 
@@ -72,7 +74,8 @@ export function parseDuckRun(path: string, stamp: number, text: string): DuckRun
         if (raw.kind !== 'duck' || !r || typeof r !== 'object' || typeof r.outcome !== 'string' || !Array.isArray(r.notes) || !r.field) {
             return undefined;
         }
-        return { path, stamp, at: raw.at, mission: typeof raw.mission === 'string' ? raw.mission : '', result: r };
+        const skills = raw.skills && typeof raw.skills === 'object' ? raw.skills : undefined;
+        return { path, stamp, at: raw.at, mission: typeof raw.mission === 'string' ? raw.mission : '', ...(skills ? { skills } : {}), result: r };
     } catch {
         return undefined;
     }
@@ -129,4 +132,12 @@ export function describeDuckRun(run: DuckRun): string {
     const goal = r.scoredAtS !== null ? `goal at ${r.scoredAtS.toFixed(1)} s` : outcomeLabel(r);
     const kicks = r.kicks.length;
     return `${r.simS.toFixed(1)} s · score ${r.score} · ${goal} · ${kicks} kick${kicks === 1 ? '' : 's'}`;
+}
+
+/** "walk: policies/walk/policy.onnx · getUp: …", or '' when the run used only the built-in skills. */
+export function describeDuckSkills(run: DuckRun): string {
+    return Object.entries(run.skills ?? {})
+        .filter(([, v]) => v && typeof v.path === 'string')
+        .map(([name, v]) => `${name}: ${v.path}`)
+        .join(' · ');
 }

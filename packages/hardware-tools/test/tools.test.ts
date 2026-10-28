@@ -261,6 +261,51 @@ test('duck_run runs a mission, explains it and records the run with its replay',
     }
 });
 
+test('duck_run runs the project\'s own policies and records which files it used', async () => {
+    const { mkdtemp, mkdir, readFile, rm, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const project = await mkdtemp(join(tmpdir(), 'robolance-policies-'));
+    const record = join(project, '.robolance');
+    try {
+        // The packaged walking policy stands in for one the project trained.
+        const { ASSETS_DIR } = await import('robolance-duck-sim/node-assets');
+        const walking = await readFile(join(ASSETS_DIR, 'policies', 'alpha_walking.onnx'));
+        await mkdir(join(project, 'policies/walk'), { recursive: true });
+        await writeFile(join(project, 'policies/walk/policy.onnx'), walking);
+        await writeFile(join(project, 'policies/bad.onnx'), 'not a model');
+        const server = createHardwareServer({ compile: fakeCompile, recordDir: record, projectDir: project });
+        const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+        await server.connect(serverSide);
+        const client = new Client({ name: 'test', version: '0.0.0' });
+        await client.connect(clientSide);
+        try {
+            const mission = "log(duck.skills()); await duck.skill('jog', 1, [0.4, 0, 0]);";
+            const result = JSON.parse(text(await client.callTool({
+                name: 'duck_run',
+                arguments: { mission, limitS: 5, skills: { walk: 'policies/walk/policy.onnx', jog: 'policies/walk/policy.onnx' } },
+            })));
+            assert.deepEqual(result.logs, ['["jog"]']);
+            const saved = JSON.parse(await readFile(join(record, result.recordedAs), 'utf8'));
+            assert.equal(saved.skills.walk.path, 'policies/walk/policy.onnx');
+            assert.match(saved.skills.walk.sha, /^[0-9a-f]{16}$/);
+
+            const outside = await client.callTool({ name: 'duck_run', arguments: { mission, skills: { walk: '../elsewhere.onnx' } } });
+            assert.equal((outside as { isError?: boolean }).isError, true);
+            assert.match(text(outside), /not inside the project/);
+            const missing = await client.callTool({ name: 'duck_run', arguments: { mission, skills: { walk: 'policies/nope.onnx' } } });
+            assert.match(text(missing), /does not exist in the project/);
+            const bad = JSON.parse(text(await client.callTool({ name: 'duck_run', arguments: { mission, limitS: 3, skills: { walk: 'policies/bad.onnx' } } })));
+            assert.equal(bad.outcome, 'error');
+            assert.match(bad.notes.join('\n'), /not an ONNX model/);
+        } finally {
+            await client.close();
+            await server.close();
+        }
+    } finally {
+        await rm(project, { recursive: true, force: true });
+    }
+});
+
 test('duck_run rejects a pitch that breaks the rules', async () => {
     const { client, close } = await connect();
     try {

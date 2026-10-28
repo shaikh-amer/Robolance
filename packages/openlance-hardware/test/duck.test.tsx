@@ -10,7 +10,7 @@ import { runMission, type MissionResult } from 'robolance-duck-sim';
 import { bodyPoses } from 'robolance-duck-sim/viewer';
 import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
 import { DuckPanel, DuckReadout, DuckRunsView } from '../src/browser/DuckPanel';
-import { describeDuckRun, frameAt, isDuckProject, pathUntil, readDuckRuns } from '../src/browser/duck-project';
+import { describeDuckRun, describeDuckSkills, frameAt, isDuckProject, parseDuckRun, pathUntil, readDuckRuns } from '../src/browser/duck-project';
 import { isSharedDuckRun, packFrames, shareDuckRunUrl, sharedDuckRunToRun, trimDuckRunForShare, unpackFrames, validateSharedDuckRun } from '../src/browser/duck-share';
 import { HardwarePanel } from '../src/browser/HardwarePanel';
 import { decodeShare, parseShareHash } from '../src/browser/share-run';
@@ -40,6 +40,18 @@ test('duck projects are recognised and their runs read, newest first', () => {
     assert.equal(runs.length, 1);
     assert.equal(runs[0].result.outcome, 'goal');
     assert.match(describeDuckRun(runs[0]), /score \d+ · goal at [\d.]+ s · 1 kick/);
+});
+
+test('a run that used the project\'s own policies says which', () => {
+    const plain = readDuckRuns(files)[0];
+    assert.equal(describeDuckSkills(plain), '', 'built-in skills only');
+    const trained = parseDuckRun('.robolance/runs/1.json', 1, JSON.stringify({
+        version: 1, kind: 'duck', mission: MISSION, result,
+        skills: { walk: { path: 'policies/walk/policy.onnx', sha: 'abc' }, getUp: { path: 'policies/standup/policy.onnx', sha: 'def' } },
+    }))!;
+    assert.equal(describeDuckSkills(trained), 'walk: policies/walk/policy.onnx · getUp: policies/standup/policy.onnx');
+    const html = renderToStaticMarkup(<DuckRunsView runs={[trained]} selected={0} onSelect={() => undefined} onWatch={() => undefined} />);
+    assert.match(html, /Trained policies from the project: walk: policies\/walk\/policy\.onnx/);
 });
 
 test('frames are interpolated between recordings and pose the duck through the viewer model', () => {

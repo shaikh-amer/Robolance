@@ -18,7 +18,7 @@ const SETTLE_S = 2;
 
 async function main(input: WorkerInput): Promise<void> {
     const assets = await loadAssets(input.assetsDir);
-    const world = await DuckWorld.create(assets, { field: input.field, limitS: input.limitS, frameHz: input.frameHz });
+    const world = await DuckWorld.create(assets, { field: input.field, limitS: input.limitS, frameHz: input.frameHz, skills: input.skills });
     const logs: string[] = [];
     const log = (...values: unknown[]) => {
         if (logs.length < MAX_LOG_LINES) {
@@ -66,6 +66,17 @@ async function main(input: WorkerInput): Promise<void> {
         walk: (forward: unknown, turn: unknown, seconds: unknown) =>
             act(() => world.walk(num(forward, 'forward'), num(turn, 'turn'), Math.min(num(seconds, 'seconds'), input.limitS))),
         stand: (seconds: unknown) => act(() => world.walk(0, 0, Math.min(num(seconds, 'seconds'), input.limitS))),
+        skill: (name: unknown, seconds: unknown, command: unknown = []) => {
+            if (typeof name !== 'string') {
+                throw new TypeError('skill takes a skill name');
+            }
+            if (!Array.isArray(command)) {
+                throw new TypeError('command is an array of numbers');
+            }
+            const cmd = command.map((v, i) => num(v, `command[${i}]`));
+            return act(() => world.runSkill(name, Math.min(num(seconds, 'seconds'), input.limitS), cmd));
+        },
+        skills: () => world.extraSkills,
         kick: (side: unknown) => {
             if (side !== 'left' && side !== 'right') {
                 throw new TypeError("kick takes 'left' or 'right'");
