@@ -11,7 +11,9 @@ import { bodyPoses } from 'robolance-duck-sim/viewer';
 import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
 import { DuckPanel, DuckReadout, DuckRunsView } from '../src/browser/DuckPanel';
 import { describeDuckRun, frameAt, isDuckProject, pathUntil, readDuckRuns } from '../src/browser/duck-project';
+import { isSharedDuckRun, packFrames, shareDuckRunUrl, sharedDuckRunToRun, trimDuckRunForShare, unpackFrames, validateSharedDuckRun } from '../src/browser/duck-share';
 import { HardwarePanel } from '../src/browser/HardwarePanel';
+import { decodeShare, parseShareHash } from '../src/browser/share-run';
 import { hardwarePreviewTab } from '../src/browser/hardware-preview-tab';
 
 const MISSION = readFileSync(require.resolve('robolance-duck-sim/examples/score-a-goal.js'), 'utf8');
@@ -84,4 +86,39 @@ test('the runs view lists runs with notes, the mission log and the mission', () 
     assert.match(html, /Goal at/);
     assert.match(html, /attempt 1: lined up/);
     assert.match(html, /The mission this run used/);
+});
+
+test('a duck run shares as a link of a few kilobytes and replays from it', async () => {
+    const run = readDuckRuns(files)[0];
+    const packed = packFrames(result.replay!);
+    assert.equal(packed.hz, result.replay!.frameHz / 2, 'one frame in two');
+    const back = unpackFrames(packed);
+    for (let i = 0; i < back.frames.length; i++) {
+        const original = result.replay!.frames[i * 2];
+        assert.ok(original.every((v, k) => Math.abs(v - back.frames[i][k]) <= 5e-4 + 1e-9), `frame ${i} within half a thousandth`);
+    }
+
+    const url = await shareDuckRunUrl(run, 'https://replay.test/');
+    assert.ok(url.length < 24_000, `link is ${url.length} characters`);
+    const decoded = await decodeShare(parseShareHash(new URL(url).hash)!);
+    assert.equal(isSharedDuckRun(decoded), true);
+    assert.equal(validateSharedDuckRun(decoded), undefined);
+    const replayed = sharedDuckRunToRun(decoded as ReturnType<typeof trimDuckRunForShare>);
+    assert.equal(replayed.result.outcome, 'goal');
+    assert.equal(replayed.mission, MISSION);
+    const end = frameAt(replayed.result, result.simS * 1000)!;
+    const original = result.replay!.frames[result.replay!.frames.length - 1];
+    assert.ok(Math.hypot(end[0] - original[0], end[1] - original[1]) < 0.05, 'the duck ends where it ended');
+
+    assert.equal(isSharedDuckRun({ v: 1, trace: {} }), false, 'an Arduino share is not a duck share');
+    assert.match(validateSharedDuckRun({ v: 1, kind: 'duck', result: {} }) ?? '', /no result/);
+    assert.match(validateSharedDuckRun({ ...trimDuckRunForShare(run), frames: { hz: 12.5, size: 28, scale: 1000, q: [1, 2, 3] } }) ?? '', /damaged/);
+});
+
+test('the duck runs view offers a share link unless sharing is off', () => {
+    const runs = readDuckRuns(files);
+    const on = renderToStaticMarkup(<DuckRunsView runs={runs} selected={0} onSelect={() => undefined} onWatch={() => undefined} />);
+    assert.match(on, /Share this run/);
+    const off = renderToStaticMarkup(<DuckRunsView runs={runs} selected={0} onSelect={() => undefined} onWatch={() => undefined} shareBase={false} />);
+    assert.doesNotMatch(off, /Share this run/);
 });

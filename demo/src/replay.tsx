@@ -11,9 +11,10 @@ import 'robolance-openlance-hardware/src/browser/style/hardware.css';
 import './replay.css';
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
+import { DuckPanelBody } from 'robolance-openlance-hardware/lib/browser/DuckPanel';
 import { HardwarePanelBody } from 'robolance-openlance-hardware/lib/browser/HardwarePanel';
-import type { HardwareProject, RunEntry } from 'robolance-openlance-hardware/lib/browser/hardware-project';
-import { headline, runFromRecordText, runFromShare, runSource } from './load-run';
+import type { HardwareProject } from 'robolance-openlance-hardware/lib/browser/hardware-project';
+import { duckHeadline, headline, loadRecordText, loadShare, runSource, type LoadedRun } from './load-run';
 
 const REPO = 'https://github.com/shaikh-amer/robolance';
 
@@ -21,7 +22,7 @@ type State =
     | { kind: 'loading' }
     | { kind: 'empty' }
     | { kind: 'error'; message: string }
-    | { kind: 'run'; run: RunEntry; source: string };
+    | { kind: 'run'; loaded: LoadedRun; source: string };
 
 function theme(): 'light' | 'dark' {
     return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
@@ -35,13 +36,13 @@ function App(): React.ReactElement {
         const source = runSource(window.location);
         try {
             if (source.kind === 'share') {
-                setState({ kind: 'run', run: await runFromShare(source.encoded), source: 'shared link' });
+                setState({ kind: 'run', loaded: await loadShare(source.encoded), source: 'shared link' });
             } else if (source.kind === 'url') {
                 const response = await fetch(source.url);
                 if (!response.ok) {
                     throw new Error(`Could not fetch the run (${response.status}).`);
                 }
-                setState({ kind: 'run', run: runFromRecordText(await response.text(), source.url), source: source.url });
+                setState({ kind: 'run', loaded: loadRecordText(await response.text(), source.url), source: source.url });
             } else {
                 setState({ kind: 'empty' });
             }
@@ -58,7 +59,7 @@ function App(): React.ReactElement {
 
     const openFile = async (file: File): Promise<void> => {
         try {
-            setState({ kind: 'run', run: runFromRecordText(await file.text(), file.name), source: file.name });
+            setState({ kind: 'run', loaded: loadRecordText(await file.text(), file.name), source: file.name });
         } catch (err) {
             setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
         }
@@ -73,8 +74,9 @@ function App(): React.ReactElement {
         }
     };
 
-    const project: HardwareProject | undefined = state.kind === 'run'
-        ? { diagram: state.run.diagram, diagramPath: state.run.diagram ? 'diagram.json' : undefined, runs: [state.run] }
+    const loaded = state.kind === 'run' ? state.loaded : undefined;
+    const project: HardwareProject | undefined = loaded?.kind === 'arduino'
+        ? { diagram: loaded.run.diagram, diagramPath: loaded.run.diagram ? 'diagram.json' : undefined, runs: [loaded.run] }
         : undefined;
 
     return (
@@ -87,10 +89,10 @@ function App(): React.ReactElement {
             <header className="replay-header">
                 <a className="replay-brand" href={REPO} target="_blank" rel="noreferrer">robolance</a>
                 <span className="replay-title">run replay</span>
-                {state.kind === 'run' && (
+                {loaded && (
                     <span className="replay-headline">
-                        {headline(state.run)}
-                        {state.run.at && <span className="replay-when"> · {new Date(state.run.at).toLocaleString()}</span>}
+                        {loaded.kind === 'duck' ? duckHeadline(loaded.run) : headline(loaded.run)}
+                        {loaded.run.at && <span className="replay-when"> · {new Date(loaded.run.at).toLocaleString()}</span>}
                     </span>
                 )}
                 <label className="replay-open">
@@ -102,14 +104,19 @@ function App(): React.ReactElement {
             {state.kind === 'error' && <p className="replay-note replay-error">{state.message}</p>}
             {(state.kind === 'empty' || state.kind === 'error') && (
                 <div className="replay-empty">
-                    <p>Open a run shared from OpenLance's Hardware tab, or drop a <code>.robolance/runs/&lt;time&gt;.json</code> file here.</p>
+                    <p>Open a run shared from OpenLance's Hardware tab (an Arduino robot or the Microduck), or drop a <code>.robolance/runs/&lt;time&gt;.json</code> file here.</p>
                     <p>A share link carries the whole run in its fragment: nothing is uploaded, and it works without an account.</p>
                     <p><a href={REPO} target="_blank" rel="noreferrer">What is robolance?</a></p>
                 </div>
             )}
-            {state.kind === 'run' && project && (
+            {project && (
                 <div className="replay-panel">
                     <HardwarePanelBody project={project} context={{ files: new Map(), theme: theme() }} shareBase={false} />
+                </div>
+            )}
+            {loaded?.kind === 'duck' && (
+                <div className="replay-panel">
+                    <DuckPanelBody runs={[loaded.run]} context={{ files: new Map(), theme: theme() }} shareBase={false} />
                 </div>
             )}
         </div>

@@ -7,8 +7,13 @@
  * user drops on the page. Pure functions; the page wires them to the DOM.
  */
 
+import { outcomeLabel, parseDuckRun, type DuckRun } from 'robolance-openlance-hardware/lib/browser/duck-project';
+import { isSharedDuckRun, sharedDuckRunToRun, validateSharedDuckRun } from 'robolance-openlance-hardware/lib/browser/duck-share';
 import { readHardwareProject, type RunEntry } from 'robolance-openlance-hardware/lib/browser/hardware-project';
 import { decodeShare, parseShareHash, sharedRunToEntry, validateSharedRun, type SharedRun } from 'robolance-openlance-hardware/lib/browser/share-run';
+
+/** A run the page can show: an Arduino run (circuit, arena) or a Microduck run (the pitch). */
+export type LoadedRun = { kind: 'arduino'; run: RunEntry } | { kind: 'duck'; run: DuckRun };
 
 export type RunSource =
     | { kind: 'share'; encoded: string }
@@ -28,14 +33,51 @@ export function runSource(location: { hash: string; search: string }): RunSource
     return { kind: 'none' };
 }
 
-/** A shared run from the fragment. Throws with a readable message. */
-export async function runFromShare(encoded: string): Promise<RunEntry> {
-    let decoded: unknown;
+/** Whatever run a share link carries. Throws with a readable message. */
+export async function loadShare(encoded: string): Promise<LoadedRun> {
+    const decoded = await decodeFragment(encoded);
+    if (isSharedDuckRun(decoded)) {
+        const problem = validateSharedDuckRun(decoded);
+        if (problem) {
+            throw new Error(`This link does not carry a run: ${problem}.`);
+        }
+        return { kind: 'duck', run: sharedDuckRunToRun(decoded) };
+    }
+    return { kind: 'arduino', run: arduinoFromShare(decoded) };
+}
+
+/** Whatever run a recorded `.robolance/runs/<time>.json` file holds. */
+export function loadRecordText(text: string, fileName: string = 'run.json'): LoadedRun {
+    let kind: unknown;
     try {
-        decoded = await decodeShare(encoded);
+        kind = (JSON.parse(text) as { kind?: unknown }).kind;
+    } catch {
+        kind = undefined;
+    }
+    if (kind === 'duck') {
+        const run = parseDuckRun(`.robolance/runs/${stampOf(text, fileName)}.json`, stampOf(text, fileName), text);
+        if (!run) {
+            throw new Error('That file is not a complete Microduck run (expected the JSON duck_run writes under .robolance/runs/).');
+        }
+        return { kind: 'duck', run };
+    }
+    return { kind: 'arduino', run: runFromRecordText(text, fileName) };
+}
+
+async function decodeFragment(encoded: string): Promise<unknown> {
+    try {
+        return await decodeShare(encoded);
     } catch {
         throw new Error('This link does not carry a run (the fragment is damaged or truncated).');
     }
+}
+
+/** A shared Arduino run from the fragment. Throws with a readable message. */
+export async function runFromShare(encoded: string): Promise<RunEntry> {
+    return arduinoFromShare(await decodeFragment(encoded));
+}
+
+function arduinoFromShare(decoded: unknown): RunEntry {
     const problem = validateSharedRun(decoded);
     if (problem) {
         throw new Error(`This link does not carry a run: ${problem}.`);
@@ -45,6 +87,17 @@ export async function runFromShare(encoded: string): Promise<RunEntry> {
 
 /** A run from the text of a recorded `.robolance/runs/<time>.json` file. */
 export function runFromRecordText(text: string, fileName: string = 'run.json'): RunEntry {
+    const stamp = stampOf(text, fileName);
+    const project = readHardwareProject(new Map([[`.robolance/runs/${stamp}.json`, text]]));
+    const run = project.runs[0];
+    if (!run) {
+        throw new Error('That file is not a recorded run (expected the JSON hardware_run writes under .robolance/runs/).');
+    }
+    return run;
+}
+
+/** The run's time: from the file name, else the record, else now. */
+function stampOf(text: string, fileName: string): number {
     const stampFromName = /(\d{10,})/.exec(fileName)?.[1];
     let stamp = stampFromName ? Number(stampFromName) : NaN;
     if (!Number.isFinite(stamp)) {
@@ -55,15 +108,16 @@ export function runFromRecordText(text: string, fileName: string = 'run.json'): 
             stamp = NaN;
         }
     }
-    if (!Number.isFinite(stamp)) {
-        stamp = Date.now();
-    }
-    const project = readHardwareProject(new Map([[`.robolance/runs/${stamp}.json`, text]]));
-    const run = project.runs[0];
-    if (!run) {
-        throw new Error('That file is not a recorded run (expected the JSON hardware_run writes under .robolance/runs/).');
-    }
-    return run;
+    return Number.isFinite(stamp) ? stamp : Date.now();
+}
+
+/** One line about a Microduck run for the page header. */
+export function duckHeadline(run: DuckRun): string {
+    const r = run.result;
+    const parts = [`score ${r.score}`];
+    parts.push(r.scoredAtS !== null ? `goal in ${r.scoredAtS.toFixed(1)} s` : `${outcomeLabel(r)} after ${r.simS.toFixed(1)} s`);
+    parts.push(r.kicks.length === 1 ? '1 kick' : `${r.kicks.length} kicks`);
+    return parts.join(' · ');
 }
 
 /** One line about the run for the page header. */

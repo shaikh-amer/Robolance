@@ -63,6 +63,11 @@ export function RunsView({ runs, selected, onSelect, shareBase = REPLAY_PAGE_URL
  * fragment), so anyone can open the replay without an account.
  */
 export function ShareRun({ run, base }: { run: RunEntry; base: string }): React.ReactElement {
+    return <ShareLink id={run.path} makeUrl={() => shareRunUrl(run, base)} />;
+}
+
+/** The share button for any run: `makeUrl` builds the link, `id` resets it when the run changes. */
+export function ShareLink({ id, makeUrl }: { id: string; makeUrl(): Promise<string> }): React.ReactElement {
     const [state, setState] = React.useState<{ kind: 'idle' | 'working' | 'copied' | 'failed' | 'show'; url?: string }>({ kind: 'idle' });
     const timer = React.useRef<ReturnType<typeof setTimeout>>();
     const mounted = React.useRef(true);
@@ -72,13 +77,13 @@ export function ShareRun({ run, base }: { run: RunEntry; base: string }): React.
             clearTimeout(timer.current);
         }
     }, []);
-    React.useEffect(() => { setState({ kind: 'idle' }); }, [run.path]);
+    React.useEffect(() => { setState({ kind: 'idle' }); }, [id]);
 
     const share = async (): Promise<void> => {
         setState({ kind: 'working' });
         let next: typeof state;
         try {
-            const url = await shareRunUrl(run, base);
+            const url = await makeUrl();
             try {
                 await navigator.clipboard.writeText(url);
                 next = { kind: 'copied', url };
