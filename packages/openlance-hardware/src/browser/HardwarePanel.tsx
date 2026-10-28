@@ -188,7 +188,7 @@ export function HardwarePanelBody({ project, context, shareBase }: HardwarePanel
                 </div>
             </div>
 
-            <div className="robolance-body">
+            <div className={`robolance-body${view === 'arena' && editingArena ? ' editing' : ''}`}>
                 {view === 'circuit' && <CircuitView diagram={diagram} states={states} inputs={inputs} />}
                 {view === 'arena' && arenaSpec && editingArena && diagram && context.writeFile && project.diagramPath && (
                     <ArenaEditor

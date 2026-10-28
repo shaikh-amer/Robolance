@@ -35,24 +35,37 @@
     gap: 8px;
 }
 
-.robolance-views {
-    display: flex;
+/* Buttons follow OpenLance's own: compact, 11px, a soft fill and a hairline
+   border; tab groups are segmented like the preview's Preview/Hardware tabs. */
+.robolance-views,
+.robolance-editor-tools {
+    display: inline-flex;
     gap: 2px;
+    padding: 2px;
+    border-radius: 6px;
+    background: var(--openlance-layer-1, rgba(255, 255, 255, 0.04));
 }
 
 .robolance-panel button {
     appearance: none;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: transparent;
-    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.1));
+    border-radius: 4px;
+    background: var(--openlance-wash-6, rgba(255, 255, 255, 0.06));
+    color: var(--openlance-fg, var(--theia-foreground, #e6e6e6));
     padding: 3px 9px;
     font: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
     cursor: pointer;
 }
 
 .robolance-panel button:hover:not(:disabled) {
-    background: var(--openlance-hover, rgba(255, 255, 255, 0.06));
+    background: var(--openlance-wash-10, rgba(255, 255, 255, 0.1));
 }
 
 .robolance-panel button:disabled {
@@ -60,14 +73,30 @@
     cursor: default;
 }
 
-.robolance-view-btn.active {
-    background: var(--openlance-wash-accent, rgba(99, 102, 241, 0.18));
-    border-color: var(--openlance-accent, #6366f1);
+.robolance-views button,
+.robolance-editor-tools button {
+    border-color: transparent;
+    background: transparent;
+    color: var(--openlance-muted, #9a9a9a);
+    padding: 2px 8px;
 }
 
-.robolance-live-btn.active {
-    background: var(--openlance-success, #16a34a);
-    color: #fff;
+.robolance-views button:hover:not(:disabled),
+.robolance-editor-tools button:hover:not(:disabled) {
+    background: transparent;
+    color: var(--openlance-fg, #e6e6e6);
+}
+
+.robolance-panel .robolance-views button.active,
+.robolance-panel .robolance-editor-tools button.active {
+    background: var(--openlance-wash-accent, rgba(99, 102, 241, 0.18));
+    color: var(--openlance-fg, #e6e6e6);
+}
+
+.robolance-panel .robolance-live-btn.active {
+    background: color-mix(in srgb, var(--openlance-success, #16a34a) 15%, transparent);
+    border-color: color-mix(in srgb, var(--openlance-success, #16a34a) 30%, transparent);
+    color: var(--openlance-success-text, var(--openlance-success, #16a34a));
 }
 
 .robolance-share {
@@ -354,6 +383,10 @@
 
 .robolance-editor-bar input[type="number"] {
     width: 52px;
+    height: 22px;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 11px;
     padding: 2px 4px;
     border-radius: 4px;
     border: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.12));
@@ -362,6 +395,9 @@
 }
 
 .robolance-editor-bar select {
+    height: 22px;
+    font: inherit;
+    font-size: 11px;
     padding: 2px 4px;
     border-radius: 4px;
     border: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.12));
@@ -374,22 +410,42 @@
     gap: 2px;
 }
 
-.robolance-panel .robolance-editor-tools button.active,
 .robolance-panel .robolance-edit-btn.active {
-    background: color-mix(in srgb, var(--openlance-accent, #6366f1) 35%, transparent);
-    border-color: color-mix(in srgb, var(--openlance-accent, #6366f1) 60%, transparent);
+    background: var(--openlance-wash-accent, rgba(99, 102, 241, 0.18));
+    border-color: color-mix(in srgb, var(--openlance-accent, #6366f1) 40%, transparent);
+}
+
+/* While editing, the body never scrolls: the toolbar and footer stay put
+   and only the drawing between them zooms, fitted to the space it has. */
+.robolance-body.editing {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .robolance-arena-editor {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1 1 auto;
     min-height: 0;
+    height: 100%;
+}
+
+.robolance-arena-editor .robolance-editor-bar,
+.robolance-arena-editor .robolance-editor-footer {
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.08));
+    padding: 6px 8px;
+}
+
+.robolance-arena-editor .robolance-editor-footer {
+    border-bottom: none;
+    border-top: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.08));
 }
 
 .robolance-editor-pane {
     flex: 1 1 0;
-    min-height: 160px;
+    min-height: 0;
 }
 
 .robolance-editor-canvas {
@@ -426,9 +482,13 @@
 }
 
 .robolance-panel .robolance-primary {
-    background: color-mix(in srgb, var(--openlance-accent, #6366f1) 45%, transparent);
-    border-color: color-mix(in srgb, var(--openlance-accent, #6366f1) 70%, transparent);
-    color: var(--openlance-fg, #e6e6e6);
+    background: var(--openlance-accent, #6366f1);
+    border-color: var(--openlance-accent, #6366f1);
+    color: var(--openlance-accent-fg, #fff);
+}
+
+.robolance-panel .robolance-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--openlance-accent, #6366f1) 85%, #000);
 }
 
 .robolance-arena-readout {
