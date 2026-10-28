@@ -164,7 +164,11 @@ export class DuckStage {
 
     /** Poses the duck and the ball from a replay frame and draws the path walked so far. */
     show(frame: ArrayLike<number> | undefined, path: Array<[number, number]>): void {
-        if (frame && frame.length >= this.model.nq) {
+        // A record without replay frames has nothing to pose: hide the duck and ball rather than pile them at the origin.
+        const posable = Boolean(frame && frame.length >= this.model.nq);
+        this.duck.visible = posable;
+        this.ball.visible = posable;
+        if (frame && posable) {
             const poses = bodyPoses(this.model, frame);
             this.model.geoms.forEach((geom, i) => place(this.parts[i], geomPose(poses[geom.body], geom)));
             if (this.ballIndex >= 0) {
