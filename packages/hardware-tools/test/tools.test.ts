@@ -65,7 +65,7 @@ test('the MCP server lists the hardware tools', async () => {
     const { client, close } = await connect();
     try {
         const { tools } = await client.listTools();
-        assert.deepEqual(tools.map(t => t.name).sort(), ['hardware_arena', 'hardware_compile', 'hardware_parts', 'hardware_run']);
+        assert.deepEqual(tools.map(t => t.name).sort(), ['duck_api', 'duck_run', 'hardware_arena', 'hardware_compile', 'hardware_parts', 'hardware_run']);
         const parts = await client.callTool({ name: 'hardware_parts', arguments: {} });
         assert.match(text(parts), /INPUT_PULLUP/);
         const arena = await client.callTool({ name: 'hardware_arena', arguments: {} });
@@ -145,6 +145,8 @@ test('summarize keeps a trace short enough for a model turn', () => {
     const samples = Array.from({ length: 400 }, (_, i) => ({ atMs: i * 10, parts: { led: { on: i % 2 === 0, brightness: 1 }, arm: { angle: 90 } } }));
     const out = summarize({ durationMs: 4000, ranMs: 4000, serial, samples, final: {}, notes: [] });
     assert.equal((out.serial as string[]).length, 61);
+    assert.equal((out.serial as string[])[20], '… 140 more lines …', '200 lines, 60 shown');
+    assert.equal((out.serial as string[])[21], 'line 160');
     assert.ok((out.samples as unknown[]).length <= 40);
     assert.deepEqual((out.samples as Record<string, unknown>[])[0], { atMs: 0, led: 'on', arm: '90°' });
 });
@@ -211,4 +213,64 @@ test('the default run summary keeps the line metrics of a line course', () => {
     assert.equal(summary.arena.score, 42);
     const plain = summarize({ ...trace, arena: { ...trace.arena!, line: undefined } }) as { arena: { line?: unknown } };
     assert.equal('line' in plain.arena, false, 'no line, no line key');
+});
+
+test('duck_api describes the mission API and the default pitch', async () => {
+    const { client, close } = await connect();
+    try {
+        const help = text(await client.callTool({ name: 'duck_api', arguments: {} }));
+        assert.match(help, /await duck\.kick\('left' \| 'right'\)/);
+        assert.match(help, /"goal":\{"x":0\.95/);
+    } finally {
+        await close();
+    }
+});
+
+test('duck_run runs a mission, explains it and records the run with its replay', async () => {
+    const { mkdtemp, readFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const dir = await mkdtemp(join(tmpdir(), 'robolance-duck-'));
+    try {
+        const server = createHardwareServer({ compile: fakeCompile, recordDir: dir });
+        const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+        await server.connect(serverSide);
+        const client = new Client({ name: 'test', version: '0.0.0' });
+        await client.connect(clientSide);
+        try {
+            const mission = readFileSync(fileURLToPath(import.meta.resolve('robolance-duck-sim/examples/score-a-goal.js')), 'utf8');
+            const result = JSON.parse(text(await client.callTool({ name: 'duck_run', arguments: { mission } })));
+            assert.equal(result.outcome, 'goal', result.notes.join('\n'));
+            assert.ok(result.score >= 80);
+            assert.ok(result.path.length <= 32, 'path thinned');
+            assert.equal(result.replay, undefined, 'no replay frames in the tool result');
+            const record = JSON.parse(await readFile(join(dir, result.recordedAs), 'utf8'));
+            assert.equal(record.kind, 'duck');
+            assert.equal(record.mission, mission);
+            assert.ok(record.result.replay.frames.length > 100);
+
+            const quiet = JSON.parse(text(await client.callTool({ name: 'duck_run', arguments: { mission: 'log(duck.pose());', limitS: 3 } })));
+            assert.equal(quiet.outcome, 'no-goal');
+            assert.match(quiet.notes.join('\n'), /never kicked/);
+            assert.deepEqual(quiet.logs, ['{"x":0,"y":0,"heading":0}']);
+        } finally {
+            await client.close();
+            await server.close();
+        }
+    } finally {
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+test('duck_run rejects a pitch that breaks the rules', async () => {
+    const { client, close } = await connect();
+    try {
+        const bad = await client.callTool({
+            name: 'duck_run',
+            arguments: { mission: 'log(1)', field: { duck: { x: 0, y: 0, heading: 0 }, ball: { x: 0.05, y: 0 }, goal: { x: 0.95, y: 0, width: 0.6 }, bounds: { xMin: -0.4, xMax: 1.3, yMin: -0.7, yMax: 0.7 } } },
+        });
+        assert.equal((bad as { isError?: boolean }).isError, true);
+        assert.match(text(bad), /15 cm/);
+    } finally {
+        await close();
+    }
 });

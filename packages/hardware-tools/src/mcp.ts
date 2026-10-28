@@ -6,7 +6,8 @@
  * MCP client, gets: compile a sketch, run it on a circuit in the simulator
  * with scripted inputs, and a description of the parts and the diagram
  * format. Every run returns what the firmware did (serial, part states,
- * the robot's path and score) so the agent can fix what it wrote.
+ * the robot's path and score) so the agent can fix what it wrote. The
+ * duck_* tools do the same for a Microduck mission on a football pitch.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -24,6 +25,7 @@ import {
     type RunTrace,
     type ScriptedEvent,
 } from 'robolance-hardware-sim';
+import { DEFAULT_FIELD, MISSION_API, runMission, validateField, type FieldSpec, type MissionResult } from 'robolance-duck-sim';
 import { buildSketch, type BuildOptions, type BuildResult } from './avrbuild.js';
 
 const pinSchema = z.union([z.number().int().min(0).max(13), z.enum(['A0', 'A1', 'A2', 'A3', 'A4', 'A5'])]);
@@ -66,6 +68,8 @@ export interface ServerOptions extends BuildOptions {
     recordDir?: string;
     /** How many run records to keep (oldest are removed). */
     keepRuns?: number;
+    /** Real-time limit for one duck_run, ms (default 60 000). */
+    duckWallMs?: number;
 }
 
 /** A run as recorded for the IDE: the trace plus what produced it. */
@@ -79,7 +83,30 @@ export interface RunRecord {
     trace: RunTrace;
 }
 
+/** A Microduck mission run as recorded for the IDE: the program and everything it did, replay included. */
+export interface DuckRunRecord {
+    version: 1;
+    kind: 'duck';
+    at: string;
+    missionSha: string;
+    mission: string;
+    result: MissionResult;
+}
+
 export const DEFAULT_RECORD_DIR = '.robolance';
+
+export const DUCK_HELP = `${MISSION_API}
+
+The default pitch (metres): ${JSON.stringify(DEFAULT_FIELD)}
+Pass "field" to duck_run for another layout (same shape). Each run takes a few seconds; read its notes, change the
+mission, run again. Use log() to see positions while you work out the approach.`;
+
+const fieldSchema = z.object({
+    duck: z.object({ x: z.number(), y: z.number(), heading: z.number() }),
+    ball: z.object({ x: z.number(), y: z.number() }),
+    goal: z.object({ x: z.number(), y: z.number(), width: z.number() }),
+    bounds: z.object({ xMin: z.number(), xMax: z.number(), yMin: z.number(), yMax: z.number() }),
+});
 
 /** Builds the MCP server; the caller connects it to a transport. */
 export function createHardwareServer(options: ServerOptions = {}): McpServer {
@@ -165,6 +192,37 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
         return { content: [{ type: 'text', text: buildOutput ? `${buildOutput}\n${text}` : text }] };
     });
 
+    server.registerTool('duck_api', {
+        description: 'Microduck (the Pollen Robotics duck robot) on a football pitch: the mission API, what the duck can and cannot do, and the default pitch. Read it before writing a mission for duck_run.',
+        inputSchema: {},
+    }, async () => ({ content: [{ type: 'text', text: DUCK_HELP }] }));
+
+    server.registerTool('duck_run', {
+        description: 'Runs a Microduck mission in the physics simulator (MuJoCo, with the robot\'s own trained walking and kicking skills): the body of an async JavaScript function using duck, field and log, see duck_api. Returns the outcome (goal, no-goal, fell, time-up, error, timeout), a score 0-100, notes that say why a kick missed, the mission\'s log, every kick and the duck\'s path. Every run is recorded for the IDE to replay.',
+        inputSchema: {
+            mission: z.string().min(1).max(64 * 1024).describe('The mission: the body of an async function'),
+            field: fieldSchema.optional().describe('The pitch; default in duck_api'),
+            limitS: z.number().min(1).max(120).default(40).describe('Longest simulated time, seconds'),
+        },
+    }, async ({ mission, field, limitS }) => {
+        const pitch = (field ?? DEFAULT_FIELD) as FieldSpec;
+        const problem = validateField(pitch);
+        if (problem) {
+            return { content: [{ type: 'text', text: `field: ${problem}` }], isError: true };
+        }
+        let result: MissionResult;
+        try {
+            result = await runMission(mission, { field: pitch, limitS, wallMs: options.duckWallMs });
+        } catch (err) {
+            return { content: [{ type: 'text', text: `run failed: ${err instanceof Error ? err.message : err}` }], isError: true };
+        }
+        const recorded = await recorder.run({
+            version: 1, kind: 'duck', at: new Date().toISOString(), missionSha: sha(mission), mission, result,
+        });
+        const summary = summarizeDuck(result);
+        return { content: [{ type: 'text', text: JSON.stringify(recorded ? { ...summary, recordedAs: recorded } : summary, null, 1) }] };
+    });
+
     server.registerTool('hardware_arena', {
         description: 'The geometry of an arena preset: walls, start, goal and (for "line") the line on the floor, in centimetres.',
         inputSchema: { preset: z.enum(ARENA_PRESET_NAMES).default('corner') },
@@ -173,10 +231,31 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
     return server;
 }
 
+/** A mission result without the replay frames, the path thinned to about 30 points. */
+export function summarizeDuck(r: MissionResult): Record<string, unknown> {
+    const every = Math.max(1, Math.ceil(r.path.length / 30));
+    const logs = r.logs.length > 60 ? [...r.logs.slice(0, 20), `… ${r.logs.length - 60} more lines …`, ...r.logs.slice(-40)] : r.logs;
+    return {
+        outcome: r.outcome,
+        score: r.score,
+        scoredAtS: r.scoredAtS,
+        simS: r.simS,
+        ...(r.error ? { error: r.error } : {}),
+        notes: r.notes,
+        logs,
+        kicks: r.kicks,
+        events: r.events,
+        final: r.final,
+        ballToGoalStart: r.ballToGoalStart,
+        closestBallToGoal: r.closestBallToGoal,
+        path: r.path.filter((_, i) => i % every === 0 || i === r.path.length - 1),
+    };
+}
+
 /** The trace cut down to what the agent needs on a normal turn. */
 export function summarize(trace: RunTrace): Record<string, unknown> {
     const serial = trace.serial.length > 60
-        ? [...trace.serial.slice(0, 20), `… ${trace.serial.length - 40} more lines …`, ...trace.serial.slice(-40)]
+        ? [...trace.serial.slice(0, 20), `… ${trace.serial.length - 60} more lines …`, ...trace.serial.slice(-40)]
         : trace.serial;
     const every = Math.max(1, Math.ceil(trace.samples.length / 40));
     const samples = trace.samples.filter((_, i) => i % every === 0).map(s => ({ atMs: s.atMs, ...compactParts(s.parts) }));
@@ -276,14 +355,14 @@ export class Recorder {
     }
 
     /** Returns the path the run was written to, relative to the record dir. */
-    run(record: RunRecord): Promise<string | undefined> {
+    run(record: RunRecord | DuckRunRecord): Promise<string | undefined> {
         if (!this.enabled) {
             return Promise.resolve(undefined);
         }
         return this.serialized(() => this.writeRun(record));
     }
 
-    private async writeRun(record: RunRecord): Promise<string | undefined> {
+    private async writeRun(record: RunRecord | DuckRunRecord): Promise<string | undefined> {
         try {
             const runs = join(this.dir, 'runs');
             await mkdir(runs, { recursive: true });
