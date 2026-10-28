@@ -66,13 +66,16 @@ Why it matters: embedded and robotics are where "vibe coding" stops today becaus
 
 What is next: more boards (ESP32, RP2040), more parts, real-board flashing from the browser over WebSerial, arenas as shareable challenges with a leaderboard of shared runs, and the fine-tuned Glimmer model trained on the run traces.
 
+Run replay (public, no account): https://robolance.openlance.ai/replay/
+
 Repository: https://github.com/shaikh-amer/robolance (hackathon work only). OpenLance: https://github.com/shaikh-amer/openlance.
 
 ## Checklist before submitting
 
-- [ ] Packages published to npm: robolance-hardware-sim 0.2.1, robolance-hardware-tools 0.2.2, robolance-openlance-hardware 0.5.0
+- [ ] Packages published to npm: robolance-hardware-sim 0.2.1, robolance-hardware-tools 0.2.2, robolance-openlance-hardware 0.5.4
 - [ ] OpenLance go-backend and frontend deployed from main; sandbox template rebuilt from robolance main (`scripts/build-e2b-template.sh`)
-- [ ] GitHub Pages enabled for the repository (Settings → Pages → Source: GitHub Actions); https://shaikh-amer.github.io/Robolance/replay/ opens a shared link
+- [x] GitHub Pages enabled for the repository (Source: GitHub Actions) on the custom domain https://robolance.openlance.ai
+- [ ] A link from "Share this run" opens on https://robolance.openlance.ai/replay/ on a phone
 - [ ] A Meta Model API key and a Baseten or Fireworks key saved in OpenLance Settings
 - [ ] Both demo prompts (wall avoider, line follower) run end to end on the deployed IDE; a wiring-check photo gets a verdict; a share link opens on a phone
 - [ ] Video recorded, under 3 minutes, opens with the pre-existing vs new line
