@@ -12,7 +12,10 @@ import { arenaPreset, DEFAULT_ROBOT, type ArenaSpec, type Diagram } from 'robola
 import { ArenaEditor } from './ArenaEditor';
 import { ArenaView } from './ArenaView';
 import { CircuitView, type CircuitInputs, type PartStates } from './CircuitView';
-import { poseIndexAt, readHardwareProject, statesAt, type HardwareProject, type RunEntry } from './hardware-project';
+import { DuckPanel } from './DuckPanel';
+import { isDuckProject } from './duck-project';
+import { isHardwareProject, poseIndexAt, readHardwareProject, statesAt, type HardwareProject, type RunEntry } from './hardware-project';
+import { advanceReplay } from './replay';
 import { RunsView } from './RunsView';
 import { ZoomPane } from './ZoomPane';
 import { useLiveSimulation } from './use-live-simulation';
@@ -22,6 +25,12 @@ import type { PreviewTabContext } from './preview-tab';
 export type HardwareView = 'circuit' | 'arena' | 'runs';
 
 export function HardwarePanel(context: PreviewTabContext): React.ReactElement {
+    // A Microduck project (mission.js, duck runs) without an Arduino circuit gets the duck view.
+    const duck = React.useMemo(() => isDuckProject(context.files) && !isHardwareProject(context.files), [context.files]);
+    return duck ? <DuckPanel {...context} /> : <ArduinoPanel {...context} />;
+}
+
+function ArduinoPanel(context: PreviewTabContext): React.ReactElement {
     const project = React.useMemo(() => readHardwareProject(context.files), [context.files]);
     return <HardwarePanelBody project={project} context={context} />;
 }
@@ -273,19 +282,10 @@ function ArenaReadout({ timeMs, collisions, score, reachedGoal, lineCoverage }: 
     );
 }
 
-/** The replay position after `elapsedMs` more wall-clock time, clamped to the run. */
-export function advanceReplay(currentMs: number, elapsedMs: number, durationMs: number): number {
-    return Math.min(durationMs, Math.max(0, currentMs + Math.max(0, elapsedMs)));
-}
+export { advanceReplay };
 
 export function hardwareTabApplies(files: ReadonlyMap<string, string>): boolean {
-    for (const key of files.keys()) {
-        const path = key.replace(/^\.?\/+/, '');
-        if (path === 'diagram.json' || path.endsWith('/diagram.json') || path.endsWith('.ino')) {
-            return true;
-        }
-    }
-    return false;
+    return isHardwareProject(files) || isDuckProject(files);
 }
 
 export function diagramOf(project: HardwareProject): Diagram | undefined {

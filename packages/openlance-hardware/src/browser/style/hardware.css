@@ -650,3 +650,61 @@
 .robolance-error {
     color: #ef4444;
 }
+
+/* Microduck pitch */
+
+.robolance-duck-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 6px;
+}
+
+.robolance-duck-scene {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 220px;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.robolance-duck-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+.robolance-duck-canvas:active {
+    cursor: grabbing;
+}
+
+.robolance-duck-readout {
+    flex-wrap: wrap;
+    row-gap: 4px;
+}
+
+.robolance-goal-banner {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.robolance-duck-mission summary {
+    cursor: pointer;
+    color: var(--openlance-muted, #9a9a9a);
+    margin: 6px 0;
+}
+
+.robolance-duck-mission pre {
+    max-height: 260px;
+    overflow: auto;
+    font-size: 12px;
+    padding: 8px;
+    border-radius: 6px;
+    background: var(--openlance-code-bg, rgba(127, 127, 127, 0.1));
+}
+
+.robolance-run-detail > .robolance-edit-btn {
+    align-self: flex-start;
+    margin-bottom: 8px;
+}

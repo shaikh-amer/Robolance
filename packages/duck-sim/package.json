@@ -1,6 +1,6 @@
 {
   "name": "robolance-duck-sim",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Microduck in a physics simulator: the official trained skills on MuJoCo, a ball-into-goal field and a mission API an agent programs.",
   "license": "Apache-2.0",
   "type": "module",
@@ -51,6 +51,19 @@
       "types": "./lib/viewer.d.ts",
       "default": "./lib/viewer.js"
     },
-    "./viewer/duck.json": "./viewer/duck.json"
+    "./viewer/duck-model": {
+      "types": "./viewer/duck-model.d.ts",
+      "default": "./viewer/duck-model.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "viewer": [
+        "lib/viewer.d.ts"
+      ],
+      "viewer/duck-model": [
+        "viewer/duck-model.d.ts"
+      ]
+    }
   }
 }

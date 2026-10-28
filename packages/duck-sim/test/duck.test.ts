@@ -218,10 +218,10 @@ test('viewer kinematics match MuJoCo while the duck walks', async () => {
     }
 });
 
-test('viewer/duck.json is current (regenerate with npm run export-viewer)', async () => {
+test('viewer/duck-model.js is current (regenerate with npm run export-viewer)', async () => {
     const world = await DuckWorld.create(await loadAssets());
     try {
-        const shipped = JSON.parse(readFileSync(new URL('../../viewer/duck.json', import.meta.url), 'utf8')) as ViewerModel;
+        const shipped = (await import(new URL('../../viewer/duck-model.js', import.meta.url).href)).default as ViewerModel;
         assert.deepEqual(shipped, JSON.parse(JSON.stringify(world.viewerModel(0.003))), 'compared as JSON, where -0 is 0');
         assert.equal(shipped.nq, world.qposSize);
         const mesh = decodeMesh(shipped.meshes[0]);
