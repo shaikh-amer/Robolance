@@ -113,6 +113,8 @@ test('a duck run shares as a link of a few kilobytes and replays from it', async
     assert.equal(isSharedDuckRun({ v: 1, trace: {} }), false, 'an Arduino share is not a duck share');
     assert.match(validateSharedDuckRun({ v: 1, kind: 'duck', result: {} }) ?? '', /no result/);
     assert.match(validateSharedDuckRun({ ...trimDuckRunForShare(run), frames: { hz: 12.5, size: 28, scale: 1000, q: [1, 2, 3] } }) ?? '', /damaged/);
+    const shared = trimDuckRunForShare(run);
+    assert.match(validateSharedDuckRun({ ...shared, result: { ...shared.result, field: { ...shared.result.field, bounds: {} } } }) ?? '', /pitch is damaged/);
 });
 
 test('the duck runs view offers a share link unless sharing is off', () => {

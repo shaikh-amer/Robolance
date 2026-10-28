@@ -98,6 +98,12 @@ export function validateSharedDuckRun(value: unknown): string | undefined {
     if (!r || typeof r !== 'object' || typeof r.outcome !== 'string' || !Array.isArray(r.notes) || !r.field || !Array.isArray(r.path)) {
         return 'the run has no result';
     }
+    const field = r.field as unknown as Record<string, Record<string, unknown>>;
+    const numbers = (o: Record<string, unknown> | undefined, keys: string[]) => Boolean(o) && keys.every(k => typeof o![k] === 'number' && Number.isFinite(o![k] as number));
+    if (!numbers(field.duck, ['x', 'y', 'heading']) || !numbers(field.ball, ['x', 'y']) || !numbers(field.goal, ['x', 'y', 'width'])
+        || !numbers(field.bounds, ['xMin', 'xMax', 'yMin', 'yMax'])) {
+        return 'the pitch is damaged';
+    }
     const f = s.frames;
     if (f && (!Array.isArray(f.q) || !(f.size > 0) || !(f.hz > 0) || !(f.scale > 0) || f.q.length % f.size !== 0)) {
         return 'the replay frames are damaged';
