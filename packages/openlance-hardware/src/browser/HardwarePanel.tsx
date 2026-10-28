@@ -14,6 +14,8 @@ import { ArenaView } from './ArenaView';
 import { CircuitView, type CircuitInputs, type PartStates } from './CircuitView';
 import { DuckPanel } from './DuckPanel';
 import { isDuckProject } from './duck-project';
+import { isSceneProject } from './scene-project';
+import { ScenePanel } from './ScenePanel';
 import { isHardwareProject, poseIndexAt, readHardwareProject, statesAt, type HardwareProject, type RunEntry } from './hardware-project';
 import { advanceReplay } from './replay';
 import { RunsView } from './RunsView';
@@ -25,9 +27,19 @@ import type { PreviewTabContext } from './preview-tab';
 export type HardwareView = 'circuit' | 'arena' | 'runs';
 
 export function HardwarePanel(context: PreviewTabContext): React.ReactElement {
-    // A Microduck project (mission.js, duck runs) without an Arduino circuit gets the duck view.
-    const duck = React.useMemo(() => isDuckProject(context.files) && !isHardwareProject(context.files), [context.files]);
-    return duck ? <DuckPanel {...context} /> : <ArduinoPanel {...context} />;
+    // An Arduino circuit wins; then a Microduck project (mission.js, duck runs); then any robot in MJCF.
+    const kind = React.useMemo(() => hardwareKind(context.files), [context.files]);
+    return kind === 'duck' ? <DuckPanel {...context} /> : kind === 'scene' ? <ScenePanel {...context} /> : <ArduinoPanel {...context} />;
+}
+
+export function hardwareKind(files: ReadonlyMap<string, string>): 'arduino' | 'duck' | 'scene' | undefined {
+    if (isHardwareProject(files)) {
+        return 'arduino';
+    }
+    if (isDuckProject(files)) {
+        return 'duck';
+    }
+    return isSceneProject(files) ? 'scene' : undefined;
 }
 
 function ArduinoPanel(context: PreviewTabContext): React.ReactElement {
@@ -285,7 +297,7 @@ function ArenaReadout({ timeMs, collisions, score, reachedGoal, lineCoverage }: 
 export { advanceReplay };
 
 export function hardwareTabApplies(files: ReadonlyMap<string, string>): boolean {
-    return isHardwareProject(files) || isDuckProject(files);
+    return hardwareKind(files) !== undefined;
 }
 
 export function diagramOf(project: HardwareProject): Diagram | undefined {

@@ -4,7 +4,7 @@
 export * from './preview-tab';
 export * from './hardware-project';
 export * from './hardware-preview-tab';
-export { HardwarePanel, hardwareTabApplies } from './HardwarePanel';
+export { HardwarePanel, hardwareKind, hardwareTabApplies } from './HardwarePanel';
 export { ArenaView } from './ArenaView';
 export { CircuitView, describeState } from './CircuitView';
 export { ZoomPane } from './ZoomPane';
@@ -20,3 +20,6 @@ export * from './arena-editor';
 export { ArenaEditor } from './ArenaEditor';
 export * from './wiring-check';
 export { WiringCheck } from './WiringCheck';
+export * from './scene-project';
+export { ScenePanel, ScenePanelBody, SceneReadout, SceneRunsView, MetricChart, SCENE_STARTER_PROMPT } from './ScenePanel';
+export { SceneView } from './SceneView';
