@@ -8,6 +8,11 @@
  * Browser-safe: no Node or MuJoCo imports.
  */
 
+// What a recorded run holds, for viewers (type-only, so nothing Node-side is loaded).
+export type { MissionOutcome, MissionReplay, MissionResult } from './mission.js';
+export type { DuckEvent, KickRecord, Pose } from './world.js';
+export { BALL_RADIUS, GOAL_HEIGHT, NET_DEPTH, POST_RADIUS, type FieldSpec } from './field.js';
+
 export type Vec3 = [number, number, number];
 /** Unit quaternion, w first (MuJoCo's order). */
 export type Quat = [number, number, number, number];

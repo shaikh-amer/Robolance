@@ -173,7 +173,7 @@ export function poseIndexAt(path: { atMs?: number }[], atMs: number, durationMs:
     return index;
 }
 
-export function formatRunTime(run: RunEntry): string {
+export function formatRunTime(run: { at?: string; stamp: number }): string {
     const date = run.at ? new Date(run.at) : new Date(run.stamp);
     if (Number.isNaN(date.getTime())) {
         return '';

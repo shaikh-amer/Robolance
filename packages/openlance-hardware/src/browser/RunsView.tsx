@@ -115,7 +115,7 @@ export function ShareRun({ run, base }: { run: RunEntry; base: string }): React.
     );
 }
 
-function Score({ value }: { value: number }): React.ReactElement {
+export function Score({ value }: { value: number }): React.ReactElement {
     const tone = value >= 80 ? 'good' : value >= 40 ? 'mid' : 'low';
     return <span className={`robolance-score ${tone}`}>{value}</span>;
 }
@@ -129,14 +129,26 @@ interface ScoreChartProps {
 
 /** Score per run, oldest to newest, so progress reads left to right. */
 export function ScoreChart({ runs, selectedPath, onSelect }: ScoreChartProps): React.ReactElement {
-    const ordered = [...runs].reverse();
+    return <ScoreCurve scores={runs.map(r => ({ id: r.path, score: r.trace.arena!.score }))} selected={selectedPath} onSelect={onSelect} />;
+}
+
+export interface ScoreCurveProps {
+    /** Newest first, like the runs list. */
+    scores: Array<{ id: string; score: number }>;
+    selected?: string;
+    onSelect(id: string): void;
+}
+
+/** Scores 0-100 as a line, oldest on the left, with the 80 mark drawn. */
+export function ScoreCurve({ scores, selected, onSelect }: ScoreCurveProps): React.ReactElement {
+    const ordered = [...scores].reverse();
     const width = 320;
     const height = 72;
     const pad = 10;
     const step = ordered.length > 1 ? (width - pad * 2) / (ordered.length - 1) : 0;
     const x = (i: number): number => pad + i * step;
     const y = (score: number): number => height - pad - (score / 100) * (height - pad * 2);
-    const points = ordered.map((r, i) => `${x(i).toFixed(1)},${y(r.trace.arena!.score).toFixed(1)}`).join(' ');
+    const points = ordered.map((r, i) => `${x(i).toFixed(1)},${y(r.score).toFixed(1)}`).join(' ');
     return (
         <svg className="robolance-score-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Score over ${ordered.length} runs`}>
             <line x1={pad} y1={y(0)} x2={width - pad} y2={y(0)} className="robolance-score-axis" />
@@ -144,14 +156,14 @@ export function ScoreChart({ runs, selectedPath, onSelect }: ScoreChartProps): R
             <polyline points={points} className="robolance-score-line" />
             {ordered.map((r, i) => (
                 <circle
-                    key={r.path}
+                    key={r.id}
                     cx={x(i)}
-                    cy={y(r.trace.arena!.score)}
-                    r={r.path === selectedPath ? 4 : 2.5}
-                    className={`robolance-score-dot${r.path === selectedPath ? ' selected' : ''}`}
-                    onClick={() => onSelect(r.path)}
+                    cy={y(r.score)}
+                    r={r.id === selected ? 4 : 2.5}
+                    className={`robolance-score-dot${r.id === selected ? ' selected' : ''}`}
+                    onClick={() => onSelect(r.id)}
                 >
-                    <title>{`run ${i + 1}: ${r.trace.arena!.score}`}</title>
+                    <title>{`run ${i + 1}: ${r.score}`}</title>
                 </circle>
             ))}
         </svg>
