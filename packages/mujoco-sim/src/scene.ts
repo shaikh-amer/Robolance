@@ -83,6 +83,7 @@ export class Scene {
         readonly model: MjModel,
         readonly data: MjData,
         readonly main: string,
+        private readonly root: string,
     ) {}
 
     /**
@@ -110,17 +111,21 @@ export class Scene {
         try {
             model = mj.MjModel.mj_loadXML(mainPath);
         } catch (err) {
+            removeTree(mj, root);
             throw new Error(`MuJoCo could not load ${main}: ${errorText(mj, err)}`);
         }
         if (!model) {
+            removeTree(mj, root);
             throw new Error(`MuJoCo could not load ${main}`);
         }
-        return new Scene(mj, model, new mj.MjData(model), main);
+        return new Scene(mj, model, new mj.MjData(model), main, root);
     }
 
+    /** Frees the native model and the scene's files in MuJoCo's in-memory file system; a long-lived tool loads many scenes. */
     dispose(): void {
         this.data.delete();
         this.model.delete();
+        removeTree(this.mj, this.root);
     }
 
     viewerModel(options?: ExtractOptions): ViewerModel {
@@ -435,6 +440,26 @@ function errorText(mj: MainModule, err: unknown): string {
         return 'the model has an error (MuJoCo gave no message)';
     }
     return err instanceof Error ? err.message : String(err);
+}
+
+function removeTree(mj: MainModule, path: string): void {
+    const fs = mj.FS as unknown as { readdir(p: string): string[]; stat(p: string): { mode: number }; isDir(mode: number): boolean; unlink(p: string): void; rmdir(p: string): void };
+    try {
+        for (const name of fs.readdir(path)) {
+            if (name === '.' || name === '..') {
+                continue;
+            }
+            const child = `${path}/${name}`;
+            if (fs.isDir(fs.stat(child).mode)) {
+                removeTree(mj, child);
+            } else {
+                fs.unlink(child);
+            }
+        }
+        fs.rmdir(path);
+    } catch {
+        // Already gone, or never written.
+    }
 }
 
 function mkdirs(mj: MainModule, path: string): void {

@@ -55,6 +55,16 @@ test('a scene loads, reports what it has, and its checks pass', async () => {
     }
 });
 
+test('a disposed scene leaves no files behind in MuJoCo\'s file system', async () => {
+    const scene = await Scene.load(files(ARM), 'scene.xml');
+    const fs = scene.mj.FS as unknown as { readdir(p: string): string[] };
+    const before = fs.readdir('/').filter(n => n.startsWith('scene-'));
+    assert.ok(before.length >= 1);
+    scene.dispose();
+    const after = fs.readdir('/').filter(n => n.startsWith('scene-'));
+    assert.equal(after.length, before.length - 1);
+});
+
 test('MuJoCo errors come back in words, and paths cannot leave the scene folder', async () => {
     await assert.rejects(Scene.load(files('<mujoco><worldbody><body><geom type="nonsense"/></body></worldbody></mujoco>'), 'scene.xml'), /could not load scene\.xml/);
     await assert.rejects(Scene.load(new Map([['../escape.xml', '<mujoco/>']]), '../escape.xml'), /leaves the scene folder/);
