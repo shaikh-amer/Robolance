@@ -191,16 +191,14 @@ export function HardwarePanelBody({ project, context, shareBase }: HardwarePanel
             <div className="robolance-body">
                 {view === 'circuit' && <CircuitView diagram={diagram} states={states} inputs={inputs} />}
                 {view === 'arena' && arenaSpec && editingArena && diagram && context.writeFile && project.diagramPath && (
-                    <ZoomPane className="robolance-arena-pane" contentWidth={arenaSpec.width + 8} contentHeight={arenaSpec.height + 8} mode="contain" maxScale={12} label="Arena editor">
-                        <ArenaEditor
-                            diagram={diagram}
-                            spec={arenaSpec}
-                            diagramPath={project.diagramPath}
-                            writeFile={context.writeFile}
-                            askAgent={context.askAgent}
-                            onClose={() => setEditingArena(false)}
-                        />
-                    </ZoomPane>
+                    <ArenaEditor
+                        diagram={diagram}
+                        spec={arenaSpec}
+                        diagramPath={project.diagramPath}
+                        writeFile={context.writeFile}
+                        askAgent={context.askAgent}
+                        onClose={() => setEditingArena(false)}
+                    />
                 )}
                 {view === 'arena' && arenaSpec && !editingArena && (
                     <div className="robolance-arena-wrap">

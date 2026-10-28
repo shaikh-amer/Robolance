@@ -10,6 +10,7 @@
 import * as React from 'react';
 import { DEFAULT_ROBOT, type ArenaSpec, type Diagram } from 'robolance-hardware-sim';
 import { ArenaView } from './ArenaView';
+import { ZoomPane } from './ZoomPane';
 import {
     ARENA_PRESETS, addWall, applyArenaSpec, clientToArena, cloneSpec, diagramText, hitTest, isBorderWall,
     moveGoal, moveStart, removeWall, resizeArena, runOnArenaPrompt, setGoalRadius, setStartHeading, snap,
@@ -124,7 +125,7 @@ export function ArenaEditor({ diagram, spec: initial, diagramPath, writeFile, as
     const pending = drag?.kind === 'wall' && (drag.x1 !== drag.x2 || drag.y1 !== drag.y2) ? drag : undefined;
 
     return (
-        <div className="robolance-arena-editor" data-zoom-ignore>
+        <div className="robolance-arena-editor">
             <div className="robolance-editor-bar" role="toolbar" aria-label="Arena editor">
                 <label>
                     Preset
@@ -165,7 +166,11 @@ export function ArenaEditor({ diagram, spec: initial, diagramPath, writeFile, as
                     <input type="number" min={5} max={50} step={5} value={spec.goal.radius} aria-label="Goal radius in centimetres" onChange={e => setSpec(s => setGoalRadius(s, Number(e.target.value)))} />
                 </label>
             </div>
-            <div className="robolance-editor-canvas">
+            {/* Only the drawing is zoomed; the controls above and below keep
+                their size (inside the zoom they grew with it on a phone). The
+                canvas ignores the pane's own drag-to-pan, which is for viewing. */}
+            <ZoomPane className="robolance-arena-pane robolance-editor-pane" contentWidth={spec.width + 8} contentHeight={spec.height + 8} mode="contain" maxScale={12} label="Arena editor">
+                <div className="robolance-editor-canvas" data-zoom-ignore>
                 <ArenaView
                     spec={spec}
                     path={[]}
@@ -196,7 +201,8 @@ export function ArenaEditor({ diagram, spec: initial, diagramPath, writeFile, as
                         </g>
                     ))}
                 </ArenaView>
-            </div>
+                </div>
+            </ZoomPane>
             <div className="robolance-editor-footer">
                 <span className="robolance-editor-hint">
                     {tool === 'wall' ? 'Drag to draw a wall (snaps to 5 cm).' : 'Drag the robot or the goal; click a wall to select it.'}

@@ -380,6 +380,18 @@
     border-color: color-mix(in srgb, var(--openlance-accent, #6366f1) 60%, transparent);
 }
 
+.robolance-arena-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.robolance-editor-pane {
+    flex: 1 1 0;
+    min-height: 160px;
+}
+
 .robolance-editor-canvas {
     display: block;
 }
