@@ -1,6 +1,6 @@
 {
   "name": "robolance-openlance-hardware",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "OpenLance preview tab for hardware projects: the circuit, the robot arena and the history of runs.",
   "license": "Apache-2.0",
   "keywords": [

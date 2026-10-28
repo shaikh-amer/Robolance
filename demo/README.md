@@ -7,4 +7,4 @@ npm run build            # from the repository root: builds every package, then 
 npx serve demo/site      # http://localhost:3000/replay/
 ```
 
-`.github/workflows/pages.yml` builds and publishes `demo/site/` to GitHub Pages on every push to `main` (Settings → Pages → Source: GitHub Actions). The replay URL the IDE links to is `REPLAY_PAGE_URL` in `packages/openlance-hardware/src/browser/share-run.ts`.
+`.github/workflows/pages.yml` builds and publishes `demo/site/` to GitHub Pages on every push to `main` (Settings → Pages → Source: GitHub Actions), served at https://robolance.openlance.ai (a `CNAME` record for `robolance` pointing at `shaikh-amer.github.io`, DNS only, and the custom domain set in the Pages settings). The replay URL the IDE links to is `REPLAY_PAGE_URL` in `packages/openlance-hardware/src/browser/share-run.ts`.

@@ -12,7 +12,7 @@ import type { Diagram, RunTrace, Sample, ScriptedEvent } from 'robolance-hardwar
 import type { RunEntry } from './hardware-project';
 
 /** Where shared runs open. */
-export const REPLAY_PAGE_URL = 'https://shaikh-amer.github.io/Robolance/replay/';
+export const REPLAY_PAGE_URL = 'https://robolance.openlance.ai/replay/';
 
 /** The fragment parameter that carries a run. */
 export const SHARE_PARAM = 'r';
