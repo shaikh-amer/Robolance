@@ -42,6 +42,14 @@ await duck.stand(s)                 stands still
 await duck.kick('left' | 'right')   kicks with that foot -> { ballForward, ballLeft, ballMoved, ballDirection, goalDirection }.
                                     It first stands until settled (a kick straight out of a walk does not connect)
 
+await duck.skill(name, seconds, command?)
+                                    runs a trained skill as it is for that long: one of the project's own policies passed
+                                    to the run (getUp, roll, ...), or walk, stand, kickLeft, kickRight. command is up to
+                                    13 numbers: [forward m/s, sideways m/s, turn rad/s, head pose (4), body pose (6)],
+                                    zero when left out. Tipping over during a project skill is part of the move; the run
+                                    counts a fall only if the duck is still down once it stands again
+duck.skills()         -> the project's own skill names in this run
+
 A kick connects when the ball is 6-8 cm ahead and 1.5-8 cm to the kicking foot's side, and sends the ball 0.4-0.8 m.
 Where the ball sits across the foot changes the direction it goes.
 The feet are 6 cm either side of the duck's centre line. Walking up to a ball more than ~2 cm off the centre line, the
@@ -59,6 +67,12 @@ export interface MissionOptions {
     frameHz?: number;
     /** Where the model and skills are (default: the package's assets). */
     assetsDir?: string;
+    /**
+     * The project's own trained policies (ONNX bytes) by name: walk, stand,
+     * kickLeft and kickRight replace the built-ins, other names become skills
+     * the mission runs with duck.skill(name, seconds).
+     */
+    skills?: Record<string, Uint8Array>;
 }
 
 export type MissionOutcome = 'goal' | 'no-goal' | 'fell' | 'time-up' | 'error' | 'timeout';
@@ -102,6 +116,7 @@ export interface WorkerInput {
     limitS: number;
     frameHz: number;
     assetsDir?: string;
+    skills?: Record<string, Uint8Array>;
 }
 
 export const MAX_LIMIT_S = 120;
@@ -119,7 +134,7 @@ export async function runMission(code: string, options: MissionOptions = {}): Pr
     }
     const limitS = Math.min(MAX_LIMIT_S, Math.max(1, options.limitS ?? 40));
     const wallMs = Math.max(1000, options.wallMs ?? 60_000);
-    const input: WorkerInput = { code, field, limitS, frameHz: options.frameHz ?? 25, assetsDir: options.assetsDir };
+    const input: WorkerInput = { code, field, limitS, frameHz: options.frameHz ?? 25, assetsDir: options.assetsDir, skills: options.skills };
     const started = Date.now();
     const worker = new Worker(new URL('./mission-worker.js', import.meta.url), {
         workerData: input,

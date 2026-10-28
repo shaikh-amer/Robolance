@@ -97,6 +97,8 @@ export interface DuckRunRecord {
     at: string;
     missionSha: string;
     mission: string;
+    /** The project's own policies the run used, by skill name. */
+    skills?: Record<string, { path: string; sha: string }>;
     result: MissionResult;
 }
 
@@ -147,7 +149,13 @@ export const DUCK_HELP = `${MISSION_API}
 
 The default pitch (metres): ${JSON.stringify(DEFAULT_FIELD)}
 Pass "field" to duck_run for another layout (same shape). Each run takes a few seconds; read its notes, change the
-mission, run again. Use log() to see positions while you work out the approach.`;
+mission, run again. Use log() to see positions while you work out the approach.
+
+A policy the project trained (an ONNX file exported from microduck_rl: 61 values in, 14 out) runs in the simulator by
+passing "skills" to duck_run, e.g. {"walk": "policies/walk/policy.onnx", "getUp": "policies/standup/policy.onnx"}:
+walk, stand, kickLeft and kickRight replace the built-in skills (walk then drives duck.walk, walkTo and turnTo);
+any other name is a new skill the mission runs with duck.skill(name, seconds, command). Try a newly trained policy
+here before calling it done.`;
 
 const fieldSchema = z.object({
     duck: z.object({ x: z.number(), y: z.number(), heading: z.number() }),
@@ -248,26 +256,35 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
     }, async () => ({ content: [{ type: 'text', text: DUCK_HELP }] }));
 
     server.registerTool('duck_run', {
-        description: 'Runs a Microduck mission in the physics simulator (MuJoCo, with the robot\'s own trained walking and kicking skills): the body of an async JavaScript function using duck, field and log, see duck_api. Returns the outcome (goal, no-goal, fell, time-up, error, timeout), a score 0-100, notes that say why a kick missed, the mission\'s log, every kick and the duck\'s path. Every run is recorded for the IDE to replay.',
+        description: 'Runs a Microduck mission in the physics simulator (MuJoCo, with the robot\'s own trained walking and kicking skills, or policies the project trained, passed as skills): the body of an async JavaScript function using duck, field and log, see duck_api. Returns the outcome (goal, no-goal, fell, time-up, error, timeout), a score 0-100, notes that say why a kick missed, the mission\'s log, every kick and the duck\'s path. Every run is recorded for the IDE to replay.',
         inputSchema: {
             mission: z.string().min(1).max(64 * 1024).describe('The mission: the body of an async function'),
             field: fieldSchema.optional().describe('The pitch; default in duck_api'),
             limitS: z.number().min(1).max(120).default(40).describe('Longest simulated time, seconds'),
+            skills: z.record(z.string(), z.string()).optional()
+                .describe('The project\'s own trained policies by skill name: {"walk": "policies/walk/policy.onnx", "getUp": "..."}; see duck_api'),
         },
-    }, async ({ mission, field, limitS }) => {
+    }, async ({ mission, field, limitS, skills }) => {
         const pitch = (field ?? DEFAULT_FIELD) as FieldSpec;
         const problem = validateField(pitch);
         if (problem) {
             return { content: [{ type: 'text', text: `field: ${problem}` }], isError: true };
         }
+        let policies: { bytes: Record<string, Uint8Array>; used: Record<string, { path: string; sha: string }> } | undefined;
+        try {
+            policies = skills ? await readPolicies(projectDir, skills) : undefined;
+        } catch (err) {
+            return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true };
+        }
         let result: MissionResult;
         try {
-            result = await runMission(mission, { field: pitch, limitS, wallMs: options.duckWallMs });
+            result = await runMission(mission, { field: pitch, limitS, wallMs: options.duckWallMs, skills: policies?.bytes });
         } catch (err) {
             return { content: [{ type: 'text', text: `run failed: ${err instanceof Error ? err.message : err}` }], isError: true };
         }
         const recorded = await recorder.run({
             version: 1, kind: 'duck', at: new Date().toISOString(), missionSha: sha(mission), mission, result,
+            ...(policies ? { skills: policies.used } : {}),
         });
         const summary = summarizeDuck(result);
         return { content: [{ type: 'text', text: JSON.stringify(recorded ? { ...summary, recordedAs: recorded } : summary, null, 1) }] };
@@ -446,6 +463,35 @@ export function summarizeScene(r: SceneRun): Record<string, unknown> {
         metrics,
         logs,
     };
+}
+
+/** Most policies one duck_run takes, and the largest file. */
+export const MAX_SKILLS = 8;
+export const MAX_POLICY_BYTES = 32 * 1024 * 1024;
+
+/** Reads the project's policy files a duck_run names, with each file's hash for the record. */
+export async function readPolicies(projectDir: string, skills: Record<string, string>): Promise<{ bytes: Record<string, Uint8Array>; used: Record<string, { path: string; sha: string }> }> {
+    const names = Object.keys(skills);
+    if (names.length > MAX_SKILLS) {
+        throw new Error(`at most ${MAX_SKILLS} skills per run`);
+    }
+    const bytes: Record<string, Uint8Array> = {};
+    const used: Record<string, { path: string; sha: string }> = {};
+    for (const name of names) {
+        const path = skills[name];
+        const full = insideProject(projectDir, path);
+        const info = await stat(full).catch(() => null);
+        if (!info?.isFile()) {
+            throw new Error(`skill "${name}": ${path} does not exist in the project`);
+        }
+        if (info.size > MAX_POLICY_BYTES) {
+            throw new Error(`skill "${name}": ${path} is over ${MAX_POLICY_BYTES >> 20} MB; a Microduck policy is well under 1 MB`);
+        }
+        const data = new Uint8Array(await readFile(full));
+        bytes[name] = data;
+        used[name] = { path, sha: createHash('sha256').update(data).digest('hex').slice(0, 16) };
+    }
+    return { bytes, used };
 }
 
 /** A path inside the project, or an error that says why not. */

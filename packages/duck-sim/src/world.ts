@@ -41,6 +41,36 @@ export const SKILLS = {
 } as const;
 export type SkillName = keyof typeof SKILLS;
 
+/** A project skill's name: letters first, then letters, digits, - or _. */
+const SKILL_NAME = /^[A-Za-z][A-Za-z0-9_-]{0,31}$/;
+
+/** Most values a skill's command block holds: twist (3), head pose (4), body pose (6). */
+export const COMMAND_SIZE = 13;
+
+/**
+ * Loads a trained policy and checks it is one of Microduck's: 61 values in,
+ * 14 servo offsets out (the layout every policy of the family shares).
+ */
+export async function loadSkill(name: string, bytes: Uint8Array): Promise<ort.InferenceSession> {
+    let session: ort.InferenceSession;
+    try {
+        session = await ort.InferenceSession.create(bytes);
+    } catch (err) {
+        throw new Error(`skill "${name}" is not an ONNX model ort can load: ${err instanceof Error ? err.message : err}`);
+    }
+    let out: ArrayLike<number>;
+    try {
+        const result = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', new Float32Array(61), [1, 61]) });
+        out = result[session.outputNames[0]].data as Float32Array;
+    } catch (err) {
+        throw new Error(`skill "${name}" does not take Microduck's 61-value observation: ${err instanceof Error ? err.message : err}`);
+    }
+    if (out.length !== 14 || !Array.from(out).every(Number.isFinite)) {
+        throw new Error(`skill "${name}" returns ${out.length} values; a Microduck policy returns 14 servo offsets`);
+    }
+    return session;
+}
+
 /** Model files and skills, by path; the caller reads them from disk or fetches them. */
 export interface DuckAssets {
     /** Paths relative to the model directory (robot_groundcontact.xml, assets/*.stl) → bytes. */
@@ -104,12 +134,23 @@ export class TimeUp extends Error {
 
 let mujoco: Promise<MainModule> | undefined;
 
+/** Where a skill's session is kept: built-ins by their file, project skills by name. */
+function skillKey(name: string): string {
+    return Object.hasOwn(SKILLS, name) ? SKILLS[name as SkillName] : `project:${name}`;
+}
+
 export interface WorldOptions {
     field?: FieldSpec;
     /** Longest simulated time, seconds. */
     limitS?: number;
     /** Pose samples per second kept for the replay. */
     frameHz?: number;
+    /**
+     * The project's own trained policies (ONNX), by name. walk, stand,
+     * kickLeft and kickRight replace the built-in skills; any other name is a
+     * new skill a mission runs with duck.skill(name, seconds).
+     */
+    skills?: Record<string, Uint8Array>;
 }
 
 export class DuckWorld {
@@ -144,6 +185,10 @@ export class DuckWorld {
     private uprightBad = 0;
     private steps = 0;
     private readonly frameEvery: number;
+    /** Skills that came from the project: run as trained (scale 1, kp 200, no smoothing). */
+    private readonly projectSkills = new Set<string>();
+    /** While a project skill runs, tipping over is part of the move, not a fall. */
+    private tippingAllowed = false;
     private ballPrevX: number;
     /** Where the ball was when the walking duck started pushing it. */
     private bumpFrom: { x: number; y: number; atS: number } | null = null;
@@ -205,14 +250,30 @@ export class DuckWorld {
         model.opt.timestep = 0.005;
         const data = new mj.MjData(model);
         const skills = new Map<string, ort.InferenceSession>();
+        const fromProject: string[] = [];
+        for (const [name, bytes] of Object.entries(options.skills ?? {})) {
+            if (!SKILL_NAME.test(name)) {
+                throw new Error(`skill name "${name}": use letters, digits, - or _ (up to 32, starting with a letter)`);
+            }
+            const key = skillKey(name);
+            skills.set(key, await loadSkill(name, bytes));
+            fromProject.push(key);
+        }
         for (const file of Object.values(SKILLS)) {
+            if (skills.has(file)) {
+                continue;
+            }
             const bytes = assets.policies.get(file);
             if (!bytes) {
                 throw new Error(`missing skill ${file}.onnx`);
             }
             skills.set(file, await ort.InferenceSession.create(bytes));
         }
-        return new DuckWorld(mj, model, data, skills, options);
+        const world = new DuckWorld(mj, model, data, skills, options);
+        for (const key of fromProject) {
+            world.projectSkills.add(key);
+        }
+        return world;
     }
 
     /** Frees the native model; the world is unusable afterwards. */
@@ -366,7 +427,7 @@ export class DuckWorld {
         } else {
             this.uprightBad = 0;
         }
-        if (this.uprightBad > 0.6 && !this.fallen) {
+        if (this.uprightBad > 0.6 && !this.fallen && !this.tippingAllowed) {
             this.fallen = true;
             this.fellAtS = round(this.time, 2);
             this.events.push({ atS: this.fellAtS, kind: 'fell', detail: 'the duck tipped over' });
@@ -377,7 +438,12 @@ export class DuckWorld {
             const out = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', obs, [1, 61]) });
             const action = out[session.outputNames[0]].data as Float32Array;
             this.lastAction = Float32Array.from(action);
-            const t = targets(action, scale, this.previous);
+            const asTrained = this.projectSkills.has(skill);
+            if (asTrained) {
+                scale = 1;
+                gain = 200;
+            }
+            const t = targets(action, scale, asTrained ? null : this.previous);
             this.previous = t;
             for (let i = 0; i < 15; i++) {
                 if (this.act[i] >= 0) {
@@ -600,6 +666,45 @@ export class DuckWorld {
             maxS,
         );
         return along();
+    }
+
+    /** The project skills a mission can run with runSkill (not the replaced built-ins). */
+    get extraSkills(): string[] {
+        return [...this.projectSkills].filter(k => k.startsWith('project:')).map(k => k.slice('project:'.length)).sort();
+    }
+
+    /**
+     * Runs a skill for `seconds` with a command block (twist, head pose,
+     * body pose: up to 13 values, zero-padded), as it was trained: no
+     * smoothing, and tipping over during it is part of the move (the run
+     * ends only if the duck is still down once standing resumes). Built-in
+     * skills run by their names: walk, stand, kickLeft, kickRight.
+     */
+    async runSkill(name: string, seconds: number, command: ArrayLike<number> = []): Promise<void> {
+        const key = skillKey(name);
+        if (!this.skills.has(key)) {
+            const extra = this.extraSkills;
+            throw new Error(`no skill "${name}"; ${extra.length ? `the project's skills are ${extra.join(', ')}` : 'the project has no skills of its own'} (and walk, stand, kickLeft, kickRight)`);
+        }
+        const cmd = new Array<number>(COMMAND_SIZE).fill(0);
+        for (let i = 0; i < Math.min(COMMAND_SIZE, command.length); i++) {
+            const v = Number(command[i]);
+            cmd[i] = Number.isFinite(v) ? v : 0;
+        }
+        this.twist = [0, 0, 0];
+        this.stillSince = null;
+        const steps = Math.max(1, Math.round(seconds / CONTROL_DT));
+        this.tippingAllowed = this.projectSkills.has(key);
+        try {
+            // Built-ins keep the scale and stiffness walk(), stand() and kick() use; project skills run as trained.
+            const [scale, gain] = key === SKILLS.walk ? [0.9, 200] : [1, 160];
+            for (let s = 0; s < steps; s++) {
+                await this.step(key, cmd, scale, gain);
+            }
+        } finally {
+            this.tippingAllowed = false;
+            this.uprightBad = 0;
+        }
     }
 
     /**

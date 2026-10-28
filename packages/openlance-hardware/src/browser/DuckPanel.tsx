@@ -10,7 +10,7 @@
 import * as React from 'react';
 import type { MissionResult } from 'robolance-duck-sim/viewer';
 import { DuckScene } from './DuckScene';
-import { describeDuckRun, duckRunMs, outcomeLabel, readDuckRuns, missionPath, type DuckRun } from './duck-project';
+import { describeDuckRun, describeDuckSkills, duckRunMs, outcomeLabel, readDuckRuns, missionPath, type DuckRun } from './duck-project';
 import { formatRunTime } from './hardware-project';
 import { advanceReplay } from './replay';
 import { shareDuckRunUrl } from './duck-share';
@@ -231,6 +231,7 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
                 <div className="robolance-run-detail">
                     <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
                     {shareBase && <ShareLink id={run.path} makeUrl={() => shareDuckRunUrl(run, shareBase)} />}
+                    {describeDuckSkills(run) && <p className="robolance-duck-skills">Trained policies from the project: {describeDuckSkills(run)}</p>}
                     {run.result.error && <pre className="robolance-error">{run.result.error}</pre>}
                     {run.result.notes.length > 0 && (
                         <ul className="robolance-run-notes">

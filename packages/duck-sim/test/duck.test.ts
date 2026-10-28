@@ -150,6 +150,50 @@ test('a duck lying on its side is a fall', async () => {
     }
 });
 
+test('a project skill may tip the duck over; it is a fall only if the duck is still down after', async () => {
+    const assets = await loadAssets();
+    // The packaged standing policy stands in for a trained get-up policy.
+    const world = await DuckWorld.create(assets, { field: OPEN, skills: { getUp: assets.policies.get('alpha_stand')! } });
+    try {
+        assert.deepEqual(world.extraSkills, ['getUp']);
+        const w = world as unknown as Internals;
+        w.data.qpos[w.trunk + 2] = 0.25;
+        w.data.qpos[w.trunk + 3] = Math.SQRT1_2;
+        w.data.qpos[w.trunk + 4] = Math.SQRT1_2;
+        w.data.qpos[w.trunk + 6] = 0;
+        await world.runSkill('getUp', 2);
+        assert.equal(world.fallen, false, 'lying down during a project skill is part of the move');
+        // The standing policy rights the duck from its side within a second, so standing on is fine.
+        await world.walk(0, 0, 1);
+        assert.equal(world.fallen, false);
+        await assert.rejects(world.runSkill('flip', 1), /no skill "flip"; the project's skills are getUp/);
+    } finally {
+        world.dispose();
+    }
+});
+
+test('project policies replace built-in skills or add new ones, and bad ones are refused', async () => {
+    const assets = await loadAssets();
+    const walk = assets.policies.get('alpha_walking')!;
+    const r = await runMission(`
+        log(duck.skills());
+        await duck.skill('jog', 1.5, [0.4, 0, 0]);
+        await duck.walk(0.4, 0, 2);
+        log(duck.pose().x > 0.2);
+    `, { field: OPEN, limitS: 10, skills: { walk, jog: walk } });
+    assert.equal(r.error, undefined, r.notes.join('\n'));
+    assert.deepEqual(r.logs, ['["jog"]', 'true']);
+    assert.notEqual(r.outcome, 'fell');
+
+    const broken = await runMission('await duck.stand(1);', { limitS: 5, skills: { walk: new Uint8Array([1, 2, 3]) } });
+    assert.equal(broken.outcome, 'error');
+    assert.match(broken.error ?? '', /skill "walk" is not an ONNX model/);
+    const badName = await runMission('await duck.stand(1);', { limitS: 5, skills: { '../x': walk } });
+    assert.match(badName.error ?? '', /skill name "..\/x"/);
+    const badCommand = await runMission(`await duck.skill('walk', 1, ['fast']);`, { limitS: 5 });
+    assert.match(badCommand.error ?? '', /command\[0\] must be a finite number/);
+});
+
 test('the reference mission scores on the default field', async () => {
     const r = await runMission(REFERENCE);
     assert.equal(r.outcome, 'goal', r.notes.join('\n'));

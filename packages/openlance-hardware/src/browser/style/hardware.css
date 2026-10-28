@@ -733,3 +733,9 @@
 .robolance-metric figcaption span {
     opacity: 0.7;
 }
+
+.robolance-duck-skills {
+    margin: 6px 0;
+    font-size: 12px;
+    color: var(--openlance-muted, #8a8f98);
+}
