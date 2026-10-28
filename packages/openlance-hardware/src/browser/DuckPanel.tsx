@@ -13,7 +13,9 @@ import { DuckScene } from './DuckScene';
 import { describeDuckRun, duckRunMs, outcomeLabel, readDuckRuns, missionPath, type DuckRun } from './duck-project';
 import { formatRunTime } from './hardware-project';
 import { advanceReplay } from './replay';
-import { Score, ScoreCurve } from './RunsView';
+import { shareDuckRunUrl } from './duck-share';
+import { Score, ScoreCurve, ShareLink } from './RunsView';
+import { REPLAY_PAGE_URL } from './share-run';
 import type { PreviewTabContext } from './preview-tab';
 
 export type DuckView = 'pitch' | 'runs';
@@ -31,9 +33,11 @@ export interface DuckPanelBodyProps {
     runs: DuckRun[];
     missionPath?: string;
     context: PreviewTabContext;
+    /** The replay page share links open; false hides sharing (the replay page itself). */
+    shareBase?: string | false;
 }
 
-export function DuckPanelBody({ runs, missionPath: mission, context }: DuckPanelBodyProps): React.ReactElement {
+export function DuckPanelBody({ runs, missionPath: mission, context, shareBase = REPLAY_PAGE_URL }: DuckPanelBodyProps): React.ReactElement {
     const [view, setView] = React.useState<DuckView>('pitch');
     const [selected, setSelected] = React.useState(0);
     const [timeMs, setTimeMs] = React.useState(0);
@@ -144,7 +148,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context }: DuckPanel
                         <DuckReadout result={r} timeMs={timeMs} />
                     </div>
                 )}
-                {view === 'runs' && <DuckRunsView runs={runs} selected={selected} onSelect={i => { select(i); }} onWatch={i => { select(i); setView('pitch'); setPlaying(true); }} />}
+                {view === 'runs' && <DuckRunsView runs={runs} selected={selected} onSelect={i => { select(i); }} onWatch={i => { select(i); setView('pitch'); setPlaying(true); }} shareBase={shareBase} />}
             </div>
 
             <div className="robolance-footer">
@@ -192,9 +196,10 @@ interface DuckRunsViewProps {
     selected: number;
     onSelect(index: number): void;
     onWatch(index: number): void;
+    shareBase?: string | false;
 }
 
-export function DuckRunsView({ runs, selected, onSelect, onWatch }: DuckRunsViewProps): React.ReactElement {
+export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = REPLAY_PAGE_URL }: DuckRunsViewProps): React.ReactElement {
     const run = runs[selected];
     return (
         <div className="robolance-runs">
@@ -225,6 +230,7 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch }: DuckRunsView
             {run && (
                 <div className="robolance-run-detail">
                     <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
+                    {shareBase && <ShareLink id={run.path} makeUrl={() => shareDuckRunUrl(run, shareBase)} />}
                     {run.result.error && <pre className="robolance-error">{run.result.error}</pre>}
                     {run.result.notes.length > 0 && (
                         <ul className="robolance-run-notes">

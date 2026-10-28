@@ -3,8 +3,9 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { trimDuckRunForShare } from 'robolance-openlance-hardware/lib/browser/duck-share';
 import { encodeShare, trimRunForShare } from 'robolance-openlance-hardware/lib/browser/share-run';
-import { headline, runFromRecordText, runFromShare, runSource } from '../src/load-run';
+import { duckHeadline, headline, loadRecordText, loadShare, runFromRecordText, runFromShare, runSource } from '../src/load-run';
 
 const record = {
     version: 1,
@@ -49,4 +50,37 @@ test('the headline sums up the run', () => {
     assert.equal(headline(bench), '2.0 s on the bench');
     const lost = runFromRecordText(JSON.stringify({ ...record, trace: { ...record.trace, arena: { ...record.trace.arena, reachedGoalAtMs: null, score: 40, collisions: 1, line: { onLine: false, coverage: 0.5, onLineMs: 900, lostAtMs: 1000 } } } }), 'run.json');
     assert.equal(headline(lost), 'score 40 · goal not reached in 2.0 s · line 50% · 1 collision');
+});
+
+const field = { duck: { x: 0, y: 0, heading: 0 }, ball: { x: 0.5, y: 0.2 }, goal: { x: 0.95, y: 0, width: 0.6 }, bounds: { xMin: -0.4, xMax: 1.3, yMin: -0.7, yMax: 0.7 } };
+const duckRecord = {
+    version: 1, kind: 'duck', at: '2026-10-28T10:00:00.000Z', missionSha: 'x', mission: 'await duck.kick("right");',
+    result: {
+        outcome: 'goal', score: 95, scoredAtS: 10.5, simS: 11.5, logs: ['hi'], events: [], notes: ['Goal at 10.5 s. Score 95/100.'],
+        kicks: [{ atS: 9, side: 'right', ballForward: 0.07, ballLeft: -0.04, ballMoved: 0.5, ballDirection: -3, goalDirection: -20 }],
+        final: { duck: { x: 0.4, y: 0.1, heading: 0 }, ball: { x: 1, y: 0 } }, ballToGoalStart: 0.45, closestBallToGoal: 0,
+        field, limitS: 40, path: [[0, 0], [0.4, 0.1]],
+        replay: { frameHz: 25, qposSize: 3, frames: [[0, 0, 0.125], [0.01, 0, 0.125], [0.02, 0.001, 0.124], [0.03, 0.002, 0.124]] },
+    },
+};
+
+test('Microduck runs load from a file and from a share link, and get their own headline', async () => {
+    const fromFile = loadRecordText(JSON.stringify(duckRecord), '1761645600000-001.json');
+    assert.equal(fromFile.kind, 'duck');
+    assert.equal(fromFile.run.stamp, 1761645600000);
+    assert.equal(duckHeadline(fromFile.kind === 'duck' ? fromFile.run : (undefined as never)), 'score 95 · goal in 10.5 s · 1 kick');
+    assert.throws(() => loadRecordText('{"kind":"duck","result":{}}'), /not a complete Microduck run/);
+
+    const shared = await loadShare(await encodeShare(trimDuckRunForShare(fromFile.run as never)));
+    assert.equal(shared.kind, 'duck');
+    if (shared.kind === 'duck') {
+        assert.equal(shared.run.result.replay!.frames.length, 2, 'one frame in two');
+        assert.deepEqual(shared.run.result.replay!.frames[1], [0.02, 0.001, 0.124]);
+        assert.equal(shared.run.mission, duckRecord.mission);
+    }
+    await assert.rejects(loadShare(await encodeShare({ v: 1, kind: 'duck', result: {} })), /no result/);
+
+    const arduino = await loadShare(await encodeShare(trimRunForShare(runFromRecordText(JSON.stringify(record), 'run.json'))));
+    assert.equal(arduino.kind, 'arduino', 'Arduino links still load as before');
+    assert.equal(loadRecordText(JSON.stringify(record), 'run.json').kind, 'arduino');
 });
