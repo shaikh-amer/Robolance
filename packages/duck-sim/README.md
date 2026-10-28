@@ -54,7 +54,7 @@ Pass `field` to `runMission` for another layout; `validateField` lists the rules
 - `geomPose(body, geom)`: places each visual mesh relative to its body;
 - `decodeMesh(mesh)`: unpacks a mesh's vertices and triangles.
 
-`robolance-duck-sim/viewer/duck-model` (a generated module) holds the body tree and the visual meshes, decimated to 27k triangles (400 KB). Regenerate it with `npm run export-viewer` if the robot model changes.
+`robolance-duck-sim/viewer/duck-model` (a generated module) holds the body tree, each part's surface (from its MuJoCo material; `partSurface` turns it into physically based settings) and the visual meshes, simplified with meshoptimizer to within 0.2 mm of the CAD shape (33k triangles, 500 KB). Regenerate it with `npm run export-viewer` if the robot model changes.
 
 ## Running a mission
 

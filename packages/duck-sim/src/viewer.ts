@@ -35,6 +35,35 @@ export interface ViewerGeom {
     pos: Vec3;
     quat: Quat;
     rgba: [number, number, number, number];
+    /** The part's surface from its MuJoCo material (0-1 each), when it has one. */
+    surface?: { specular: number; shininess: number; reflectance: number };
+}
+
+/** Reduces one visual mesh for the browser: xyz positions and triangle indices in, the same out. */
+export type MeshSimplifier = (positions: Float32Array, indices: Uint32Array) => { positions: Float32Array; indices: Uint32Array };
+
+/** Physically based material settings for a part, from its colour and MuJoCo surface. */
+export interface PartSurface {
+    roughness: number;
+    metalness: number;
+    /** A thin glossy coat (0-1), as on moulded plastic. */
+    clearcoat: number;
+}
+
+/**
+ * Maps MuJoCo's Phong-style material (specular, shininess, reflectance)
+ * to physically based settings. With MuJoCo's defaults (0.5, 0.5, 0)
+ * a part reads as satin moulded plastic; shinier materials get less
+ * roughness and more coat, reflective ones turn metallic.
+ */
+export function partSurface(geom: Pick<ViewerGeom, 'surface'>): PartSurface {
+    const s = geom.surface ?? { specular: 0.5, shininess: 0.5, reflectance: 0 };
+    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+    return {
+        roughness: clamp(0.85 - 0.75 * s.shininess, 0.15, 0.9),
+        metalness: clamp(s.reflectance, 0, 1),
+        clearcoat: clamp(s.specular * 0.6, 0, 1),
+    };
 }
 
 export interface ViewerMesh {

@@ -9,6 +9,7 @@ import {
     validateField, bodyPoses, decimate, decodeMesh, type FieldSpec, type ViewerModel,
 } from '../src/index.js';
 import { loadAssets } from '../src/node-assets.js';
+import { compact, meshExtent, meshoptSimplifier } from '../src/mesh-simplify.js';
 
 const REFERENCE = readFileSync(new URL('../../examples/score-a-goal.js', import.meta.url), 'utf8');
 
@@ -222,7 +223,7 @@ test('viewer/duck-model.js is current (regenerate with npm run export-viewer)', 
     const world = await DuckWorld.create(await loadAssets());
     try {
         const shipped = (await import(new URL('../../viewer/duck-model.js', import.meta.url).href)).default as ViewerModel;
-        assert.deepEqual(shipped, JSON.parse(JSON.stringify(world.viewerModel(0.003))), 'compared as JSON, where -0 is 0');
+        assert.deepEqual(shipped, JSON.parse(JSON.stringify(world.viewerModel(await meshoptSimplifier(0.0002)))), 'compared as JSON, where -0 is 0');
         assert.equal(shipped.nq, world.qposSize);
         const mesh = decodeMesh(shipped.meshes[0]);
         assert.ok(mesh.positions.length > 0 && mesh.indices.length % 3 === 0);
@@ -230,6 +231,36 @@ test('viewer/duck-model.js is current (regenerate with npm run export-viewer)', 
     } finally {
         world.dispose();
     }
+});
+
+test('the shape-preserving simplifier keeps a curved shell within its error and drops unused vertices', async () => {
+    // A dense hemisphere (radius 5 cm) like a CAD head shell.
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const n = 40;
+    for (let i = 0; i <= n; i++) {
+        for (let j = 0; j <= n; j++) {
+            const th = (Math.PI / 2) * (i / n);
+            const ph = 2 * Math.PI * (j / n);
+            positions.push(0.05 * Math.sin(th) * Math.cos(ph), 0.05 * Math.sin(th) * Math.sin(ph), 0.05 * Math.cos(th));
+        }
+    }
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+            const a = i * (n + 1) + j;
+            indices.push(a, a + n + 1, a + 1, a + 1, a + n + 1, a + n + 2);
+        }
+    }
+    const simplify = await meshoptSimplifier(0.0005);
+    const out = simplify(Float32Array.from(positions), Uint32Array.from(indices));
+    assert.ok(out.indices.length < indices.length / 2, `kept ${out.indices.length / 3} of ${indices.length / 3} triangles`);
+    assert.ok(Math.max(...out.indices) === out.positions.length / 3 - 1, 'every kept vertex is used');
+    for (let v = 0; v < out.positions.length; v += 3) {
+        const r = Math.hypot(out.positions[v], out.positions[v + 1], out.positions[v + 2]);
+        assert.ok(Math.abs(r - 0.05) < 1e-6, 'vertices stay on the surface');
+    }
+    assert.equal(meshExtent([0, 0, 0, 0.1, 0.02, 0.03]), 0.1);
+    assert.deepEqual(Array.from(compact([0, 0, 0, 1, 1, 1, 2, 2, 2], [2, 0, 2]).indices), [0, 1, 0]);
 });
 
 test('decimate merges vertices in one cell and drops collapsed triangles', () => {

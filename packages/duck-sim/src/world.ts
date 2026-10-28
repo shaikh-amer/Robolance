@@ -13,11 +13,11 @@ import * as ort from 'onnxruntime-web';
 import { CONTROL_DT, HOME, JOINTS, observation, targets } from './controller.js';
 import { BALL_RADIUS, DEFAULT_FIELD, sceneXml, type FieldSpec } from './field.js';
 import { decimate } from './decimate.js';
-import type { Quat, Vec3, ViewerBody, ViewerGeom, ViewerMesh, ViewerModel } from './viewer.js';
+import type { MeshSimplifier, Quat, Vec3, ViewerBody, ViewerGeom, ViewerMesh, ViewerModel } from './viewer.js';
 
 const OBJ_BODY = 1;
 const OBJ_JOINT = 3;
-const OBJ_MESH = 8;
+const OBJ_MESH = 10;
 const GEOM_MESH = 7;
 /** Geom group MuJoCo models use for visual-only meshes. */
 const VISUAL_GROUP = 2;
@@ -230,9 +230,10 @@ export class DuckWorld {
 
     /**
      * The model a viewer needs to draw replay frames: bodies and joints,
-     * and the visual meshes decimated to `cell` metres.
+     * the visual meshes reduced by `simplify` (vertex clustering on a 3 mm
+     * grid unless given), and each part's surface as MuJoCo describes it.
      */
-    viewerModel(cell = 0.003): ViewerModel {
+    viewerModel(simplify: MeshSimplifier = (p, i) => decimate(p, i, 0.003)): ViewerModel {
         const { mj, model: m } = this;
         const v3 = (arr: ArrayLike<number>, i: number): Vec3 => [arr[3 * i], arr[3 * i + 1], arr[3 * i + 2]].map(x => round(x, 6)) as Vec3;
         const q4 = (arr: ArrayLike<number>, i: number): Quat => [arr[4 * i], arr[4 * i + 1], arr[4 * i + 2], arr[4 * i + 3]].map(x => round(x, 6)) as Quat;
@@ -259,10 +260,9 @@ export class DuckWorld {
             if (index === undefined) {
                 const va = m.mesh_vertadr[id];
                 const fa = m.mesh_faceadr[id];
-                const small = decimate(
-                    m.mesh_vert.subarray(3 * va, 3 * (va + m.mesh_vertnum[id])),
-                    m.mesh_face.subarray(3 * fa, 3 * (fa + m.mesh_facenum[id])),
-                    cell,
+                const small = simplify(
+                    Float32Array.from(m.mesh_vert.subarray(3 * va, 3 * (va + m.mesh_vertnum[id]))),
+                    Uint32Array.from(m.mesh_face.subarray(3 * fa, 3 * (fa + m.mesh_facenum[id]))),
                 );
                 const wide = small.positions.length / 3 > 65535;
                 index = meshes.length;
@@ -277,7 +277,10 @@ export class DuckWorld {
             const mat = m.geom_matid[g];
             const rgbaSource: ArrayLike<number> = mat >= 0 ? m.mat_rgba.subarray(4 * mat, 4 * mat + 4) : m.geom_rgba.subarray(4 * g, 4 * g + 4);
             const rgba = Array.from(rgbaSource, x => round(x, 3)) as ViewerGeom['rgba'];
-            geoms.push({ body: m.geom_bodyid[g], mesh: index, pos: v3(m.geom_pos, g), quat: q4(m.geom_quat, g), rgba });
+            const surface = mat >= 0
+                ? { specular: round(m.mat_specular[mat], 3), shininess: round(m.mat_shininess[mat], 3), reflectance: round(m.mat_reflectance[mat], 3) }
+                : undefined;
+            geoms.push({ body: m.geom_bodyid[g], mesh: index, pos: v3(m.geom_pos, g), quat: q4(m.geom_quat, g), rgba, ...(surface ? { surface } : {}) });
         }
         return { version: 1, nq: m.nq, bodies, geoms, meshes };
     }
