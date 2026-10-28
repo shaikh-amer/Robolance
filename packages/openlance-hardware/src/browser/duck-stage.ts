@@ -10,22 +10,41 @@
 
 import * as THREE from 'three';
 import {
-    BALL_RADIUS, GOAL_HEIGHT, NET_DEPTH, POST_RADIUS, bodyPoses, decodeMesh, geomPose,
+    BALL_RADIUS, GOAL_HEIGHT, NET_DEPTH, POST_RADIUS, bodyPoses, decodeMesh, geomPose, partSurface,
     type BodyPose, type FieldSpec, type ViewerModel,
 } from 'robolance-duck-sim/viewer';
+import { creasedNormals } from './crease';
+import { netCanvas, paintPatches, paintTurf, seededRandom, skyCanvas } from './stage-textures';
+import { studioEnvironment } from './studio-environment';
 
 interface Palette {
-    background: number;
+    /** Sky at the zenith and at the horizon (the fog fades into the horizon). */
+    skyTop: string;
+    horizon: string;
     grassA: string;
     grassB: string;
+    /** Turf around the pitch. */
+    rough: string;
     line: string;
     trail: number;
+    exposure: number;
 }
 
 const PALETTES: Record<'light' | 'dark', Palette> = {
-    light: { background: 0xe9eef2, grassA: '#4f9a58', grassB: '#47904f', line: 'rgba(255,255,255,0.9)', trail: 0xd97706 },
-    dark: { background: 0x1b1d21, grassA: '#3d7d46', grassB: '#367240', line: 'rgba(255,255,255,0.85)', trail: 0xfbbf24 },
+    light: {
+        skyTop: '#8fb8dc', horizon: '#d9e2e4', grassA: '#3b6b30', grassB: '#35622b', rough: '#2f5726',
+        line: 'rgba(250,250,245,0.92)', trail: 0xd97706, exposure: 1.0,
+    },
+    dark: {
+        skyTop: '#0f141b', horizon: '#2a3138', grassA: '#386830', grassB: '#325e2b', rough: '#2a5024',
+        line: 'rgba(245,245,240,0.88)', trail: 0xfbbf24, exposure: 0.95,
+    },
 };
+
+/** Phones get smaller shadow maps and textures; the picture is the same. */
+function isSmallDevice(): boolean {
+    return typeof window !== 'undefined' && Math.min(window.screen?.width ?? 1024, window.screen?.height ?? 1024) < 700;
+}
 
 export interface StageView {
     /** Degrees around the target, 0 = looking along +x. */
@@ -46,6 +65,9 @@ export class DuckStage {
     private readonly parts: THREE.Mesh[] = [];
     private readonly ball: THREE.Mesh;
     private readonly pitch = new THREE.Group();
+    private readonly sun: THREE.DirectionalLight;
+    private readonly hemi: THREE.HemisphereLight;
+    private sky?: THREE.Texture;
     private trail?: THREE.Line;
     private ballIndex = -1;
     private field?: FieldSpec;
@@ -59,46 +81,56 @@ export class DuckStage {
     private readonly disposers: Array<() => void> = [];
 
     constructor(private readonly host: HTMLElement, private readonly model: ViewerModel) {
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // Filmic response and studio reflections: what makes plastic read as plastic.
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.domElement.className = 'robolance-duck-canvas';
         host.appendChild(this.renderer.domElement);
 
+        const environment = studioEnvironment(this.renderer);
+        this.scene.environment = environment;
+        this.scene.environmentIntensity = 0.35;
+
         this.camera.up.set(0, 0, 1);
-        const hemi = new THREE.HemisphereLight(0xffffff, 0x4a6b4f, 1.1);
-        hemi.position.set(0, 0, 1);
-        const sun = new THREE.DirectionalLight(0xffffff, 1.8);
-        sun.position.set(1.2, -1.4, 2.6);
-        sun.castShadow = true;
-        sun.shadow.mapSize.set(2048, 2048);
-        sun.shadow.camera.left = -1.6;
-        sun.shadow.camera.right = 1.6;
-        sun.shadow.camera.top = 1.6;
-        sun.shadow.camera.bottom = -1.6;
-        sun.shadow.camera.near = 0.5;
-        sun.shadow.camera.far = 6;
-        sun.shadow.bias = -0.0005;
-        this.scene.add(hemi, sun, sun.target, this.pitch, this.duck);
+        this.hemi = new THREE.HemisphereLight(0xdfeeff, 0x2f4a2a, 0.3);
+        this.hemi.position.set(0, 0, 1);
+        this.sun = new THREE.DirectionalLight(0xfff2e0, 2.8);
+        this.sun.position.set(1.2, -1.4, 2.6);
+        this.sun.castShadow = true;
+        const shadowMap = isSmallDevice() ? 2048 : 4096;
+        this.sun.shadow.mapSize.set(shadowMap, shadowMap);
+        this.sun.shadow.camera.near = 0.5;
+        this.sun.shadow.camera.far = 8;
+        this.sun.shadow.bias = -0.0002;
+        this.sun.shadow.normalBias = 0.0004;
+        this.scene.add(this.hemi, this.sun, this.sun.target, this.pitch, this.duck);
 
         const geometries = model.meshes.map(mesh => {
             const { positions, indices } = decodeMesh(mesh);
+            // Hard edges where the CAD part has them, smooth shells elsewhere.
+            const shaded = creasedNormals(positions, indices);
             const g = new THREE.BufferGeometry();
-            g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            g.setIndex(new THREE.BufferAttribute(indices, 1));
-            g.computeVertexNormals();
+            g.setAttribute('position', new THREE.BufferAttribute(shaded.positions, 3));
+            g.setAttribute('normal', new THREE.BufferAttribute(shaded.normals, 3));
             return g;
         });
-        const materials = new Map<string, THREE.MeshStandardMaterial>();
+        const materials = new Map<string, THREE.MeshPhysicalMaterial>();
         for (const geom of model.geoms) {
-            const key = geom.rgba.join(',');
+            const surface = partSurface(geom);
+            const key = `${geom.rgba.join(',')}|${surface.roughness},${surface.metalness},${surface.clearcoat}`;
             let material = materials.get(key);
             if (!material) {
-                material = new THREE.MeshStandardMaterial({
-                    color: new THREE.Color(geom.rgba[0], geom.rgba[1], geom.rgba[2]),
-                    roughness: 0.55,
-                    metalness: 0.05,
+                material = new THREE.MeshPhysicalMaterial({
+                    // MuJoCo colours are display colours; three.js wants them linear.
+                    color: new THREE.Color().setRGB(geom.rgba[0], geom.rgba[1], geom.rgba[2], THREE.SRGBColorSpace),
+                    roughness: surface.roughness,
+                    metalness: surface.metalness,
+                    clearcoat: surface.clearcoat,
+                    clearcoatRoughness: 0.35,
                     transparent: geom.rgba[3] < 1,
                     opacity: geom.rgba[3],
                 });
@@ -106,18 +138,22 @@ export class DuckStage {
             }
             const part = new THREE.Mesh(geometries[geom.mesh], material);
             part.castShadow = true;
+            part.receiveShadow = true;
             this.parts.push(part);
             this.duck.add(part);
         }
         this.disposers.push(() => {
             geometries.forEach(g => g.dispose());
             materials.forEach(m => m.dispose());
+            environment.dispose();
+            this.sky?.dispose();
         });
         this.ballIndex = model.bodies.findIndex(b => b.name === 'football');
 
-        const ballMaterial = new THREE.MeshStandardMaterial({ color: 0xf28c28, roughness: 0.45 });
-        this.ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 32, 20), ballMaterial);
+        const ballMaterial = new THREE.MeshPhysicalMaterial({ color: 0xf07d1e, roughness: 0.55, clearcoat: 0.5, clearcoatRoughness: 0.3 });
+        this.ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 48, 32), ballMaterial);
         this.ball.castShadow = true;
+        this.ball.receiveShadow = true;
         this.scene.add(this.ball);
         this.disposers.push(() => {
             this.ball.geometry.dispose();
@@ -132,7 +168,13 @@ export class DuckStage {
 
     setTheme(theme: 'light' | 'dark'): void {
         this.palette = PALETTES[theme];
-        this.scene.background = new THREE.Color(this.palette.background);
+        this.sky?.dispose();
+        this.sky = new THREE.CanvasTexture(skyCanvas(this.palette.skyTop, this.palette.horizon));
+        this.sky.colorSpace = THREE.SRGBColorSpace;
+        this.scene.background = this.sky;
+        // Distant turf fades into the horizon instead of ending at an edge.
+        this.scene.fog = new THREE.Fog(new THREE.Color(this.palette.horizon), 4, 14);
+        this.renderer.toneMappingExposure = this.palette.exposure;
         if (this.field) {
             this.buildPitch(this.field);
         }
@@ -291,6 +333,8 @@ export class DuckStage {
             mesh.geometry?.dispose();
             const material = mesh.material as THREE.MeshStandardMaterial | undefined;
             material?.map?.dispose();
+            material?.bumpMap?.dispose();
+            material?.alphaMap?.dispose();
             material?.dispose();
         }
     }
@@ -299,17 +343,41 @@ export class DuckStage {
         this.clearPitch();
         const width = f.bounds.xMax - f.bounds.xMin;
         const depth = f.bounds.yMax - f.bounds.yMin;
+        const cx = (f.bounds.xMin + f.bounds.xMax) / 2;
+        const cy = (f.bounds.yMin + f.bounds.yMax) / 2;
         // A margin of grass around the playing area.
         const margin = 0.25;
+        const turf = pitchTextures(f, margin, this.palette);
         const ground = new THREE.Mesh(
             new THREE.PlaneGeometry(width + 2 * margin, depth + 2 * margin),
-            new THREE.MeshStandardMaterial({ map: pitchTexture(f, margin, this.palette), roughness: 1 }),
+            new THREE.MeshStandardMaterial({ map: turf.color, bumpMap: turf.bump, bumpScale: 0.6, roughness: 0.95 }),
         );
-        ground.position.set((f.bounds.xMin + f.bounds.xMax) / 2, (f.bounds.yMin + f.bounds.yMax) / 2, 0);
+        ground.position.set(cx, cy, 0);
         ground.receiveShadow = true;
         this.pitch.add(ground);
 
-        const white = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.4 });
+        // Turf to the horizon around the pitch, a hair lower so the two never fight.
+        const rough = roughTextures(this.palette);
+        const surround = new THREE.Mesh(
+            new THREE.CircleGeometry(16, 64),
+            new THREE.MeshStandardMaterial({ map: rough.color, bumpMap: rough.bump, bumpScale: 0.6, roughness: 1 }),
+        );
+        surround.position.set(cx, cy, -0.0008);
+        surround.receiveShadow = true;
+        this.pitch.add(surround);
+
+        // The sun's shadow covers the pitch and its margin, as sharp as the map allows.
+        const reach = Math.max(width, depth) / 2 + margin + 0.2;
+        const cam = this.sun.shadow.camera;
+        cam.left = -reach;
+        cam.right = reach;
+        cam.top = reach;
+        cam.bottom = -reach;
+        cam.updateProjectionMatrix();
+        this.sun.target.position.set(cx, cy, 0);
+        this.sun.position.set(cx + 1.2, cy - 1.4, 2.6);
+
+        const white = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.35, metalness: 0.15 });
         const y1 = f.goal.y - f.goal.width / 2;
         const y2 = f.goal.y + f.goal.width / 2;
         for (const y of [y1, y2]) {
@@ -324,18 +392,32 @@ export class DuckStage {
         bar.castShadow = true;
         this.pitch.add(bar);
 
-        const net = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
+        const netTexture = (across: number, up: number): THREE.CanvasTexture => {
+            const t = new THREE.CanvasTexture(netCanvas());
+            t.wrapS = THREE.RepeatWrapping;
+            t.wrapT = THREE.RepeatWrapping;
+            // A 1.5 cm mesh, the duck-scale version of a real net.
+            t.repeat.set(across / 0.015, up / 0.015);
+            t.anisotropy = 4;
+            return t;
+        };
+        // Blended, not cut out: at a few metres the 1.5 cm mesh should read as a fine haze of cord, as it does on camera.
+        const netMaterial = (across: number, up: number) => new THREE.MeshStandardMaterial({
+            color: 0xffffff, alphaMap: netTexture(across, up), transparent: true, opacity: 0.9,
+            depthWrite: false, side: THREE.DoubleSide, roughness: 0.8,
+        });
+        const net = netMaterial(f.goal.width, GOAL_HEIGHT);
         const back = new THREE.Mesh(new THREE.PlaneGeometry(f.goal.width, GOAL_HEIGHT), net);
         back.rotation.set(Math.PI / 2, Math.PI / 2, 0);
         back.position.set(f.goal.x + NET_DEPTH, f.goal.y, GOAL_HEIGHT / 2);
         this.pitch.add(back);
         for (const y of [y1, y2]) {
-            const side = new THREE.Mesh(new THREE.PlaneGeometry(NET_DEPTH, GOAL_HEIGHT), net.clone());
+            const side = new THREE.Mesh(new THREE.PlaneGeometry(NET_DEPTH, GOAL_HEIGHT), netMaterial(NET_DEPTH, GOAL_HEIGHT));
             side.rotation.x = Math.PI / 2;
             side.position.set(f.goal.x + NET_DEPTH / 2, y, GOAL_HEIGHT / 2);
             this.pitch.add(side);
         }
-        const roof = new THREE.Mesh(new THREE.PlaneGeometry(NET_DEPTH, f.goal.width), net.clone());
+        const roof = new THREE.Mesh(new THREE.PlaneGeometry(NET_DEPTH, f.goal.width), netMaterial(NET_DEPTH, f.goal.width));
         roof.position.set(f.goal.x + NET_DEPTH / 2, f.goal.y, GOAL_HEIGHT);
         this.pitch.add(roof);
     }
@@ -362,15 +444,22 @@ function place(object: THREE.Object3D, pose: BodyPose): void {
     object.quaternion.set(pose.quat[1], pose.quat[2], pose.quat[3], pose.quat[0]);
 }
 
-/** Mown stripes, the boundary and the goal line, drawn once per pitch. */
-function pitchTexture(f: FieldSpec, margin: number, palette: Palette): THREE.CanvasTexture {
+/**
+ * Mown stripes, the boundary, the goal line and the spot, under a layer of
+ * grass blades, plus a matching bump map. Drawn once per pitch.
+ */
+function pitchTextures(f: FieldSpec, margin: number, palette: Palette): { color: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
     const width = f.bounds.xMax - f.bounds.xMin + 2 * margin;
     const depth = f.bounds.yMax - f.bounds.yMin + 2 * margin;
-    const px = 512 / Math.max(width, depth);
+    const px = (isSmallDevice() ? 1024 : 2048) / Math.max(width, depth);
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(width * px);
     canvas.height = Math.round(depth * px);
     const ctx = canvas.getContext('2d')!;
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = canvas.width;
+    bumpCanvas.height = canvas.height;
+    const bump = bumpCanvas.getContext('2d')!;
     // Canvas x runs with field x; canvas y runs against field y.
     const cx = (x: number) => (x - f.bounds.xMin + margin) * px;
     const cy = (y: number) => (f.bounds.yMax + margin - y) * px;
@@ -379,6 +468,8 @@ function pitchTexture(f: FieldSpec, margin: number, palette: Palette): THREE.Can
         ctx.fillStyle = i % 2 === 0 ? palette.grassA : palette.grassB;
         ctx.fillRect(i * stripe * px, 0, stripe * px + 1, canvas.height);
     }
+    const rand = seededRandom(7);
+    paintPatches(ctx, canvas.width, canvas.height, rand);
     ctx.strokeStyle = palette.line;
     ctx.lineWidth = Math.max(2, 0.012 * px);
     ctx.strokeRect(cx(f.bounds.xMin), cy(f.bounds.yMax), (f.bounds.xMax - f.bounds.xMin) * px, (f.bounds.yMax - f.bounds.yMin) * px);
@@ -391,9 +482,40 @@ function pitchTexture(f: FieldSpec, margin: number, palette: Palette): THREE.Can
     ctx.beginPath();
     ctx.arc(cx(f.ball.x), cy(f.ball.y), Math.max(2, 0.01 * px), 0, Math.PI * 2);
     ctx.fill();
+    // Blades over everything, lines included: painted lines on real grass are not flat either.
+    paintTurf(ctx, bump, canvas.width, canvas.height, 0.22, rand);
+    return { color: canvasTexture(canvas, true), bump: canvasTexture(bumpCanvas, false) };
+}
+
+/** Repeating turf for the ground around the pitch. */
+function roughTextures(palette: Palette): { color: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+    const size = isSmallDevice() ? 256 : 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = palette.rough;
+    ctx.fillRect(0, 0, size, size);
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = bumpCanvas.height = size;
+    const bump = bumpCanvas.getContext('2d')!;
+    const rand = seededRandom(11);
+    paintPatches(ctx, size, size, rand);
+    paintTurf(ctx, bump, size, size, 0.28, rand);
+    const color = canvasTexture(canvas, true);
+    const bumpTexture = canvasTexture(bumpCanvas, false);
+    for (const t of [color, bumpTexture]) {
+        t.wrapS = THREE.RepeatWrapping;
+        t.wrapT = THREE.RepeatWrapping;
+        // One tile per 80 cm of ground.
+        t.repeat.set(32 / 0.8, 32 / 0.8);
+    }
+    return { color, bump: bumpTexture };
+}
+
+function canvasTexture(canvas: HTMLCanvasElement, color: boolean): THREE.CanvasTexture {
     const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
+    texture.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    texture.anisotropy = 8;
     return texture;
 }
 
