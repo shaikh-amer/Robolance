@@ -7,13 +7,14 @@
  * with scripted inputs, and a description of the parts and the diagram
  * format. Every run returns what the firmware did (serial, part states,
  * the robot's path and score) so the agent can fix what it wrote. The
- * duck_* tools do the same for a Microduck mission on a football pitch.
+ * duck_* tools do the same for a Microduck mission on a football pitch,
+ * and the scene_* tools for any robot the agent describes in MJCF.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import {
     ARENA_PRESET_NAMES,
@@ -26,6 +27,8 @@ import {
     type ScriptedEvent,
 } from 'robolance-hardware-sim';
 import { DEFAULT_FIELD, MISSION_API, runMission, validateField, type FieldSpec, type MissionResult } from 'robolance-duck-sim';
+import { Scene, meshoptSimplifier, type SceneRun } from 'robolance-mujoco';
+import { readSceneDir } from 'robolance-mujoco/node-files';
 import { buildSketch, type BuildOptions, type BuildResult } from './avrbuild.js';
 
 const pinSchema = z.union([z.number().int().min(0).max(13), z.enum(['A0', 'A1', 'A2', 'A3', 'A4', 'A5'])]);
@@ -70,6 +73,10 @@ export interface ServerOptions extends BuildOptions {
     keepRuns?: number;
     /** Real-time limit for one duck_run, ms (default 60 000). */
     duckWallMs?: number;
+    /** The project folder scene paths are relative to (default: the working directory). */
+    projectDir?: string;
+    /** Real-time limit for one scene_run, ms (default 60 000). */
+    sceneWallMs?: number;
 }
 
 /** A run as recorded for the IDE: the trace plus what produced it. */
@@ -93,7 +100,48 @@ export interface DuckRunRecord {
     result: MissionResult;
 }
 
+/** A run of any MJCF scene as recorded for the IDE: what ran, and the frames to replay it with the scene's model. */
+export interface SceneRunRecord {
+    version: 1;
+    kind: 'scene';
+    at: string;
+    /** The scene's main MJCF, relative to the project. */
+    scene: string;
+    /** The viewer model, relative to the record dir (shared by runs of the same scene files). */
+    model: string;
+    controller: string;
+    controllerSha: string;
+    run: SceneRun;
+}
+
 export const DEFAULT_RECORD_DIR = '.robolance';
+
+export const SCENE_HELP = `Any robot, described in MuJoCo's MJCF (https://mujoco.readthedocs.io/en/stable/XMLreference.html), simulated with MuJoCo.
+
+Write the scene as an .xml file in the project (meshes and textures it names sit next to it or under its meshdir), then:
+- scene_check {scene}: does it load (MuJoCo's own error if not), its actuators and sensors by name, parts that start inside each other, and whether it stays stable when left alone for a second.
+- scene_run {scene, controller, seconds}: runs it under your controller and records the run; the IDE's Hardware tab replays it in 3D.
+
+A controller is JavaScript that defines function control(sim), called at controlHz (default 50), and optionally function init(sim), called once.
+Top-level variables keep their values between calls. sim gives:
+  sim.t                              simulated seconds
+  sim.joint(name) -> {q, v}          position and velocity (arrays for ball and free joints)
+  sim.body(name) -> {pos, quat}      world pose, quaternion w first
+  sim.site(name) -> [x, y, z]
+  sim.sensor(name) -> number[]
+  sim.actuators() -> names
+  sim.ctrl(actuator, value)          by name or index, clamped to its ctrlrange
+  sim.ctrlRange(actuator) -> [lo, hi] or null
+  sim.contacts() -> [{a, b, depth}]  what touches what, by geom (body)
+  sim.metric(name, value)            a time series for the report and the charts
+  sim.log(...)                       a line in the run's log
+  sim.stop(reason)                   ends the run (goal reached, failure detected)
+Each call has 250 ms of real time; an endless loop ends the run with an error.
+
+Tips: z is up. Give every moving body mass (a geom with size gives it one). Start parts apart, not inside each other.
+Position actuators (<position joint=... kp=...>) are the simplest to control; keep kp moderate (tens to hundreds for a small arm)
+or the simulation blows up; a smaller timestep (0.002) helps. Name the joints, actuators, sites and geoms you will refer to.
+Measure what "done" means with sim.metric and stop the run when it is reached.`;
 
 export const DUCK_HELP = `${MISSION_API}
 
@@ -115,6 +163,8 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
     const hexCache = new Map<string, string>();
     const compile = options.compile ?? ((sketch: string) => buildSketch(sketch, options));
     const recorder = new Recorder(options.recordDir ?? process.env.ROBOLANCE_RECORD_DIR ?? join(process.cwd(), DEFAULT_RECORD_DIR), options.keepRuns ?? 30);
+    const projectDir = resolve(options.projectDir ?? process.cwd());
+    const sceneSimplifier = meshoptSimplifier(0.0005);
 
     server.registerTool('hardware_parts', {
         description: 'The parts and the diagram.json format the simulator understands, with wiring conventions the sketch must follow.',
@@ -223,6 +273,74 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
         return { content: [{ type: 'text', text: JSON.stringify(recorded ? { ...summary, recordedAs: recorded } : summary, null, 1) }] };
     });
 
+    server.registerTool('scene_api', {
+        description: 'How to simulate any robot: the MJCF scene, the controller script API (sim.joint, sim.ctrl, sim.sensor, sim.metric...), and tips that keep a simulation stable. Read it before writing a scene for scene_check and scene_run.',
+        inputSchema: {},
+    }, async () => ({ content: [{ type: 'text', text: SCENE_HELP }] }));
+
+    server.registerTool('scene_check', {
+        description: 'Loads an MJCF scene from the project and checks it: MuJoCo\'s error if it does not load, its bodies, actuators and sensors by name, total mass, parts that start inside each other, and whether it stays stable left alone. Use before scene_run, and after every change to the scene.',
+        inputSchema: {
+            scene: z.string().min(1).describe('Path of the main MJCF file, relative to the project (e.g. "robot/scene.xml")'),
+        },
+    }, async ({ scene }) => {
+        let loaded: Scene;
+        try {
+            loaded = await loadProjectScene(projectDir, scene);
+        } catch (err) {
+            return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true };
+        }
+        try {
+            return { content: [{ type: 'text', text: JSON.stringify(loaded.check(), null, 1) }] };
+        } finally {
+            loaded.dispose();
+        }
+    });
+
+    server.registerTool('scene_run', {
+        description: 'Runs an MJCF scene from the project under a controller (JavaScript defining control(sim), see scene_api) and records the run for the IDE to replay in 3D. Returns the outcome (done, stopped, unstable, error, timeout), why it ended, the checks, every metric the controller recorded (first, last, min, max) and its log.',
+        inputSchema: {
+            scene: z.string().min(1).describe('Path of the main MJCF file, relative to the project'),
+            controller: z.string().max(64 * 1024).optional().describe('Controller source; omit to watch the scene fall under gravity'),
+            controllerFile: z.string().optional().describe('Or a project file holding the controller'),
+            seconds: z.number().min(0.1).max(120).default(10),
+            controlHz: z.number().min(1).max(1000).default(50),
+            keyframe: z.number().int().min(0).optional().describe('Start from this keyframe instead of the default pose'),
+        },
+    }, async ({ scene, controller, controllerFile, seconds, controlHz, keyframe }) => {
+        let source = controller ?? '';
+        if (!source && controllerFile) {
+            try {
+                source = await readFile(insideProject(projectDir, controllerFile), 'utf8');
+            } catch (err) {
+                return { content: [{ type: 'text', text: `controllerFile: ${err instanceof Error ? err.message : err}` }], isError: true };
+            }
+        }
+        let loaded: Scene;
+        let files: Map<string, Uint8Array | string>;
+        try {
+            ({ scene: loaded, files } = await loadProjectSceneWithFiles(projectDir, scene));
+        } catch (err) {
+            return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true };
+        }
+        try {
+            const run = await loaded.run({ controller: source || undefined, seconds, controlHz, keyframe, wallMs: options.sceneWallMs });
+            const modelSha = filesSha(files);
+            const simplify = await sceneSimplifier;
+            const modelPath = await recorder.model(modelSha, () => JSON.stringify(loaded.viewerModel({ simplify })));
+            const recorded = modelPath
+                ? await recorder.run({
+                    version: 1, kind: 'scene', at: new Date().toISOString(), scene: toPosix(scene), model: modelPath,
+                    controller: source, controllerSha: sha(source), run,
+                })
+                : undefined;
+            const summary = summarizeScene(run);
+            return { content: [{ type: 'text', text: JSON.stringify(recorded ? { ...summary, recordedAs: recorded } : summary, null, 1) }] };
+        } finally {
+            loaded.dispose();
+        }
+    });
+
     server.registerTool('hardware_arena', {
         description: 'The geometry of an arena preset: walls, start, goal and (for "line") the line on the floor, in centimetres.',
         inputSchema: { preset: z.enum(ARENA_PRESET_NAMES).default('corner') },
@@ -305,6 +423,67 @@ function compactParts(parts: Record<string, Record<string, unknown>>): Record<st
     return out;
 }
 
+/** A scene run without its frames: what happened, the checks, each metric's shape and the log. */
+export function summarizeScene(r: SceneRun): Record<string, unknown> {
+    const metrics: Record<string, unknown> = {};
+    for (const [name, series] of Object.entries(r.metrics)) {
+        const values = series.map(([, v]) => v);
+        metrics[name] = {
+            first: values[0],
+            last: values[values.length - 1],
+            min: Math.min(...values),
+            max: Math.max(...values),
+            samples: values.length,
+        };
+    }
+    const logs = r.logs.length > 60 ? [...r.logs.slice(0, 20), `… ${r.logs.length - 60} more lines …`, ...r.logs.slice(-40)] : r.logs;
+    return {
+        outcome: r.outcome,
+        ...(r.message ? { message: r.message } : {}),
+        simS: r.simS,
+        frames: r.frames.length,
+        check: { ok: r.check.ok, actuators: r.check.actuators, sensors: r.check.sensors, issues: r.check.issues },
+        metrics,
+        logs,
+    };
+}
+
+/** A path inside the project, or an error that says why not. */
+export function insideProject(projectDir: string, path: string): string {
+    const full = resolve(projectDir, path);
+    const rel = relative(projectDir, full);
+    if (rel === '' || rel.startsWith('..') || rel.split(sep).includes('..') || resolve(rel) === rel) {
+        throw new Error(`${path} is not inside the project`);
+    }
+    return full;
+}
+
+async function loadProjectSceneWithFiles(projectDir: string, scene: string): Promise<{ scene: Scene; files: Map<string, Uint8Array | string> }> {
+    const main = insideProject(projectDir, scene);
+    if (!(await stat(main).catch(() => null))?.isFile()) {
+        throw new Error(`${scene} does not exist in the project`);
+    }
+    const files = await readSceneDir(dirname(main));
+    return { scene: await Scene.load(files, basename(main)), files };
+}
+
+async function loadProjectScene(projectDir: string, scene: string): Promise<Scene> {
+    return (await loadProjectSceneWithFiles(projectDir, scene)).scene;
+}
+
+/** One hash for a scene's files, so runs of an unchanged scene share one viewer model. */
+function filesSha(files: Map<string, Uint8Array | string>): string {
+    const h = createHash('sha256');
+    for (const [path, contents] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
+        h.update(path).update('\0').update(contents).update('\0');
+    }
+    return h.digest('hex').slice(0, 16);
+}
+
+function toPosix(path: string): string {
+    return path.split(sep).join('/').replace(/^\.\//, '');
+}
+
 function sha(text: string): string {
     return createHash('sha256').update(text).digest('hex').slice(0, 16);
 }
@@ -355,14 +534,44 @@ export class Recorder {
     }
 
     /** Returns the path the run was written to, relative to the record dir. */
-    run(record: RunRecord | DuckRunRecord): Promise<string | undefined> {
+    run(record: RunRecord | DuckRunRecord | SceneRunRecord): Promise<string | undefined> {
         if (!this.enabled) {
             return Promise.resolve(undefined);
         }
         return this.serialized(() => this.writeRun(record));
     }
 
-    private async writeRun(record: RunRecord | DuckRunRecord): Promise<string | undefined> {
+    /**
+     * Writes a scene's viewer model as `models/<sha>.json` unless it is
+     * already there; returns its path relative to the record dir.
+     */
+    model(sha: string, produce: () => string): Promise<string | undefined> {
+        if (!this.enabled) {
+            return Promise.resolve(undefined);
+        }
+        return this.serialized(async () => {
+            try {
+                const models = join(this.dir, 'models');
+                await mkdir(models, { recursive: true });
+                const file = join(models, `${sha}.json`);
+                if (!(await stat(file).catch(() => null))) {
+                    await writeFile(file, produce());
+                    // Keep a few more models than runs: a model is shared by every run of the same scene files.
+                    const all = await Promise.all((await readdir(models)).filter(f => f.endsWith('.json'))
+                        .map(async f => ({ f, at: (await stat(join(models, f))).mtimeMs })));
+                    all.sort((a, b) => b.at - a.at);
+                    for (const old of all.slice(this.keepRuns + 10)) {
+                        await rm(join(models, old.f), { force: true });
+                    }
+                }
+                return `models/${sha}.json`;
+            } catch {
+                return undefined;
+            }
+        });
+    }
+
+    private async writeRun(record: RunRecord | DuckRunRecord | SceneRunRecord): Promise<string | undefined> {
         try {
             const runs = join(this.dir, 'runs');
             await mkdir(runs, { recursive: true });

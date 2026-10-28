@@ -6,4 +6,4 @@ export * from './field.js';
 export * from './world.js';
 export * from './mission.js';
 export * from './viewer.js';
-export * from './decimate.js';
+export { decimate } from 'robolance-mujoco';

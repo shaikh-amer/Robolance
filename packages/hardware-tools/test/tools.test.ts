@@ -65,7 +65,7 @@ test('the MCP server lists the hardware tools', async () => {
     const { client, close } = await connect();
     try {
         const { tools } = await client.listTools();
-        assert.deepEqual(tools.map(t => t.name).sort(), ['duck_api', 'duck_run', 'hardware_arena', 'hardware_compile', 'hardware_parts', 'hardware_run']);
+        assert.deepEqual(tools.map(t => t.name).sort(), ['duck_api', 'duck_run', 'hardware_arena', 'hardware_compile', 'hardware_parts', 'hardware_run', 'scene_api', 'scene_check', 'scene_run']);
         const parts = await client.callTool({ name: 'hardware_parts', arguments: {} });
         assert.match(text(parts), /INPUT_PULLUP/);
         const arena = await client.callTool({ name: 'hardware_arena', arguments: {} });
@@ -272,5 +272,68 @@ test('duck_run rejects a pitch that breaks the rules', async () => {
         assert.match(text(bad), /15 cm/);
     } finally {
         await close();
+    }
+});
+
+const PENDULUM = `
+<mujoco model="pendulum">
+  <option timestep="0.002"/>
+  <worldbody>
+    <geom name="floor" type="plane" size="1 1 0.05"/>
+    <body name="pole" pos="0 0 0.5">
+      <joint name="hinge" type="hinge" axis="0 1 0" damping="0.05"/>
+      <geom name="rod" type="capsule" fromto="0 0 0 0 0 -0.3" size="0.01"/>
+      <geom name="bob" type="sphere" pos="0 0 -0.3" size="0.03"/>
+    </body>
+  </worldbody>
+  <actuator><motor name="torque" joint="hinge" gear="1" ctrlrange="-2 2"/></actuator>
+</mujoco>`;
+
+test('scene_check and scene_run simulate any MJCF in the project and record it for the IDE', async () => {
+    const { mkdtemp, mkdir, readFile, readdir, rm, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const project = await mkdtemp(join(tmpdir(), 'robolance-scene-'));
+    const record = join(project, '.robolance');
+    try {
+        await mkdir(join(project, 'robot'));
+        await writeFile(join(project, 'robot', 'scene.xml'), PENDULUM);
+        await writeFile(join(project, 'robot', 'swing.js'), 'function control(sim) { sim.ctrl("torque", sim.t < 0.5 ? 2 : 0); sim.metric("angle", sim.joint("hinge").q); }');
+        const server = createHardwareServer({ compile: fakeCompile, recordDir: record, projectDir: project });
+        const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+        await server.connect(serverSide);
+        const client = new Client({ name: 'test', version: '0.0.0' });
+        await client.connect(clientSide);
+        try {
+            assert.match(text(await client.callTool({ name: 'scene_api', arguments: {} })), /function control\(sim\)/);
+            const check = JSON.parse(text(await client.callTool({ name: 'scene_check', arguments: { scene: 'robot/scene.xml' } })));
+            assert.equal(check.ok, true, JSON.stringify(check.issues));
+            assert.deepEqual(check.actuators, ['torque']);
+
+            const run = JSON.parse(text(await client.callTool({ name: 'scene_run', arguments: { scene: 'robot/scene.xml', controllerFile: 'robot/swing.js', seconds: 2 } })));
+            assert.equal(run.outcome, 'done', run.message);
+            assert.ok(run.metrics.angle.max > 0.3, JSON.stringify(run.metrics));
+            const saved = JSON.parse(await readFile(join(record, run.recordedAs), 'utf8'));
+            assert.equal(saved.kind, 'scene');
+            assert.equal(saved.scene, 'robot/scene.xml');
+            assert.ok(saved.run.frames.length >= 50);
+            const model = JSON.parse(await readFile(join(record, saved.model), 'utf8'));
+            assert.deepEqual(model.geoms.map((g: { shape?: { type: string } }) => g.shape?.type), ['plane', 'capsule', 'sphere']);
+
+            // The same scene files share one model; a run without a controller just falls.
+            const again = JSON.parse(text(await client.callTool({ name: 'scene_run', arguments: { scene: 'robot/scene.xml', seconds: 0.5 } })));
+            assert.equal(JSON.parse(await readFile(join(record, again.recordedAs), 'utf8')).model, saved.model);
+            assert.equal((await readdir(join(record, 'models'))).length, 1);
+
+            const outside = await client.callTool({ name: 'scene_check', arguments: { scene: '../elsewhere.xml' } });
+            assert.equal((outside as { isError?: boolean }).isError, true);
+            assert.match(text(outside), /not inside the project/);
+            const broken = await client.callTool({ name: 'scene_run', arguments: { scene: 'robot/scene.xml', controller: 'function control(sim) { sim.ctrl("wrist", 1); }', seconds: 1 } });
+            assert.match(text(broken), /no actuator named \\"wrist\\"/);
+        } finally {
+            await client.close();
+            await server.close();
+        }
+    } finally {
+        await rm(project, { recursive: true, force: true });
     }
 });
