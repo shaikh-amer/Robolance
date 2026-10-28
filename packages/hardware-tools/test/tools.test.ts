@@ -145,6 +145,8 @@ test('summarize keeps a trace short enough for a model turn', () => {
     const samples = Array.from({ length: 400 }, (_, i) => ({ atMs: i * 10, parts: { led: { on: i % 2 === 0, brightness: 1 }, arm: { angle: 90 } } }));
     const out = summarize({ durationMs: 4000, ranMs: 4000, serial, samples, final: {}, notes: [] });
     assert.equal((out.serial as string[]).length, 61);
+    assert.equal((out.serial as string[])[20], '… 140 more lines …', '200 lines, 60 shown');
+    assert.equal((out.serial as string[])[21], 'line 160');
     assert.ok((out.samples as unknown[]).length <= 40);
     assert.deepEqual((out.samples as Record<string, unknown>[])[0], { atMs: 0, led: 'on', arm: '90°' });
 });

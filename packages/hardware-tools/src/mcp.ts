@@ -234,7 +234,7 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
 /** A mission result without the replay frames, the path thinned to about 30 points. */
 export function summarizeDuck(r: MissionResult): Record<string, unknown> {
     const every = Math.max(1, Math.ceil(r.path.length / 30));
-    const logs = r.logs.length > 60 ? [...r.logs.slice(0, 20), `… ${r.logs.length - 40} more lines …`, ...r.logs.slice(-40)] : r.logs;
+    const logs = r.logs.length > 60 ? [...r.logs.slice(0, 20), `… ${r.logs.length - 60} more lines …`, ...r.logs.slice(-40)] : r.logs;
     return {
         outcome: r.outcome,
         score: r.score,
@@ -255,7 +255,7 @@ export function summarizeDuck(r: MissionResult): Record<string, unknown> {
 /** The trace cut down to what the agent needs on a normal turn. */
 export function summarize(trace: RunTrace): Record<string, unknown> {
     const serial = trace.serial.length > 60
-        ? [...trace.serial.slice(0, 20), `… ${trace.serial.length - 40} more lines …`, ...trace.serial.slice(-40)]
+        ? [...trace.serial.slice(0, 20), `… ${trace.serial.length - 60} more lines …`, ...trace.serial.slice(-40)]
         : trace.serial;
     const every = Math.max(1, Math.ceil(trace.samples.length / 40));
     const samples = trace.samples.filter((_, i) => i % every === 0).map(s => ({ atMs: s.atMs, ...compactParts(s.parts) }));
