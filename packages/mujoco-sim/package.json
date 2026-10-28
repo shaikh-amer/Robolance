@@ -1,0 +1,59 @@
+{
+  "name": "robolance-mujoco",
+  "version": "0.1.0",
+  "description": "Any MuJoCo robot from its MJCF: check it, run it under a controller script, record the run, and the model a browser needs to replay it.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.test.json && node --test '.build/test/*.test.js'",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@mujoco/mujoco": "3.13.0",
+    "meshoptimizer": "1.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shaikh-amer/robolance.git",
+    "directory": "packages/mujoco-sim"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./node-files": {
+      "types": "./lib/node-files.d.ts",
+      "default": "./lib/node-files.js"
+    },
+    "./viewer": {
+      "types": "./lib/viewer.d.ts",
+      "default": "./lib/viewer.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "viewer": [
+        "lib/viewer.d.ts"
+      ],
+      "node-files": [
+        "lib/node-files.d.ts"
+      ]
+    }
+  }
+}

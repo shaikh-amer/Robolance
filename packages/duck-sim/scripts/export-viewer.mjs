@@ -8,7 +8,7 @@
 
 import { writeFile } from 'node:fs/promises';
 import { DuckWorld } from '../lib/index.js';
-import { meshoptSimplifier } from '../lib/mesh-simplify.js';
+import { meshoptSimplifier } from 'robolance-mujoco';
 import { loadAssets } from '../lib/node-assets.js';
 
 const VIEWER_MAX_ERROR_M = 0.0002; // the test that checks this file uses the same error

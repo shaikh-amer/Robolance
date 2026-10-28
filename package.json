@@ -5,7 +5,11 @@
   "description": "Tell your robot what to do in plain words; a Meta-powered agent codes, runs, watches and fixes it until it works.",
   "license": "Apache-2.0",
   "workspaces": [
-    "packages/*",
+    "packages/mujoco-sim",
+    "packages/hardware-sim",
+    "packages/duck-sim",
+    "packages/hardware-tools",
+    "packages/openlance-hardware",
     "demo"
   ],
   "scripts": {

@@ -1,7 +1,7 @@
 {
   "name": "robolance-hardware-tools",
   "version": "0.3.0",
-  "description": "The agent's hardware tools: compile a sketch, run it in the simulator, run a Microduck mission, inspect the result. Served over MCP.",
+  "description": "The agent's hardware tools: compile a sketch, run it in the simulator, run a Microduck mission, simulate any MJCF robot under a controller, inspect the result. Served over MCP.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "lib/index.js",
@@ -18,7 +18,8 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "robolance-hardware-sim": "0.2.1",
     "zod": "^3.25.76",
-    "robolance-duck-sim": "0.4.0"
+    "robolance-duck-sim": "0.4.0",
+    "robolance-mujoco": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
