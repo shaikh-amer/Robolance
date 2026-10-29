@@ -31,6 +31,86 @@ export interface FieldSpec {
     bounds: { xMin: number; xMax: number; yMin: number; yMax: number };
     /** Boxes on the pitch the duck has to go around. */
     obstacles?: Obstacle[];
+    /**
+     * A laptop open on the pitch. With a laptop the mission's job is to close
+     * it (push the lid past upright, then it falls shut); the ball and goal are just there.
+     */
+    laptop?: LaptopSpec;
+}
+
+/**
+ * x, y is the middle of the laptop's base; heading (degrees) is the way the
+ * screen faces, from the hinge towards the front edge. openDeg is how far the
+ * lid is open (0 closed, default 100: just past upright, as a laptop sits on a desk).
+ */
+export interface LaptopSpec {
+    x: number;
+    y: number;
+    heading: number;
+    openDeg?: number;
+}
+
+/** A 14-inch laptop, metres. */
+export const LAPTOP = {
+    /** Along the hinge. */
+    width: 0.32,
+    /** Front to back. */
+    depth: 0.22,
+    baseHeight: 0.018,
+    lidLength: 0.21,
+    lidThickness: 0.006,
+    lidMass: 0.3,
+    defaultOpenDeg: 100,
+};
+/** The lid counts as closed below this angle, degrees. */
+export const LAPTOP_CLOSED_DEG = 10;
+
+/** The laptop's footprint, with the open lid leaning out behind the hinge. */
+function laptopFootprint(l: LaptopSpec): Obstacle {
+    const open = ((l.openDeg ?? LAPTOP.defaultOpenDeg) * Math.PI) / 180;
+    const behind = Math.max(0, -Math.cos(open) * LAPTOP.lidLength);
+    const h = (l.heading * Math.PI) / 180;
+    const shift = -behind / 2;
+    return {
+        x: l.x + shift * Math.cos(h), y: l.y + shift * Math.sin(h),
+        width: LAPTOP.depth + behind, depth: LAPTOP.width, height: LAPTOP.lidLength, heading: l.heading,
+    };
+}
+
+/** Distance from a point to the laptop (its base and the lid leaning back), 0 inside. */
+export function distanceToLaptop(l: LaptopSpec, x: number, y: number): number {
+    return distanceToObstacle(laptopFootprint(l), x, y);
+}
+
+function validateLaptop(f: FieldSpec): string | undefined {
+    const l = f.laptop;
+    if (!l) {
+        return undefined;
+    }
+    if (![l.x, l.y, l.heading, l.openDeg ?? LAPTOP.defaultOpenDeg].every(v => typeof v === 'number' && Number.isFinite(v))) {
+        return 'laptop: every value must be a finite number';
+    }
+    const open = l.openDeg ?? LAPTOP.defaultOpenDeg;
+    if (open < 60 || open > 125) {
+        return 'laptop: openDeg is 60-125';
+    }
+    const reach = Math.hypot(LAPTOP.width, LAPTOP.depth) / 2 + 0.1;
+    if (l.x - reach < f.bounds.xMin || l.x + reach > f.bounds.xMax || l.y - reach < f.bounds.yMin || l.y + reach > f.bounds.yMax) {
+        return 'laptop: keep it at least 10 cm inside the bounds';
+    }
+    if (distanceToLaptop(l, f.duck.x, f.duck.y) < DUCK_RADIUS + 0.08) {
+        return "laptop: keep it 15 cm clear of the duck's start";
+    }
+    if (distanceToLaptop(l, f.ball.x, f.ball.y) < BALL_RADIUS + 0.02) {
+        return 'laptop: it covers the ball';
+    }
+    for (const [i, o] of (f.obstacles ?? []).entries()) {
+        const fp = laptopFootprint(l);
+        if (distanceToObstacle(o, fp.x, fp.y) < 0.01) {
+            return `laptop: it sits on ${obstacleName(o, i)}`;
+        }
+    }
+    return undefined;
 }
 
 export const MAX_OBSTACLES = 24;
@@ -130,7 +210,7 @@ export function validateField(f: FieldSpec): string | undefined {
     if (Math.hypot(f.ball.x - f.duck.x, f.ball.y - f.duck.y) < 0.15) {
         return 'the ball starts at least 15 cm from the duck';
     }
-    return validateObstacles(f);
+    return validateObstacles(f) ?? validateLaptop(f);
 }
 
 /** The MuJoCo scene: the robot, the floor, the ball and the goal posts. */
@@ -160,7 +240,7 @@ export function sceneXml(f: FieldSpec, robotFile = 'robot_groundcontact.xml'): s
     <body name="football" pos="${n(f.ball.x)} ${n(f.ball.y)} ${BALL_RADIUS}">
       <freejoint name="football_free"/>
       <geom name="football_geom" type="sphere" size="${BALL_RADIUS}" mass="0.035" rgba="0.95 0.55 0.18 1" friction="0.5 0.005 0.001" condim="3"/>
-    </body>
+    </body>${f.laptop ? '\n    ' + laptopXml(f.laptop, n) : ''}
   </worldbody>
 </mujoco>`;
 }
@@ -170,4 +250,24 @@ function obstacleGeom(o: Obstacle, i: number, n: (v: number) => number): string 
     const half = ((o.heading ?? 0) * Math.PI) / 360;
     return `<geom name="obstacle_${i}" type="box" size="${n(o.width / 2)} ${n(o.depth / 2)} ${n(o.height / 2)}" `
         + `pos="${n(o.x)} ${n(o.y)} ${n(o.height / 2)}" quat="${n(Math.cos(half))} 0 0 ${n(Math.sin(half))}" rgba="0.72 0.55 0.36 1" friction="0.8 0.005 0.001"/>`;
+}
+
+/**
+ * The laptop: a fixed base and a lid on a hinge along the base's back edge.
+ * The lid's joint, laptop_lid, is its opening angle in radians (0 closed);
+ * it rests against its upper limit, open, until something pushes it past
+ * upright and gravity closes it. It comes after the ball, so the ball keeps
+ * its place in qpos and the lid angle is the last value.
+ */
+function laptopXml(l: LaptopSpec, n: (v: number) => number): string {
+    const half = (l.heading * Math.PI) / 360;
+    const open = ((l.openDeg ?? LAPTOP.defaultOpenDeg) * Math.PI) / 180;
+    const L = LAPTOP;
+    return `<body name="laptop" pos="${n(l.x)} ${n(l.y)} 0" quat="${n(Math.cos(half))} 0 0 ${n(Math.sin(half))}">
+      <geom name="laptop_base" type="box" size="${n(L.depth / 2)} ${n(L.width / 2)} ${n(L.baseHeight / 2)}" pos="0 0 ${n(L.baseHeight / 2)}" rgba="0.55 0.57 0.6 1" friction="0.8 0.005 0.001"/>
+      <body name="laptop_lid" pos="${n(-L.depth / 2)} 0 ${n(L.baseHeight)}">
+        <joint name="laptop_lid" type="hinge" axis="0 -1 0" range="0 ${n(open)}" damping="0.004" frictionloss="0.0005"/>
+        <geom name="laptop_lid_geom" type="box" size="${n(L.lidLength / 2)} ${n(L.width / 2)} ${n(L.lidThickness / 2)}" pos="${n(L.lidLength / 2)} 0 ${n(L.lidThickness / 2)}" mass="${L.lidMass}" rgba="0.5 0.52 0.55 1" friction="0.8 0.005 0.001"/>
+      </body>
+    </body>`;
 }

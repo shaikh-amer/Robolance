@@ -301,3 +301,50 @@ test('walking into an obstacle is noted; going round it is not', async () => {
     assert.equal(around.events.filter(e => e.kind === 'obstacle').length, 0, around.notes.join('\n'));
     assert.deepEqual(around.field.obstacles, field.obstacles);
 });
+
+const LAPTOP_FIELD: FieldSpec = { ...DEFAULT_FIELD, ball: { x: 0.2, y: 0.45 }, laptop: { x: 0.75, y: 0, heading: 0 } };
+
+test('the laptop: validation and the scene', () => {
+    assert.equal(validateField(LAPTOP_FIELD), undefined);
+    assert.match(validateField({ ...LAPTOP_FIELD, laptop: { x: 0.12, y: 0, heading: 0 } }) ?? '', /clear of the duck/);
+    assert.match(validateField({ ...LAPTOP_FIELD, laptop: { x: 1.25, y: 0, heading: 0 } }) ?? '', /inside the bounds/);
+    assert.match(validateField({ ...LAPTOP_FIELD, laptop: { x: 0.75, y: 0, heading: 0, openDeg: 170 } }) ?? '', /openDeg/);
+    assert.match(validateField({ ...DEFAULT_FIELD, laptop: { x: 0.6, y: 0.2, heading: 0 } }) ?? '', /covers the ball/);
+    const xml = sceneXml(LAPTOP_FIELD);
+    assert.ok(xml.indexOf('football_free') < xml.indexOf('name="laptop_lid"'), 'the lid comes after the ball in qpos');
+    assert.match(xml, /<joint name="laptop_lid" type="hinge" axis="0 -1 0" range="0 1.7453"/);
+});
+
+test('the duck closes the laptop with its head, and the run says so', async () => {
+    const mission = readFileSync(new URL('../../examples/close-the-laptop.js', import.meta.url), 'utf8');
+    const r = await runMission(mission, { field: LAPTOP_FIELD, limitS: 25 });
+    assert.equal(r.outcome, 'closed', r.notes.join('\n') + r.logs.join('\n'));
+    assert.ok(r.score >= 85, `score ${r.score}`);
+    assert.ok(r.closedAtS !== null && r.closedAtS! > 2);
+    assert.ok(r.final.lidDeg! < 10);
+    assert.match(r.notes[0], /laptop closed at/);
+    assert.match(r.logs[0], /"lidDeg":100/);
+    assert.equal(r.replay!.frames[0].length, r.replay!.qposSize);
+    // The lid angle is the last value of a frame: open at the start, shut at the end.
+    const first = r.replay!.frames[0];
+    const last = r.replay!.frames[r.replay!.frames.length - 1];
+    assert.ok(Math.abs(first[first.length - 1] - (100 * Math.PI) / 180) < 0.01);
+    assert.ok(last[last.length - 1] < 0.18);
+});
+
+test('the example closes a laptop facing the duck, going round it first', async () => {
+    const mission = readFileSync(new URL('../../examples/close-the-laptop.js', import.meta.url), 'utf8');
+    const field: FieldSpec = { ...LAPTOP_FIELD, laptop: { x: 0.45, y: 0, heading: 180 } };
+    const r = await runMission(mission, { field, limitS: 40 });
+    assert.equal(r.outcome, 'closed', r.notes.join('\n') + r.logs.join('\n'));
+    // It never walked through the laptop: the path stays clear of the base on the way round.
+    const crossed = r.path.some(([x, y]) => Math.abs(x - 0.45) < 0.11 && Math.abs(y) < 0.16);
+    assert.ok(!crossed, 'walked through the laptop');
+});
+
+test('a laptop left open is explained and scored on how far the lid went', async () => {
+    const r = await runMission('await duck.stand(1);', { field: LAPTOP_FIELD, limitS: 8 });
+    assert.equal(r.outcome, 'still-open');
+    assert.equal(r.score, 0);
+    assert.match(r.notes.join('\n'), /lid never moved.*behind the screen/);
+});

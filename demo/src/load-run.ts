@@ -147,7 +147,11 @@ function stampOf(text: string, fileName: string): number {
 export function duckHeadline(run: DuckRun): string {
     const r = run.result;
     const parts = [`score ${r.score}`];
-    parts.push(r.scoredAtS !== null ? `goal in ${r.scoredAtS.toFixed(1)} s` : `${outcomeLabel(r)} after ${r.simS.toFixed(1)} s`);
+    if (r.field.laptop) {
+        parts.push(typeof r.closedAtS === 'number' ? `laptop closed in ${r.closedAtS.toFixed(1)} s` : `${outcomeLabel(r)} after ${r.simS.toFixed(1)} s`);
+    } else {
+        parts.push(r.scoredAtS !== null ? `goal in ${r.scoredAtS.toFixed(1)} s` : `${outcomeLabel(r)} after ${r.simS.toFixed(1)} s`);
+    }
     parts.push(r.kicks.length === 1 ? '1 kick' : `${r.kicks.length} kicks`);
     return parts.join(' · ');
 }

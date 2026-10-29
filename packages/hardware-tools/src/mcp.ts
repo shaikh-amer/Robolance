@@ -27,6 +27,7 @@ import {
     type ScriptedEvent,
 } from 'robolance-hardware-sim';
 import { DEFAULT_FIELD, MISSION_API, runMission, validateField, type FieldSpec, type MissionResult } from 'robolance-duck-sim';
+import { readExample } from 'robolance-duck-sim/node-assets';
 import { Scene, meshoptSimplifier, type SceneRun } from 'robolance-mujoco';
 import { readSceneDir } from 'robolance-mujoco/node-files';
 import { buildSketch, type BuildOptions, type BuildResult } from './avrbuild.js';
@@ -162,6 +163,15 @@ walk, stand, kickLeft and kickRight replace the built-in skills (walk then drive
 any other name is a new skill the mission runs with duck.skill(name, seconds, command). Try a newly trained policy
 here before calling it done.`;
 
+/** The laptop example for duck_api, read once from the duck-sim package. */
+let laptopText: Promise<string> | undefined;
+function laptopExample(): Promise<string> {
+    laptopText ??= readExample('close-the-laptop')
+        .then(src => `Closing the laptop (field.laptop set), a mission that works from any placement:\n${src.trim()}`)
+        .catch(() => '');
+    return laptopText;
+}
+
 const obstacleSchema = z.object({
     name: z.string().max(40).optional(),
     x: z.number(), y: z.number(), width: z.number(), depth: z.number(), height: z.number(), heading: z.number().optional(),
@@ -173,6 +183,8 @@ const fieldSchema = z.object({
     goal: z.object({ x: z.number(), y: z.number(), width: z.number() }),
     bounds: z.object({ xMin: z.number(), xMax: z.number(), yMin: z.number(), yMax: z.number() }),
     obstacles: z.array(obstacleSchema).max(24).optional(),
+    laptop: z.object({ x: z.number(), y: z.number(), heading: z.number(), openDeg: z.number().optional() }).optional()
+        .describe('A laptop open on the pitch: the task becomes closing it; see duck_api'),
 });
 
 /** Builds the MCP server; the caller connects it to a transport. */
@@ -264,10 +276,10 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
     server.registerTool('duck_api', {
         description: 'Microduck (the Pollen Robotics duck robot) on a football pitch: the mission API, what the duck can and cannot do, and the default pitch. Read it before writing a mission for duck_run.',
         inputSchema: {},
-    }, async () => ({ content: [{ type: 'text', text: DUCK_HELP }] }));
+    }, async () => ({ content: [{ type: 'text', text: `${DUCK_HELP}\n\n${await laptopExample()}` }] }));
 
     server.registerTool('duck_run', {
-        description: 'Runs a Microduck mission in the physics simulator (MuJoCo, with the robot\'s own trained walking and kicking skills, or policies the project trained, passed as skills): the body of an async JavaScript function using duck, field and log, see duck_api. Returns the outcome (goal, no-goal, fell, time-up, error, timeout), a score 0-100, notes that say why a kick missed, the mission\'s log, every kick and the duck\'s path. Every run is recorded for the IDE to replay.',
+        description: 'Runs a Microduck mission in the physics simulator (MuJoCo, with the robot\'s own trained walking and kicking skills, or policies the project trained, passed as skills): the body of an async JavaScript function using duck, field and log, see duck_api. With field.laptop the task is closing the laptop (outcome closed or still-open). Returns the outcome (goal, no-goal, closed, still-open, fell, time-up, error, timeout), a score 0-100, notes that say why a kick missed, the mission\'s log, every kick and the duck\'s path. Every run is recorded for the IDE to replay.',
         inputSchema: {
             mission: z.string().min(1).max(64 * 1024).describe('The mission: the body of an async function'),
             field: fieldSchema.optional().describe('The pitch; default in duck_api'),
@@ -412,6 +424,7 @@ export function summarizeDuck(r: MissionResult): Record<string, unknown> {
         outcome: r.outcome,
         score: r.score,
         scoredAtS: r.scoredAtS,
+        ...(r.closedAtS !== undefined ? { closedAtS: r.closedAtS } : {}),
         simS: r.simS,
         ...(r.error ? { error: r.error } : {}),
         notes: r.notes,

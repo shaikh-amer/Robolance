@@ -25,6 +25,14 @@ field                 the pitch: { duck: {x, y, heading}, ball: {x, y}, goal: {x
 field.obstacles       boxes on the pitch, if any: [{ name, x, y, width, depth, height, heading }]: x, y is the centre,
                       width runs along heading. walkTo goes in a straight line: route around them with waypoints, keeping
                       the duck's centre ~10 cm from a box (its body reaches ~7 cm). A ball hits them like a wall
+field.laptop          if set, the task is to close a laptop open on the pitch: { x, y, heading, openDeg } (x, y the middle of
+                      its base, heading the way the screen faces, the lid open openDeg, default 100). Close it from behind
+                      the screen: line up behind it on its centre line facing the hinge, then walk into the back of the lid
+                      with the head pushed forward: duck.skill('walk', 0.4, [0.35, 0, turn, 0.6, 0, 0, 0]) in short bursts,
+                      steering turn (rad/s) at the hinge's middle between them (the walk drifts; an off-centre hit twists
+                      the duck away). Plain walking stops at the lid; the head reaches it. Past upright (90) the lid falls
+                      shut by itself. The close-the-laptop example (duck_api, or the package's examples/) does it from anywhere
+duck.laptop()         -> { x, y, heading, lidDeg, closed }  the lid's angle (0 shut) and whether it closed; null without one
 log(...values)        writes a line to the run's log
 
 duck.pose()           -> { x, y, heading }
@@ -78,7 +86,7 @@ export interface MissionOptions {
     skills?: Record<string, Uint8Array>;
 }
 
-export type MissionOutcome = 'goal' | 'no-goal' | 'fell' | 'time-up' | 'error' | 'timeout';
+export type MissionOutcome = 'goal' | 'no-goal' | 'closed' | 'still-open' | 'fell' | 'time-up' | 'error' | 'timeout';
 
 export interface MissionReplay {
     frameHz: number;
@@ -100,7 +108,9 @@ export interface MissionResult {
     events: DuckEvent[];
     kicks: KickRecord[];
     notes: string[];
-    final: { duck: Pose; ball: { x: number; y: number } };
+    final: { duck: Pose; ball: { x: number; y: number }; lidDeg?: number };
+    /** When the laptop's lid came down (laptop task). */
+    closedAtS?: number | null;
     /** Metres from the ball to the goal mouth at the start, and at its closest. */
     ballToGoalStart: number;
     closestBallToGoal: number;
@@ -196,6 +206,15 @@ export function missionScore(s: ScoreInput): number {
     return Math.max(0, Math.round(50 * progress - (s.fell ? 15 : 0)));
 }
 
+/** A laptop task's score: closing it is 70, plus up to 20 for speed and 10 for staying up; otherwise up to 50 for pushing the lid down. */
+export function laptopScore(s: { closedAtS: number | null; fell: boolean; limitS: number; openDeg: number; lowestLidDeg: number }): number {
+    if (s.closedAtS !== null) {
+        return Math.round(70 + 20 * Math.max(0, 1 - s.closedAtS / s.limitS) + (s.fell ? 0 : 10));
+    }
+    const progress = s.openDeg > 0 ? Math.min(1, Math.max(0, (s.openDeg - s.lowestLidDeg) / s.openDeg)) : 0;
+    return Math.max(0, Math.round(50 * progress - (s.fell ? 15 : 0)));
+}
+
 export interface NotesInput {
     outcome: MissionOutcome;
     error?: string;
@@ -205,10 +224,15 @@ export interface NotesInput {
     simS: number;
     limitS: number;
     score: number;
+    /** Laptop task: the lid's start and lowest angles, and when it closed. */
+    laptop?: { openDeg: number; lowestLidDeg: number; closedAtS: number | null };
 }
 
 /** Plain-language feedback: what happened and what to change. */
 export function missionNotes(r: NotesInput): string[] {
+    if (r.laptop) {
+        return laptopNotes(r, r.laptop);
+    }
     const notes: string[] = [];
     if (r.outcome === 'goal') {
         notes.push(`Goal at ${r.scoredAtS} s. Score ${r.score}/100.`);
@@ -259,6 +283,39 @@ export function missionNotes(r: NotesInput): string[] {
     }
     if (r.outcome === 'no-goal' && r.kicks.some(k => k.ballMoved >= 0.05)) {
         notes.push(`No goal. Score ${r.score}/100 for getting the ball closer.`);
+    }
+    return notes;
+}
+
+function laptopNotes(r: NotesInput, l: { openDeg: number; lowestLidDeg: number; closedAtS: number | null }): string[] {
+    const notes: string[] = [];
+    if (r.outcome === 'closed') {
+        notes.push(`The laptop closed at ${l.closedAtS} s. Score ${r.score}/100.`);
+    } else if (r.outcome === 'error' && r.error) {
+        notes.push(`The mission threw: ${r.error}`);
+    }
+    for (const e of r.events) {
+        if (e.kind === 'fell') {
+            notes.push(`${e.atS} s: ${e.detail}.`);
+        } else if (e.kind === 'obstacle') {
+            notes.push(`${e.atS} s: ${e.detail}. walkTo goes straight: add a waypoint that keeps ~10 cm from it.`);
+        }
+    }
+    if (r.outcome !== 'closed' && r.outcome !== 'error') {
+        if (l.lowestLidDeg >= l.openDeg - 2) {
+            notes.push('The lid never moved. Come at it from behind the screen (the side away from where it faces), lined up with the laptop\'s middle, and keep walking into the back of the lid.');
+        } else if (l.lowestLidDeg > 90) {
+            notes.push(`The lid moved to ${Math.round(l.lowestLidDeg)} degrees but never got past upright (90): push further; once past upright it falls shut by itself.`);
+        } else {
+            notes.push(`The lid got to ${Math.round(l.lowestLidDeg)} degrees but did not close: keep pushing until it is past upright and down.`);
+        }
+        notes.push(`Laptop task: score ${r.score}/100 for pushing the lid down.`);
+    }
+    if (r.outcome === 'fell') {
+        notes.push('A fall ends the run. Walk into the lid slowly (about 0.3 m/s) so the duck pushes it instead of tripping over the base.');
+    }
+    if (r.outcome === 'time-up') {
+        notes.push(`The mission used the whole ${r.limitS} s.`);
     }
     return notes;
 }

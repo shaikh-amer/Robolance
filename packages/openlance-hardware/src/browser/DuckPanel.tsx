@@ -176,16 +176,19 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
 export function DuckReadout({ result, timeMs }: { result: MissionResult; timeMs: number }): React.ReactElement {
     const t = timeMs / 1000;
     const kicks = result.kicks.filter(k => k.atS <= t).length;
-    const scored = result.scoredAtS !== null && result.scoredAtS <= t;
+    const laptop = Boolean(result.field.laptop);
+    const scored = !laptop && result.scoredAtS !== null && result.scoredAtS <= t;
+    const closed = laptop && typeof result.closedAtS === 'number' && result.closedAtS <= t;
     const fell = result.events.some(e => e.kind === 'fell' && e.atS <= t);
     const ended = t >= result.simS - 0.01;
     return (
         <div className="robolance-arena-readout robolance-duck-readout">
             <span>{t.toFixed(1)} s</span>
-            <span>{kicks} kick{kicks === 1 ? '' : 's'}</span>
+            {!laptop && <span>{kicks} kick{kicks === 1 ? '' : 's'}</span>}
             {scored && <span className="robolance-goal-yes robolance-goal-banner">GOAL!</span>}
+            {closed && <span className="robolance-goal-yes robolance-goal-banner">LAPTOP CLOSED!</span>}
             {fell && <span className="robolance-error">fell over</span>}
-            {ended && !scored && <span>{outcomeLabel(result)}</span>}
+            {ended && !scored && !closed && <span>{outcomeLabel(result)}</span>}
             {ended && <span>score {result.score}</span>}
         </div>
     );

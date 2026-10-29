@@ -116,6 +116,8 @@ export function pathUntil(result: MissionResult, atMs: number): Array<[number, n
 const OUTCOME: Record<MissionResult['outcome'], string> = {
     'goal': 'goal',
     'no-goal': 'no goal',
+    'closed': 'laptop closed',
+    'still-open': 'laptop still open',
     'fell': 'fell over',
     'time-up': 'time up',
     'error': 'mission error',
@@ -129,6 +131,10 @@ export function outcomeLabel(result: MissionResult): string {
 /** One line that says how a run went. */
 export function describeDuckRun(run: DuckRun): string {
     const r = run.result;
+    if (r.field.laptop) {
+        const closed = typeof r.closedAtS === 'number' ? `laptop closed at ${r.closedAtS.toFixed(1)} s` : outcomeLabel(r);
+        return `${r.simS.toFixed(1)} s · score ${r.score} · ${closed}`;
+    }
     const goal = r.scoredAtS !== null ? `goal at ${r.scoredAtS.toFixed(1)} s` : outcomeLabel(r);
     const kicks = r.kicks.length;
     return `${r.simS.toFixed(1)} s · score ${r.score} · ${goal} · ${kicks} kick${kicks === 1 ? '' : 's'}`;

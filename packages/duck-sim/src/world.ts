@@ -11,7 +11,7 @@ import loadMujoco from '@mujoco/mujoco';
 import type { MainModule, MjData, MjModel } from '@mujoco/mujoco';
 import * as ort from 'onnxruntime-web';
 import { CONTROL_DT, HOME, JOINTS, observation, targets } from './controller.js';
-import { BALL_RADIUS, DEFAULT_FIELD, DUCK_RADIUS, distanceToObstacle, obstacleName, sceneXml, type FieldSpec } from './field.js';
+import { BALL_RADIUS, DEFAULT_FIELD, DUCK_RADIUS, LAPTOP, LAPTOP_CLOSED_DEG, distanceToObstacle, obstacleName, sceneXml, type FieldSpec } from './field.js';
 import { extractViewerModel } from 'robolance-mujoco';
 import type { MeshSimplifier, Quat, Vec3, ViewerModel } from 'robolance-mujoco/viewer';
 
@@ -81,7 +81,7 @@ export interface DuckAssets {
 
 export interface DuckEvent {
     atS: number;
-    kind: 'kick' | 'bump' | 'fell' | 'goal' | 'out' | 'obstacle';
+    kind: 'kick' | 'bump' | 'fell' | 'goal' | 'out' | 'obstacle' | 'closed';
     detail: string;
 }
 
@@ -118,8 +118,8 @@ export class DuckFell extends Error {
 
 /** The run stops a second after a goal, or after the ball goes out. */
 export class RunOver extends Error {
-    constructor(readonly reason: 'goal' | 'out', readonly atS: number) {
-        super(`${reason === 'goal' ? 'goal' : 'the ball went out'} at ${atS.toFixed(2)} s; the run is over`);
+    constructor(readonly reason: 'goal' | 'out' | 'closed', readonly atS: number) {
+        super(`${reason === 'goal' ? 'goal' : reason === 'closed' ? 'the laptop closed' : 'the ball went out'} at ${atS.toFixed(2)} s; the run is over`);
     }
 }
 
@@ -161,6 +161,10 @@ export class DuckWorld {
     fellAtS: number | null = null;
     scoredAtS: number | null = null;
     outAtS: number | null = null;
+    /** When the laptop's lid came down (laptop task only). */
+    closedAtS: number | null = null;
+    /** The smallest lid angle so far, degrees (laptop task only). */
+    lowestLidDeg: number | null = null;
     readonly events: DuckEvent[] = [];
     readonly kicks: KickRecord[] = [];
     /** qpos samples (rounded) for the replay. */
@@ -177,6 +181,8 @@ export class DuckWorld {
     private readonly trunkDof: number;
     private readonly ballPos: number;
     private readonly ballDof: number;
+    /** The laptop lid's qpos address, -1 without a laptop. */
+    private readonly lidPos: number = -1;
     private lastAction = new Float32Array(14);
     private previous: Float64Array | null = null;
     private twist = [0, 0, 0];
@@ -232,6 +238,9 @@ export class DuckWorld {
         j = free('football_free');
         this.ballPos = m.jnt_qposadr[j];
         this.ballDof = m.jnt_dofadr[j];
+        if (this.field.laptop) {
+            this.lidPos = m.jnt_qposadr[free('laptop_lid')];
+        }
         this.reset();
         this.ballPrevX = this.field.ball.x;
         this.closestBallToGoal = this.ballToGoal();
@@ -284,9 +293,9 @@ export class DuckWorld {
         this.model.delete();
     }
 
-    /** True once nothing more can happen: a fall, the time limit, or a second after a goal or an out. */
+    /** True once nothing more can happen: a fall, the time limit, or a second after a goal, an out or the laptop closing. */
     get over(): boolean {
-        const decided = this.scoredAtS ?? this.outAtS;
+        const decided = this.decidedAtS;
         return this.fallen || this.time >= this.limitS || (decided !== null && this.time >= decided + AFTER_BALL_DECIDED_S);
     }
 
@@ -344,6 +353,10 @@ export class DuckWorld {
         data.qpos[this.ballPos + 1] = f.ball.y;
         data.qpos[this.ballPos + 2] = BALL_RADIUS;
         data.qpos[this.ballPos + 3] = 1;
+        if (this.lidPos >= 0) {
+            data.qpos[this.lidPos] = ((f.laptop!.openDeg ?? LAPTOP.defaultOpenDeg) * Math.PI) / 180;
+            this.lowestLidDeg = f.laptop!.openDeg ?? LAPTOP.defaultOpenDeg;
+        }
         mj.mj_forward(model, data);
         this.record(true);
     }
@@ -419,9 +432,9 @@ export class DuckWorld {
         if (this.time >= this.limitS) {
             throw new TimeUp(this.limitS);
         }
-        const decided = this.scoredAtS ?? this.outAtS;
+        const decided = this.decidedAtS;
         if (decided !== null && this.time >= decided + AFTER_BALL_DECIDED_S) {
-            throw new RunOver(this.scoredAtS !== null ? 'goal' : 'out', decided);
+            throw new RunOver(this.closedAtS !== null ? 'closed' : this.scoredAtS !== null ? 'goal' : 'out', decided);
         }
         const s = this.sensors();
         if (s.gravity[2] > -0.35) {
@@ -468,6 +481,7 @@ export class DuckWorld {
         this.watchBall();
         this.watchBump(skill);
         this.watchObstacles();
+        this.watchLaptop();
         this.followKick();
         this.record(false);
         if (this.fallen) {
@@ -495,6 +509,28 @@ export class DuckWorld {
         }
         this.ballPrevX = b.x;
         this.closestBallToGoal = Math.min(this.closestBallToGoal, this.ballToGoal());
+    }
+
+    /** When the run was decided: the laptop closing (laptop task), else a goal or an out. */
+    private get decidedAtS(): number | null {
+        return this.field.laptop ? this.closedAtS : this.scoredAtS ?? this.outAtS;
+    }
+
+    /** The laptop lid's opening angle, degrees (null without a laptop). */
+    lidDeg(): number | null {
+        return this.lidPos >= 0 ? (this.data.qpos[this.lidPos] * 180) / Math.PI : null;
+    }
+
+    private watchLaptop(): void {
+        const deg = this.lidDeg();
+        if (deg === null) {
+            return;
+        }
+        this.lowestLidDeg = Math.min(this.lowestLidDeg ?? deg, deg);
+        if (this.closedAtS === null && deg < LAPTOP_CLOSED_DEG) {
+            this.closedAtS = round(this.time, 2);
+            this.events.push({ atS: this.closedAtS, kind: 'closed', detail: 'the laptop lid came down: closed' });
+        }
     }
 
     /** Notices the duck walking into an obstacle (once per contact). */
