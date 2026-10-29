@@ -7,6 +7,21 @@
  * in degrees counter-clockwise from +x.
  */
 
+/**
+ * A box standing on the pitch: a cardboard box, a chair leg, a fridge. x, y
+ * is its centre, width runs along its heading (degrees, default 0 = along
+ * +x), depth across it.
+ */
+export interface Obstacle {
+    name?: string;
+    x: number;
+    y: number;
+    width: number;
+    depth: number;
+    height: number;
+    heading?: number;
+}
+
 export interface FieldSpec {
     duck: { x: number; y: number; heading: number };
     ball: { x: number; y: number };
@@ -14,6 +29,63 @@ export interface FieldSpec {
     goal: { x: number; y: number; width: number };
     /** Playing area; a ball that leaves it is out. */
     bounds: { xMin: number; xMax: number; yMin: number; yMax: number };
+    /** Boxes on the pitch the duck has to go around. */
+    obstacles?: Obstacle[];
+}
+
+export const MAX_OBSTACLES = 24;
+/** How close the duck's centre gets to something before its body touches it, metres. */
+export const DUCK_RADIUS = 0.07;
+
+/** Distance from a point to a box's footprint (0 inside it). */
+export function distanceToObstacle(o: Obstacle, x: number, y: number): number {
+    const h = ((o.heading ?? 0) * Math.PI) / 180;
+    const dx = x - o.x;
+    const dy = y - o.y;
+    const along = dx * Math.cos(h) + dy * Math.sin(h);
+    const across = -dx * Math.sin(h) + dy * Math.cos(h);
+    return Math.hypot(Math.max(0, Math.abs(along) - o.width / 2), Math.max(0, Math.abs(across) - o.depth / 2));
+}
+
+/** The obstacle's name for notes: its own, or "obstacle N". */
+export function obstacleName(o: Obstacle, i: number): string {
+    return o.name?.trim() || `obstacle ${i + 1}`;
+}
+
+function validateObstacles(f: FieldSpec): string | undefined {
+    const list = f.obstacles ?? [];
+    if (!Array.isArray(list)) {
+        return 'obstacles is a list';
+    }
+    if (list.length > MAX_OBSTACLES) {
+        return `at most ${MAX_OBSTACLES} obstacles`;
+    }
+    for (const [i, o] of list.entries()) {
+        const label = obstacleName(o, i);
+        const values = [o.x, o.y, o.width, o.depth, o.height, o.heading ?? 0];
+        if (!values.every(v => typeof v === 'number' && Number.isFinite(v))) {
+            return `${label}: every value must be a finite number`;
+        }
+        if (o.name !== undefined && (typeof o.name !== 'string' || o.name.length > 40)) {
+            return `${label}: the name is up to 40 characters`;
+        }
+        if (o.width < 0.02 || o.width > 3 || o.depth < 0.02 || o.depth > 3) {
+            return `${label}: width and depth are 0.02-3 m`;
+        }
+        if (o.height < 0.02 || o.height > 2) {
+            return `${label}: height is 0.02-2 m`;
+        }
+        if (o.x <= f.bounds.xMin || o.x >= f.bounds.xMax || o.y <= f.bounds.yMin || o.y >= f.bounds.yMax) {
+            return `${label}: its centre must be inside the bounds`;
+        }
+        if (distanceToObstacle(o, f.duck.x, f.duck.y) < DUCK_RADIUS + 0.03) {
+            return `${label}: it covers the duck's start; keep 10 cm clear around the duck`;
+        }
+        if (distanceToObstacle(o, f.ball.x, f.ball.y) < BALL_RADIUS + 0.01) {
+            return `${label}: it covers the ball`;
+        }
+    }
+    return undefined;
 }
 
 export const BALL_RADIUS = 0.025;
@@ -58,7 +130,7 @@ export function validateField(f: FieldSpec): string | undefined {
     if (Math.hypot(f.ball.x - f.duck.x, f.ball.y - f.duck.y) < 0.15) {
         return 'the ball starts at least 15 cm from the duck';
     }
-    return undefined;
+    return validateObstacles(f);
 }
 
 /** The MuJoCo scene: the robot, the floor, the ball and the goal posts. */
@@ -84,10 +156,18 @@ export function sceneXml(f: FieldSpec, robotFile = 'robot_groundcontact.xml'): s
     ${side('net_right', y1)}
     ${side('net_left', y2)}
     <geom name="crossbar" type="capsule" fromto="${n(f.goal.x)} ${n(y1)} ${GOAL_HEIGHT} ${n(f.goal.x)} ${n(y2)} ${GOAL_HEIGHT}" size="${POST_RADIUS}" rgba="0.95 0.95 0.95 1" contype="0" conaffinity="0"/>
+    ${(f.obstacles ?? []).map((o, i) => obstacleGeom(o, i, n)).join('\n    ')}
     <body name="football" pos="${n(f.ball.x)} ${n(f.ball.y)} ${BALL_RADIUS}">
       <freejoint name="football_free"/>
       <geom name="football_geom" type="sphere" size="${BALL_RADIUS}" mass="0.035" rgba="0.95 0.55 0.18 1" friction="0.5 0.005 0.001" condim="3"/>
     </body>
   </worldbody>
 </mujoco>`;
+}
+
+/** A static box geom for an obstacle (cardboard brown), turned by its heading. */
+function obstacleGeom(o: Obstacle, i: number, n: (v: number) => number): string {
+    const half = ((o.heading ?? 0) * Math.PI) / 360;
+    return `<geom name="obstacle_${i}" type="box" size="${n(o.width / 2)} ${n(o.depth / 2)} ${n(o.height / 2)}" `
+        + `pos="${n(o.x)} ${n(o.y)} ${n(o.height / 2)}" quat="${n(Math.cos(half))} 0 0 ${n(Math.sin(half))}" rgba="0.72 0.55 0.36 1" friction="0.8 0.005 0.001"/>`;
 }

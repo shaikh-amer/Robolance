@@ -105,6 +105,19 @@ export function validateSharedDuckRun(value: unknown): string | undefined {
         || !numbers(field.bounds, ['xMin', 'xMax', 'yMin', 'yMax'])) {
         return 'the pitch is damaged';
     }
+    const obstacles = (r.field as { obstacles?: unknown }).obstacles;
+    if (obstacles !== undefined) {
+        const ok = Array.isArray(obstacles) && obstacles.length <= 24 && obstacles.every(o => {
+            const b = o as Record<string, unknown>;
+            return numbers(b, ['x', 'y', 'width', 'depth', 'height'])
+                && (b.heading === undefined || (typeof b.heading === 'number' && Number.isFinite(b.heading)))
+                && (b.width as number) > 0 && (b.width as number) <= 3 && (b.depth as number) > 0 && (b.depth as number) <= 3
+                && (b.height as number) > 0 && (b.height as number) <= 2;
+        });
+        if (!ok) {
+            return 'the obstacles are damaged';
+        }
+    }
     const f = s.frames;
     if (f && (!Array.isArray(f.q) || !(f.size > 0) || !(f.hz > 0) || !(f.scale > 0) || f.q.length % f.size !== 0)) {
         return 'the replay frames are damaged';

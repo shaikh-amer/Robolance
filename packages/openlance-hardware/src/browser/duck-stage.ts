@@ -9,7 +9,7 @@
  */
 
 import * as THREE from 'three';
-import { BALL_RADIUS, GOAL_HEIGHT, NET_DEPTH, POST_RADIUS, type FieldSpec, type ViewerModel } from 'robolance-duck-sim/viewer';
+import { BALL_RADIUS, GOAL_HEIGHT, NET_DEPTH, POST_RADIUS, type FieldSpec, type Obstacle, type ViewerModel } from 'robolance-duck-sim/viewer';
 import { RobotParts, place } from './robot-parts';
 import { StageBase, isSmallDevice, type SkyPalette, type StageView } from './stage-base';
 import { netCanvas, paintPatches, paintTurf, seededRandom } from './stage-textures';
@@ -130,6 +130,7 @@ export class DuckStage extends StageBase {
             new THREE.Vector3(f.duck.x, f.duck.y, DUCK_HEIGHT),
             new THREE.Vector3(f.ball.x, f.ball.y, 0),
             ...[f.goal.x, back].flatMap(x => [y1, y2].flatMap(y => [new THREE.Vector3(x, y, 0), new THREE.Vector3(x, y, GOAL_HEIGHT)])),
+            ...(f.obstacles ?? []).flatMap(obstacleCorners),
         ];
     }
 
@@ -162,6 +163,10 @@ export class DuckStage extends StageBase {
         ground.position.set(cx, cy, 0);
         ground.receiveShadow = true;
         this.pitch.add(ground);
+
+        for (const o of f.obstacles ?? []) {
+            this.pitch.add(obstacleMesh(o));
+        }
 
         // Turf to the horizon around the pitch, a hair lower so the two never fight.
         const rough = roughTextures(this.palette);
@@ -310,4 +315,33 @@ function canvasTexture(canvas: HTMLCanvasElement, color: boolean): THREE.CanvasT
     texture.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     texture.anisotropy = 8;
     return texture;
+}
+
+/** A cardboard box standing on the pitch, turned by its heading. */
+function obstacleMesh(o: Obstacle): THREE.Mesh {
+    const box = new THREE.Mesh(
+        new THREE.BoxGeometry(o.width, o.depth, o.height),
+        new THREE.MeshStandardMaterial({ color: 0xb98a58, roughness: 0.85, metalness: 0 }),
+    );
+    box.position.set(o.x, o.y, o.height / 2);
+    box.rotation.z = ((o.heading ?? 0) * Math.PI) / 180;
+    box.castShadow = true;
+    box.receiveShadow = true;
+    return box;
+}
+
+/** An obstacle's eight corners, for framing the view. */
+function obstacleCorners(o: Obstacle): THREE.Vector3[] {
+    const h = ((o.heading ?? 0) * Math.PI) / 180;
+    const c = Math.cos(h);
+    const s = Math.sin(h);
+    const out: THREE.Vector3[] = [];
+    for (const a of [-o.width / 2, o.width / 2]) {
+        for (const b of [-o.depth / 2, o.depth / 2]) {
+            for (const z of [0, o.height]) {
+                out.push(new THREE.Vector3(o.x + a * c - b * s, o.y + a * s + b * c, z));
+            }
+        }
+    }
+    return out;
 }

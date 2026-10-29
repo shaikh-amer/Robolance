@@ -30,6 +30,7 @@ import { DEFAULT_FIELD, MISSION_API, runMission, validateField, type FieldSpec, 
 import { Scene, meshoptSimplifier, type SceneRun } from 'robolance-mujoco';
 import { readSceneDir } from 'robolance-mujoco/node-files';
 import { buildSketch, type BuildOptions, type BuildResult } from './avrbuild.js';
+import { obstaclesFromSegments, type SegmentsFile } from './photo-obstacles.js';
 
 const pinSchema = z.union([z.number().int().min(0).max(13), z.enum(['A0', 'A1', 'A2', 'A3', 'A4', 'A5'])]);
 
@@ -151,17 +152,27 @@ The default pitch (metres): ${JSON.stringify(DEFAULT_FIELD)}
 Pass "field" to duck_run for another layout (same shape). Each run takes a few seconds; read its notes, change the
 mission, run again. Use log() to see positions while you work out the approach.
 
+Obstacles from a photo (a room, a desk): run openlance_segmentImage on the photo once per kind of thing ("cardboard
+box", "chair"), then duck_obstacles_from_photo with the JSON it saved and the floor area the photo shows in pitch
+metres; pass the obstacles it returns in field.obstacles.
+
 A policy the project trained (an ONNX file exported from microduck_rl: 61 values in, 14 out) runs in the simulator by
 passing "skills" to duck_run, e.g. {"walk": "policies/walk/policy.onnx", "getUp": "policies/standup/policy.onnx"}:
 walk, stand, kickLeft and kickRight replace the built-in skills (walk then drives duck.walk, walkTo and turnTo);
 any other name is a new skill the mission runs with duck.skill(name, seconds, command). Try a newly trained policy
 here before calling it done.`;
 
+const obstacleSchema = z.object({
+    name: z.string().max(40).optional(),
+    x: z.number(), y: z.number(), width: z.number(), depth: z.number(), height: z.number(), heading: z.number().optional(),
+});
+
 const fieldSchema = z.object({
     duck: z.object({ x: z.number(), y: z.number(), heading: z.number() }),
     ball: z.object({ x: z.number(), y: z.number() }),
     goal: z.object({ x: z.number(), y: z.number(), width: z.number() }),
     bounds: z.object({ xMin: z.number(), xMax: z.number(), yMin: z.number(), yMax: z.number() }),
+    obstacles: z.array(obstacleSchema).max(24).optional(),
 });
 
 /** Builds the MCP server; the caller connects it to a transport. */
@@ -288,6 +299,33 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
         });
         const summary = summarizeDuck(result);
         return { content: [{ type: 'text', text: JSON.stringify(recorded ? { ...summary, recordedAs: recorded } : summary, null, 1) }] };
+    });
+
+    server.registerTool('duck_obstacles_from_photo', {
+        description: 'Turns what Segment Anything (openlance_segmentImage) found in a photo into obstacles for the duck\'s pitch: '
+            + 'give the JSON it saved and the floor rectangle the photo shows, in pitch metres (photo top = far side xMax, bottom = near side xMin, '
+            + 'left = yMax, right = yMin; a top-down photo is most accurate). Returns obstacles to pass in duck_run\'s field.obstacles, and the matches it left out.',
+        inputSchema: {
+            segments: z.string().min(1).describe('Project path of the JSON openlance_segmentImage saved, e.g. segments/room-cardboard-box.json'),
+            area: z.object({ xMin: z.number(), xMax: z.number(), yMin: z.number(), yMax: z.number() })
+                .describe('The floor the photo shows, in pitch metres'),
+            height: z.number().min(0.02).max(2).optional().describe('Obstacle height, metres (default 0.25)'),
+            name: z.string().max(30).optional().describe('Names become "<name> 1", "<name> 2"... (default: the prompt)'),
+            minConfidence: z.number().min(0).max(1).optional().describe('Leave out matches below this confidence (default 0.3)'),
+        },
+    }, async ({ segments, area, height, name, minConfidence }) => {
+        let parsed: SegmentsFile;
+        try {
+            parsed = JSON.parse(await readFile(insideProject(projectDir, segments), 'utf8')) as SegmentsFile;
+        } catch (err) {
+            return { content: [{ type: 'text', text: `${segments}: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+        }
+        try {
+            const result = obstaclesFromSegments(parsed, area, { height, name, minConfidence });
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 1) }] };
+        } catch (err) {
+            return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true };
+        }
     });
 
     server.registerTool('scene_api', {

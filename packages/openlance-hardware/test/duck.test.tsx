@@ -127,6 +127,10 @@ test('a duck run shares as a link of a few kilobytes and replays from it', async
     assert.match(validateSharedDuckRun({ ...trimDuckRunForShare(run), frames: { hz: 12.5, size: 28, scale: 1000, q: [1, 2, 3] } }) ?? '', /damaged/);
     const shared = trimDuckRunForShare(run);
     assert.match(validateSharedDuckRun({ ...shared, result: { ...shared.result, field: { ...shared.result.field, bounds: {} } } }) ?? '', /pitch is damaged/);
+    const withBox = (o: Record<string, unknown>) => ({ ...shared, result: { ...shared.result, field: { ...shared.result.field, obstacles: [o] } } });
+    assert.equal(validateSharedDuckRun(withBox({ name: 'box', x: 0.3, y: -0.3, width: 0.2, depth: 0.2, height: 0.2, heading: 10 })), undefined, 'a shared obstacle replays');
+    assert.match(validateSharedDuckRun(withBox({ x: 0.3, y: -0.3, width: 900, depth: 0.2, height: 0.2 })) ?? '', /obstacles are damaged/);
+    assert.match(validateSharedDuckRun(withBox({ x: 'a', y: 0, width: 0.2, depth: 0.2, height: 0.2 })) ?? '', /obstacles are damaged/);
 });
 
 test('the duck runs view offers a share link unless sharing is off', () => {
