@@ -118,6 +118,11 @@ export function validateSharedDuckRun(value: unknown): string | undefined {
             return 'the obstacles are damaged';
         }
     }
+    const laptop = (r.field as { laptop?: unknown }).laptop as Record<string, unknown> | undefined;
+    if (laptop !== undefined && (!numbers(laptop, ['x', 'y', 'heading'])
+        || (laptop.openDeg !== undefined && !(typeof laptop.openDeg === 'number' && laptop.openDeg >= 60 && laptop.openDeg <= 125)))) {
+        return 'the laptop is damaged';
+    }
     const f = s.frames;
     if (f && (!Array.isArray(f.q) || !(f.size > 0) || !(f.hz > 0) || !(f.scale > 0) || f.q.length % f.size !== 0)) {
         return 'the replay frames are damaged';

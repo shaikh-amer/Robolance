@@ -9,7 +9,8 @@
  */
 
 import * as THREE from 'three';
-import { BALL_RADIUS, GOAL_HEIGHT, NET_DEPTH, POST_RADIUS, type FieldSpec, type Obstacle, type ViewerModel } from 'robolance-duck-sim/viewer';
+import { BALL_RADIUS, GOAL_HEIGHT, LAPTOP, NET_DEPTH, POST_RADIUS, type FieldSpec, type Obstacle, type ViewerModel } from 'robolance-duck-sim/viewer';
+import { LaptopModel } from './laptop-model';
 import { RobotParts, place } from './robot-parts';
 import { StageBase, isSmallDevice, type SkyPalette, type StageView } from './stage-base';
 import { netCanvas, paintPatches, paintTurf, seededRandom } from './stage-textures';
@@ -48,6 +49,9 @@ export class DuckStage extends StageBase {
     private readonly pitch = new THREE.Group();
     private trail?: THREE.Line;
     private ballIndex = -1;
+    private laptop?: LaptopModel;
+    /** The lid's place in a replay frame: right after the robot and the ball. */
+    private readonly lidIndex: number;
     private field?: FieldSpec;
     private palette: Palette = PALETTES.dark;
 
@@ -56,6 +60,7 @@ export class DuckStage extends StageBase {
         this.robot = new RobotParts(model);
         this.scene.add(this.pitch, this.robot.group);
         this.ballIndex = model.bodies.findIndex(b => b.name === 'football');
+        this.lidIndex = model.nq;
 
         const ballMaterial = new THREE.MeshPhysicalMaterial({ color: 0xf07d1e, roughness: 0.55, clearcoat: 0.5, clearcoatRoughness: 0.3 });
         this.ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 48, 32), ballMaterial);
@@ -67,6 +72,7 @@ export class DuckStage extends StageBase {
             this.ball.geometry.dispose();
             ballMaterial.dispose();
             this.clearPitch();
+            this.clearLaptop();
             this.trail?.geometry.dispose();
             (this.trail?.material as THREE.Material | undefined)?.dispose();
         });
@@ -86,6 +92,11 @@ export class DuckStage extends StageBase {
         this.field = field;
         if (!same) {
             this.buildPitch(field);
+            this.clearLaptop();
+            if (field.laptop) {
+                this.laptop = new LaptopModel(field.laptop);
+                this.scene.add(this.laptop.group);
+            }
             this.home();
             this.frameView();
         }
@@ -100,6 +111,9 @@ export class DuckStage extends StageBase {
         if (poses) {
             if (this.ballIndex >= 0) {
                 place(this.ball, poses[this.ballIndex]);
+            }
+            if (this.laptop && frame && frame.length > this.lidIndex) {
+                this.laptop.setLid(frame[this.lidIndex]);
             }
             const trunk = poses[1];
             this.followAt.set(trunk.pos[0], trunk.pos[1], 0.08);
@@ -131,7 +145,16 @@ export class DuckStage extends StageBase {
             new THREE.Vector3(f.ball.x, f.ball.y, 0),
             ...[f.goal.x, back].flatMap(x => [y1, y2].flatMap(y => [new THREE.Vector3(x, y, 0), new THREE.Vector3(x, y, GOAL_HEIGHT)])),
             ...(f.obstacles ?? []).flatMap(obstacleCorners),
+            ...(f.laptop ? obstacleCorners({ x: f.laptop.x, y: f.laptop.y, width: LAPTOP.depth + 0.08, depth: LAPTOP.width, height: LAPTOP.lidLength, heading: f.laptop.heading }) : []),
         ];
+    }
+
+    private clearLaptop(): void {
+        if (this.laptop) {
+            this.scene.remove(this.laptop.group);
+            this.laptop.dispose();
+            this.laptop = undefined;
+        }
     }
 
     private clearPitch(): void {

@@ -10,7 +10,8 @@ import { parentPort, workerData } from 'node:worker_threads';
 import * as vm from 'node:vm';
 import { loadAssets } from './node-assets.js';
 import { DuckFell, DuckWorld, RunOver, TimeUp, round } from './world.js';
-import { ballToGoal, missionNotes, missionScore, type MissionOutcome, type WorkerInput, type WorkerReply } from './mission.js';
+import { LAPTOP } from './field.js';
+import { ballToGoal, laptopScore, missionNotes, missionScore, type MissionOutcome, type WorkerInput, type WorkerReply } from './mission.js';
 
 const MAX_LOG_LINES = 200;
 const MAX_LOG_CHARS = 500;
@@ -59,6 +60,11 @@ async function main(input: WorkerInput): Promise<void> {
         },
         time: () => world.time,
         scored: () => world.scoredAtS !== null,
+        laptop: () => {
+            const l = input.field.laptop;
+            const deg = world.lidDeg();
+            return l && deg !== null ? { x: l.x, y: l.y, heading: l.heading, lidDeg: round(deg, 1), closed: world.closedAtS !== null } : null;
+        },
         turnTo: (heading: unknown) => act(() => world.turnTo(num(heading, 'heading'))),
         walkTo: (x: unknown, y: unknown) => act(() => world.walkTo(num(x, 'x'), num(y, 'y'))),
         walkForward: (metres: unknown, shiftLeft: unknown = 0) =>
@@ -99,7 +105,10 @@ async function main(input: WorkerInput): Promise<void> {
         }
         let outcome: MissionOutcome;
         let error: string | undefined;
-        if (world.scoredAtS !== null) {
+        const laptopTask = Boolean(input.field.laptop);
+        if (laptopTask && world.closedAtS !== null) {
+            outcome = 'closed';
+        } else if (!laptopTask && world.scoredAtS !== null) {
             outcome = 'goal';
         } else if (world.fallen) {
             outcome = 'fell';
@@ -109,13 +118,16 @@ async function main(input: WorkerInput): Promise<void> {
             outcome = 'error';
             error = describe(thrown);
         } else {
-            outcome = 'no-goal';
+            outcome = laptopTask ? 'still-open' : 'no-goal';
         }
         const start = ballToGoal(input.field.ball, input.field);
-        const score = missionScore({
-            scoredAtS: world.scoredAtS, fell: world.fallen, limitS: world.limitS,
-            ballToGoalStart: start, closestBallToGoal: world.closestBallToGoal,
-        });
+        const openDeg = input.field.laptop ? (input.field.laptop.openDeg ?? LAPTOP.defaultOpenDeg) : 0;
+        const score = laptopTask
+            ? laptopScore({ closedAtS: world.closedAtS, fell: world.fallen, limitS: world.limitS, openDeg, lowestLidDeg: world.lowestLidDeg ?? openDeg })
+            : missionScore({
+                scoredAtS: world.scoredAtS, fell: world.fallen, limitS: world.limitS,
+                ballToGoalStart: start, closestBallToGoal: world.closestBallToGoal,
+            });
         const events = [...world.events].sort((a, b) => a.atS - b.atS);
         const kicks = world.kicks.map(k => ({ ...k }));
         const p = world.pose();
@@ -125,8 +137,15 @@ async function main(input: WorkerInput): Promise<void> {
             result: {
                 outcome, score, scoredAtS: world.scoredAtS, simS: round(world.time, 2), error, logs: [...logs],
                 events: events.map(e => ({ ...e })), kicks,
-                notes: missionNotes({ outcome, error, events, kicks, scoredAtS: world.scoredAtS, simS: world.time, limitS: world.limitS, score }),
-                final: { duck: { x: r3(p.x), y: r3(p.y), heading: round(p.heading, 1) }, ball: { x: r3(b.x), y: r3(b.y) } },
+                notes: missionNotes({
+                    outcome, error, events, kicks, scoredAtS: world.scoredAtS, simS: world.time, limitS: world.limitS, score,
+                    ...(laptopTask ? { laptop: { openDeg, lowestLidDeg: round(world.lowestLidDeg ?? openDeg, 1), closedAtS: world.closedAtS } } : {}),
+                }),
+                final: {
+                    duck: { x: r3(p.x), y: r3(p.y), heading: round(p.heading, 1) }, ball: { x: r3(b.x), y: r3(b.y) },
+                    ...(laptopTask ? { lidDeg: round(world.lidDeg() ?? 0, 1) } : {}),
+                },
+                ...(laptopTask ? { closedAtS: world.closedAtS } : {}),
                 ballToGoalStart: r3(start), closestBallToGoal: r3(world.closestBallToGoal),
                 field: input.field, limitS: world.limitS, path: [...world.path],
                 replay: { frameHz: input.frameHz, qposSize: world.qposSize, frames: [...world.frames] },

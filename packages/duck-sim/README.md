@@ -22,6 +22,8 @@ console.log(result.notes);                 // what happened, and why a kick miss
 
 `MISSION_API` is the reference the agent reads. `examples/score-a-goal.js` scores wherever the duck and ball start on the default pitch.
 
+With `field.laptop` set (`{ x, y, heading }`, a laptop open 100° on the pitch) the task is to close it: `examples/close-the-laptop.js` walks round behind the screen and headbutts the lid shut from any placement (outcome `closed`, score 88–96).
+
 ## The default pitch
 
 | Element | Position |

@@ -40,3 +40,13 @@ export function loadAssets(dir = ASSETS_DIR): Promise<DuckAssets> {
     }
     return load;
 }
+
+/** The package's example missions: next to lib/ when installed, two levels up in the test build. */
+const EXAMPLES_DIR = ['../examples/', '../../examples/']
+    .map(rel => fileURLToPath(new URL(rel, import.meta.url)))
+    .find(dir => existsSync(join(dir, 'close-the-laptop.js'))) ?? fileURLToPath(new URL('../examples/', import.meta.url));
+
+/** An example mission's source, e.g. readExample('close-the-laptop'). */
+export function readExample(name: 'close-the-laptop'): Promise<string> {
+    return readFile(join(EXAMPLES_DIR, `${name}.js`), 'utf8');
+}

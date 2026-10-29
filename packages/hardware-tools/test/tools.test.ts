@@ -222,6 +222,7 @@ test('duck_api describes the mission API and the default pitch', async () => {
         const help = text(await client.callTool({ name: 'duck_api', arguments: {} }));
         assert.match(help, /await duck\.kick\('left' \| 'right'\)/);
         assert.match(help, /"goal":\{"x":0\.95/);
+        assert.match(help, /Closing the laptop[^]*const hinge = [^]*duck\.skill\('walk', 0\.4,/, 'the laptop example is included');
     } finally {
         await close();
     }
