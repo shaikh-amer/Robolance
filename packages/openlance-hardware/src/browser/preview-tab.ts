@@ -38,7 +38,16 @@ export interface PreviewTabContext {
     askAgent?: (prompt: string, options?: AskAgentOptions) => void;
     /** Writes a project file (the arena editor saves diagram.json). */
     writeFile?: (path: string, content: string) => Promise<void> | void;
+    /**
+     * Stores a run as a share link encodes it and returns its id, for a short
+     * link (`<replay page>?s=<id>`). Without it, or when it fails, "Share this
+     * run" copies the long link that carries the run itself.
+     */
+    storeShare?: StoreShare;
 }
+
+/** Stores an encoded run (`kind`: duck, arduino) and returns its id. */
+export type StoreShare = (encoded: string, kind: string) => Promise<string>;
 
 export interface PreviewTab {
     id: string;

@@ -12,7 +12,8 @@
 
 import type { MissionResult } from 'robolance-duck-sim/viewer';
 import type { DuckRun } from './duck-project';
-import { REPLAY_PAGE_URL, SHARE_PARAM, encodeShare, thinPath } from './share-run';
+import type { StoreShare } from './preview-tab';
+import { REPLAY_PAGE_URL, encodeShare, shareLink, thinPath } from './share-run';
 
 /** Frames a link keeps at most; one in two of a 40 s run is 500. */
 export const SHARE_MAX_FRAMES = 600;
@@ -77,8 +78,8 @@ export function trimDuckRunForShare(run: DuckRun): SharedDuckRun {
     };
 }
 
-export async function shareDuckRunUrl(run: DuckRun, base: string = REPLAY_PAGE_URL): Promise<string> {
-    return `${base}#${SHARE_PARAM}=${await encodeShare(trimDuckRunForShare(run))}`;
+export async function shareDuckRunUrl(run: DuckRun, base: string = REPLAY_PAGE_URL, store?: StoreShare): Promise<string> {
+    return shareLink(await encodeShare(trimDuckRunForShare(run)), 'duck', base, store);
 }
 
 export function isSharedDuckRun(value: unknown): value is SharedDuckRun {

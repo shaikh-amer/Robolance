@@ -1,6 +1,6 @@
 # robolance demo site
 
-The replay page: a run shared from OpenLance's Hardware tab ("Share this run" in the Runs view) opens here and replays with the same Circuit, Arena and Runs views as the IDE. The link carries the run itself, deflated into its fragment, so nothing is uploaded and no account is needed. The page also opens a `?run=<url>` to a recorded run file and takes a dropped `.robolance/runs/<time>.json`.
+The replay page: a run shared from OpenLance's Hardware tab ("Share this run" in the Runs view) opens here and replays with the same Circuit, Arena and Runs views as the IDE. Shared from OpenLance, the link is short (`?s=<id>`): the run is stored by OpenLance and read from `api.openlance.ai/api/v1/public/shared-runs/<id>`. Where OpenLance cannot store it, the link carries the run itself, deflated into its fragment (`#r=…`), so nothing is uploaded; both kinds open without an account. The page also opens a `?run=<url>` to a recorded run file and takes a dropped `.robolance/runs/<time>.json`.
 
 ```sh
 npm run build            # from the repository root: builds every package, then this site into demo/site/

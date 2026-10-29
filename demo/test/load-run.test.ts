@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { trimDuckRunForShare } from 'robolance-openlance-hardware/lib/browser/duck-share';
 import { encodeShare, trimRunForShare } from 'robolance-openlance-hardware/lib/browser/share-run';
-import { duckHeadline, headline, loadRecordText, loadShare, runFromRecordText, runFromShare, runSource } from '../src/load-run';
+import { duckHeadline, headline, loadRecordText, loadShare, loadStoredShare, runFromRecordText, runFromShare, runSource } from '../src/load-run';
 
 const record = {
     version: 1,
@@ -25,6 +25,27 @@ test('the URL says where the run comes from', () => {
     assert.deepEqual(runSource({ hash: '', search: '?run=https%3A%2F%2Fx.test%2Frun.json' }), { kind: 'url', url: 'https://x.test/run.json' });
     assert.deepEqual(runSource({ hash: '#r=abc', search: '?run=x' }), { kind: 'share', encoded: 'abc' }, 'the fragment wins');
     assert.deepEqual(runSource({ hash: '', search: '' }), { kind: 'none' });
+    assert.deepEqual(runSource({ hash: '', search: '?s=a8Kx2pQ9zZ' }), { kind: 'stored', id: 'a8Kx2pQ9zZ' }, 'a short link');
+    assert.deepEqual(runSource({ hash: '', search: '?s=../etc' }), { kind: 'none' }, 'an id that is not one');
+});
+
+test('a short link loads the stored run like a long link', async () => {
+    const encoded = await encodeShare(trimRunForShare(runFromRecordText(JSON.stringify(record), '1761566400000-001.json')));
+    const asked: string[] = [];
+    const fake = (async (url: string) => {
+        asked.push(url);
+        if (url.endsWith('/gone000000')) {
+            return new Response('{"error":"no"}', { status: 404 });
+        }
+        return new Response(JSON.stringify({ id: 'a8Kx2pQ9zZ', kind: 'arduino', encoded }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const loaded = await loadStoredShare('a8Kx2pQ9zZ', fake, 'https://api.test/api/v1/public/shared-runs');
+    assert.equal(loaded.kind, 'arduino');
+    assert.equal(loaded.kind === 'arduino' && loaded.run.trace.arena!.score, 97);
+    assert.deepEqual(asked, ['https://api.test/api/v1/public/shared-runs/a8Kx2pQ9zZ']);
+    await assert.rejects(loadStoredShare('gone000000', fake, 'https://api.test/x'), /does not exist/);
+    const offline = (async () => { throw new TypeError('network'); }) as unknown as typeof fetch;
+    await assert.rejects(loadStoredShare('a8Kx2pQ9zZ', offline), /Could not reach OpenLance/);
 });
 
 test('a recorded run file and a shared link both become the run the views replay', async () => {

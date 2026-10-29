@@ -9,6 +9,7 @@
 import * as React from 'react';
 import { describeRun, formatRunTime, type RunEntry } from './hardware-project';
 import { REPLAY_PAGE_URL, shareRunUrl } from './share-run';
+import type { StoreShare } from './preview-tab';
 
 export interface RunsViewProps {
     runs: RunEntry[];
@@ -16,9 +17,11 @@ export interface RunsViewProps {
     onSelect(index: number): void;
     /** The replay page a share link opens; false hides sharing (the replay page itself). */
     shareBase?: string | false;
+    /** Stores a share for a short link (the IDE's server); see PreviewTabContext.storeShare. */
+    storeShare?: StoreShare;
 }
 
-export function RunsView({ runs, selected, onSelect, shareBase = REPLAY_PAGE_URL }: RunsViewProps): React.ReactElement {
+export function RunsView({ runs, selected, onSelect, shareBase = REPLAY_PAGE_URL, storeShare }: RunsViewProps): React.ReactElement {
     const run = runs[selected];
     const scored = runs.filter(r => r.trace.arena);
     return (
@@ -43,7 +46,7 @@ export function RunsView({ runs, selected, onSelect, shareBase = REPLAY_PAGE_URL
             </ol>
             {run && (
                 <div className="robolance-run-detail">
-                    {shareBase && <ShareRun run={run} base={shareBase} />}
+                    {shareBase && <ShareRun run={run} base={shareBase} storeShare={storeShare} />}
                     {run.trace.notes.length > 0 && (
                         <ul className="robolance-run-notes">
                             {run.trace.notes.map((note, i) => <li key={i}>{note}</li>)}
@@ -59,11 +62,12 @@ export function RunsView({ runs, selected, onSelect, shareBase = REPLAY_PAGE_URL
 }
 
 /**
- * "Share this run": the link carries the run itself (deflated into the
- * fragment), so anyone can open the replay without an account.
+ * "Share this run": a short link to the run stored by the IDE's server when
+ * it offers that, else a link that carries the run itself (deflated into the
+ * fragment). Either opens the replay without an account.
  */
-export function ShareRun({ run, base }: { run: RunEntry; base: string }): React.ReactElement {
-    return <ShareLink id={run.path} makeUrl={() => shareRunUrl(run, base)} />;
+export function ShareRun({ run, base, storeShare }: { run: RunEntry; base: string; storeShare?: StoreShare }): React.ReactElement {
+    return <ShareLink id={run.path} makeUrl={() => shareRunUrl(run, base, storeShare)} />;
 }
 
 /** The share button for any run: `makeUrl` builds the link, `id` resets it when the run changes. */
@@ -108,7 +112,7 @@ export function ShareLink({ id, makeUrl }: { id: string; makeUrl(): Promise<stri
 
     return (
         <div className="robolance-share">
-            <button type="button" className="robolance-share-btn" disabled={state.kind === 'working'} title="Copy a link that replays this run; the link carries the run, nothing is uploaded" onClick={() => { void share(); }}>
+            <button type="button" className="robolance-share-btn" disabled={state.kind === 'working'} title="Copy a link that replays this run" onClick={() => { void share(); }}>
                 {state.kind === 'working' ? 'Making link…' : 'Share this run'}
             </button>
             {state.kind === 'copied' && <span className="robolance-share-status" role="status">Link copied.</span>}

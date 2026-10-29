@@ -10,12 +10,16 @@
 
 import type { Diagram, RunTrace, Sample, ScriptedEvent } from 'robolance-hardware-sim';
 import type { RunEntry } from './hardware-project';
+import type { StoreShare } from './preview-tab';
 
 /** Where shared runs open. */
 export const REPLAY_PAGE_URL = 'https://robolance.openlance.ai/replay/';
 
 /** The fragment parameter that carries a run. */
 export const SHARE_PARAM = 'r';
+
+/** The query parameter of a short link: the id of a stored run. */
+export const SHORT_SHARE_PARAM = 's';
 
 /** Poses kept on a shared path; a 20 s run records thousands. */
 export const SHARE_MAX_POSES = 600;
@@ -116,9 +120,33 @@ export async function decodeShare(text: string): Promise<unknown> {
 }
 
 /** The link for a run; `base` is the replay page. */
-export async function shareRunUrl(run: RunEntry, base: string = REPLAY_PAGE_URL): Promise<string> {
-    const encoded = await encodeShare(trimRunForShare(run));
+export async function shareRunUrl(run: RunEntry, base: string = REPLAY_PAGE_URL, store?: StoreShare): Promise<string> {
+    return shareLink(await encodeShare(trimRunForShare(run)), 'arduino', base, store);
+}
+
+/**
+ * The link for an encoded run: short (`?s=<id>`) when the host stores shares,
+ * else the long link that carries the run. A failed store falls back to the
+ * long link, so sharing never fails because the server is unreachable.
+ */
+export async function shareLink(encoded: string, kind: string, base: string = REPLAY_PAGE_URL, store?: StoreShare): Promise<string> {
+    if (store) {
+        try {
+            const id = await store(encoded, kind);
+            if (id && /^[0-9A-Za-z]{6,32}$/.test(id)) {
+                return `${base}?${SHORT_SHARE_PARAM}=${id}`;
+            }
+        } catch {
+            // Offline, signed out, or an older server: the long link still works.
+        }
+    }
     return `${base}#${SHARE_PARAM}=${encoded}`;
+}
+
+/** The stored run a short link names, if any. */
+export function parseShortShare(search: string): string | undefined {
+    const id = new URLSearchParams(search).get(SHORT_SHARE_PARAM)?.trim();
+    return id && /^[0-9A-Za-z]{6,32}$/.test(id) ? id : undefined;
 }
 
 /** The encoded run in a replay URL's fragment, if any. */

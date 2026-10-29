@@ -10,13 +10,17 @@
 import { outcomeLabel, parseDuckRun, type DuckRun } from 'robolance-openlance-hardware/lib/browser/duck-project';
 import { isSharedDuckRun, sharedDuckRunToRun, validateSharedDuckRun } from 'robolance-openlance-hardware/lib/browser/duck-share';
 import { readHardwareProject, type RunEntry } from 'robolance-openlance-hardware/lib/browser/hardware-project';
-import { decodeShare, parseShareHash, sharedRunToEntry, validateSharedRun, type SharedRun } from 'robolance-openlance-hardware/lib/browser/share-run';
+import { decodeShare, parseShareHash, parseShortShare, sharedRunToEntry, validateSharedRun, type SharedRun } from 'robolance-openlance-hardware/lib/browser/share-run';
+
+/** Where a short link's run is read: OpenLance's public shared-runs endpoint. */
+export const SHARED_RUNS_API = 'https://api.openlance.ai/api/v1/public/shared-runs';
 
 /** A run the page can show: an Arduino run (circuit, arena) or a Microduck run (the pitch). */
 export type LoadedRun = { kind: 'arduino'; run: RunEntry } | { kind: 'duck'; run: DuckRun };
 
 export type RunSource =
     | { kind: 'share'; encoded: string }
+    | { kind: 'stored'; id: string }
     | { kind: 'url'; url: string }
     | { kind: 'none' };
 
@@ -26,11 +30,39 @@ export function runSource(location: { hash: string; search: string }): RunSource
     if (encoded) {
         return { kind: 'share', encoded };
     }
+    const id = parseShortShare(location.search);
+    if (id) {
+        return { kind: 'stored', id };
+    }
     const url = new URLSearchParams(location.search).get('run');
     if (url) {
         return { kind: 'url', url };
     }
     return { kind: 'none' };
+}
+
+/**
+ * The run a short link names, read from OpenLance. It is stored exactly as a
+ * long link encodes it, so it loads like one. Throws with a readable message.
+ */
+export async function loadStoredShare(id: string, fetchImpl: typeof fetch = fetch, api: string = SHARED_RUNS_API): Promise<LoadedRun> {
+    let response: Response;
+    try {
+        response = await fetchImpl(`${api}/${encodeURIComponent(id)}`);
+    } catch {
+        throw new Error('Could not reach OpenLance to load this shared run. Check the connection and reload.');
+    }
+    if (response.status === 404) {
+        throw new Error('This shared run does not exist (the link is wrong, or whoever shared it deleted it).');
+    }
+    if (!response.ok) {
+        throw new Error(`Could not load this shared run (${response.status}).`);
+    }
+    const body = await response.json() as { encoded?: unknown };
+    if (typeof body.encoded !== 'string' || !body.encoded) {
+        throw new Error('This shared run is empty.');
+    }
+    return loadShare(body.encoded);
 }
 
 /** Whatever run a share link carries. Throws with a readable message. */

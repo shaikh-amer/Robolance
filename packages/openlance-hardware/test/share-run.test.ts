@@ -83,3 +83,22 @@ test('the fragment parser and the validator reject what is not a run', async () 
     const roundTrip = await decodeShare(await encodeShare({ hello: 'wörld' }));
     assert.deepEqual(roundTrip, { hello: 'wörld' });
 });
+
+test('a host that stores shares gets a short link; anything else gets the long one', async () => {
+    const { shareLink, parseShortShare, REPLAY_PAGE_URL } = await import('../src/browser/share-run');
+    const stored: Array<[string, string]> = [];
+    const store = async (encoded: string, kind: string): Promise<string> => {
+        stored.push([encoded, kind]);
+        return 'a8Kx2pQ9zZ';
+    };
+    assert.equal(await shareLink('ENC', 'duck', REPLAY_PAGE_URL, store), `${REPLAY_PAGE_URL}?s=a8Kx2pQ9zZ`);
+    assert.deepEqual(stored, [['ENC', 'duck']]);
+    assert.equal(await shareLink('ENC', 'duck', REPLAY_PAGE_URL), `${REPLAY_PAGE_URL}#r=ENC`, 'no store: long link');
+    const failing = async (): Promise<string> => { throw new Error('offline'); };
+    assert.equal(await shareLink('ENC', 'duck', REPLAY_PAGE_URL, failing), `${REPLAY_PAGE_URL}#r=ENC`, 'a failed store falls back');
+    const odd = async (): Promise<string> => '../../evil';
+    assert.equal(await shareLink('ENC', 'duck', REPLAY_PAGE_URL, odd), `${REPLAY_PAGE_URL}#r=ENC`, 'an id that is not one is not used');
+    assert.equal(parseShortShare('?s=a8Kx2pQ9zZ'), 'a8Kx2pQ9zZ');
+    assert.equal(parseShortShare('?s=a%2F..'), undefined);
+    assert.equal(parseShortShare(''), undefined);
+});
