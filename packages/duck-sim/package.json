@@ -1,6 +1,6 @@
 {
   "name": "robolance-duck-sim",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Microduck in a physics simulator: the official trained skills on MuJoCo, a ball-into-goal field and a mission API an agent programs.",
   "license": "Apache-2.0",
   "type": "module",
