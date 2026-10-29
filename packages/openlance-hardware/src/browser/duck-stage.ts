@@ -36,6 +36,9 @@ const PALETTES: Record<'light' | 'dark', Palette> = {
     },
 };
 
+/** The standing duck's head height, metres: the top of what the camera must keep in view at the start. */
+const DUCK_HEIGHT = 0.26;
+
 /** A broadcast-style side view: the duck starts on the left, the goal is on the right. */
 export const DEFAULT_VIEW: StageView = { azimuth: 72, elevation: 30, distance: 1.9 };
 
@@ -84,6 +87,7 @@ export class DuckStage extends StageBase {
         if (!same) {
             this.buildPitch(field);
             this.home();
+            this.frameView();
         }
         this.invalidate();
     }
@@ -105,9 +109,28 @@ export class DuckStage extends StageBase {
     }
 
     protected home(): void {
-        if (this.field) {
-            this.target.set((this.field.duck.x + this.field.goal.x) / 2, (this.field.duck.y + this.field.goal.y) / 2, 0.05);
+        const points = this.framePoints();
+        if (points.length > 0) {
+            const box = new THREE.Box3().setFromPoints(points);
+            this.target.set((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, 0.05);
         }
+    }
+
+    /** The duck where it starts (standing height), the ball and the whole goal with its net. */
+    protected framePoints(): THREE.Vector3[] {
+        const f = this.field;
+        if (!f) {
+            return [];
+        }
+        const y1 = f.goal.y - f.goal.width / 2;
+        const y2 = f.goal.y + f.goal.width / 2;
+        const back = f.goal.x + NET_DEPTH;
+        return [
+            new THREE.Vector3(f.duck.x, f.duck.y, 0),
+            new THREE.Vector3(f.duck.x, f.duck.y, DUCK_HEIGHT),
+            new THREE.Vector3(f.ball.x, f.ball.y, 0),
+            ...[f.goal.x, back].flatMap(x => [y1, y2].flatMap(y => [new THREE.Vector3(x, y, 0), new THREE.Vector3(x, y, GOAL_HEIGHT)])),
+        ];
     }
 
     private clearPitch(): void {
