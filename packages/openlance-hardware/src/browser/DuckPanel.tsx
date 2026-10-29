@@ -16,7 +16,7 @@ import { advanceReplay } from './replay';
 import { shareDuckRunUrl } from './duck-share';
 import { Score, ScoreCurve, ShareLink } from './RunsView';
 import { REPLAY_PAGE_URL } from './share-run';
-import type { PreviewTabContext } from './preview-tab';
+import type { PreviewTabContext, StoreShare } from './preview-tab';
 
 export type DuckView = 'pitch' | 'runs';
 
@@ -148,7 +148,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
                         <DuckReadout result={r} timeMs={timeMs} />
                     </div>
                 )}
-                {view === 'runs' && <DuckRunsView runs={runs} selected={selected} onSelect={i => { select(i); }} onWatch={i => { select(i); setView('pitch'); setPlaying(true); }} shareBase={shareBase} />}
+                {view === 'runs' && <DuckRunsView runs={runs} selected={selected} onSelect={i => { select(i); }} onWatch={i => { select(i); setView('pitch'); setPlaying(true); }} shareBase={shareBase} storeShare={context.storeShare} />}
             </div>
 
             <div className="robolance-footer">
@@ -197,9 +197,11 @@ interface DuckRunsViewProps {
     onSelect(index: number): void;
     onWatch(index: number): void;
     shareBase?: string | false;
+    /** Stores a share for a short link; see PreviewTabContext.storeShare. */
+    storeShare?: StoreShare;
 }
 
-export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = REPLAY_PAGE_URL }: DuckRunsViewProps): React.ReactElement {
+export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = REPLAY_PAGE_URL, storeShare }: DuckRunsViewProps): React.ReactElement {
     const run = runs[selected];
     return (
         <div className="robolance-runs">
@@ -230,7 +232,7 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
             {run && (
                 <div className="robolance-run-detail">
                     <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
-                    {shareBase && <ShareLink id={run.path} makeUrl={() => shareDuckRunUrl(run, shareBase)} />}
+                    {shareBase && <ShareLink id={run.path} makeUrl={() => shareDuckRunUrl(run, shareBase, storeShare)} />}
                     {describeDuckSkills(run) && <p className="robolance-duck-skills">Trained policies from the project: {describeDuckSkills(run)}</p>}
                     {run.result.error && <pre className="robolance-error">{run.result.error}</pre>}
                     {run.result.notes.length > 0 && (

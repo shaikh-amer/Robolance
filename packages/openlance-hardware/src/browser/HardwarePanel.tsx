@@ -244,7 +244,7 @@ export function HardwarePanelBody({ project, context, shareBase }: HardwarePanel
                 )}
                 {view === 'runs' && (
                     project.runs.length > 0
-                        ? <RunsView runs={project.runs} selected={selectedRun} onSelect={i => { setSelectedRun(i); setTimeMs(project.runs[i].trace.ranMs); setPlaying(false); }} shareBase={shareBase} />
+                        ? <RunsView runs={project.runs} selected={selectedRun} onSelect={i => { setSelectedRun(i); setTimeMs(project.runs[i].trace.ranMs); setPlaying(false); }} shareBase={shareBase} storeShare={context.storeShare} />
                         : <div className="robolance-empty"><p>No runs yet. When the agent runs the sketch, each run shows up here with its serial output, notes and score.</p></div>
                 )}
             </div>

@@ -14,7 +14,7 @@ import { createRoot } from 'react-dom/client';
 import { DuckPanelBody } from 'robolance-openlance-hardware/lib/browser/DuckPanel';
 import { HardwarePanelBody } from 'robolance-openlance-hardware/lib/browser/HardwarePanel';
 import type { HardwareProject } from 'robolance-openlance-hardware/lib/browser/hardware-project';
-import { duckHeadline, headline, loadRecordText, loadShare, runSource, type LoadedRun } from './load-run';
+import { duckHeadline, headline, loadRecordText, loadShare, loadStoredShare, runSource, type LoadedRun } from './load-run';
 
 const REPO = 'https://github.com/shaikh-amer/robolance';
 
@@ -37,6 +37,8 @@ function App(): React.ReactElement {
         try {
             if (source.kind === 'share') {
                 setState({ kind: 'run', loaded: await loadShare(source.encoded), source: 'shared link' });
+            } else if (source.kind === 'stored') {
+                setState({ kind: 'run', loaded: await loadStoredShare(source.id), source: 'shared link' });
             } else if (source.kind === 'url') {
                 const response = await fetch(source.url);
                 if (!response.ok) {
