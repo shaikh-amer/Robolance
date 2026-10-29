@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { buildSketch, createHardwareServer, summarize, withPrototypes, type BuildResult } from '../src/index.js';
+import { buildSketch, createHardwareServer, obstaclesFromSegments, summarize, withPrototypes, type BuildResult } from '../src/index.js';
 import { Recorder } from '../src/mcp.js';
+import { DEFAULT_FIELD } from 'robolance-duck-sim';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'hardware-sim', 'fixtures');
 const benchHex = readFileSync(join(fixtures, 'bench.hex'), 'utf8');
@@ -65,7 +66,7 @@ test('the MCP server lists the hardware tools', async () => {
     const { client, close } = await connect();
     try {
         const { tools } = await client.listTools();
-        assert.deepEqual(tools.map(t => t.name).sort(), ['duck_api', 'duck_run', 'hardware_arena', 'hardware_compile', 'hardware_parts', 'hardware_run', 'scene_api', 'scene_check', 'scene_run']);
+        assert.deepEqual(tools.map(t => t.name).sort(), ['duck_api', 'duck_obstacles_from_photo', 'duck_run', 'hardware_arena', 'hardware_compile', 'hardware_parts', 'hardware_run', 'scene_api', 'scene_check', 'scene_run']);
         const parts = await client.callTool({ name: 'hardware_parts', arguments: {} });
         assert.match(text(parts), /INPUT_PULLUP/);
         const arena = await client.callTool({ name: 'hardware_arena', arguments: {} });
@@ -374,6 +375,56 @@ test('scene_check and scene_run simulate any MJCF in the project and record it f
             assert.match(text(outside), /not inside the project/);
             const broken = await client.callTool({ name: 'scene_run', arguments: { scene: 'robot/scene.xml', controller: 'function control(sim) { sim.ctrl("wrist", 1); }', seconds: 1 } });
             assert.match(text(broken), /no actuator named \\"wrist\\"/);
+        } finally {
+            await client.close();
+            await server.close();
+        }
+    } finally {
+        await rm(project, { recursive: true, force: true });
+    }
+});
+
+test('obstacles from a photo: SAM boxes mapped onto the floor the photo shows', () => {
+    // A 400x200 photo of the floor x 0..2 m (far edge at the top), y -1..1 m (left edge = y 1).
+    const seg = {
+        prompt: 'cardboard box', width: 400, height: 200, objects: [
+            { id: '0', box: { x1: 0, y1: 0, x2: 99, y2: 49 }, confidence: 0.9 },
+            { id: '1', box: { x1: 300, y1: 150, x2: 399, y2: 199 }, confidence: 0.2 },
+            { id: '2', box: { x1: 200, y1: 100, x2: 201, y2: 101 }, confidence: 0.95 },
+        ],
+    };
+    const r = obstaclesFromSegments(seg, { xMin: 0, xMax: 2, yMin: -1, yMax: 1 });
+    assert.deepEqual(r.obstacles, [{ name: 'cardboard box 1', x: 1.75, y: 0.75, width: 0.5, depth: 0.5, height: 0.25 }]);
+    assert.match(r.skipped.join('\n'), /confidence 0.20/);
+    assert.match(r.skipped.join('\n'), /too small/);
+    assert.throws(() => obstaclesFromSegments(seg, { xMin: 1, xMax: 0, yMin: 0, yMax: 1 }), /floor area/);
+    assert.throws(() => obstaclesFromSegments({ width: 0, height: 0, objects: [] }, { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }), /segmentImage/);
+});
+
+test('duck_obstacles_from_photo reads the saved segments and the obstacles run in duck_run', async () => {
+    const { mkdtemp, mkdir, rm, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const project = await mkdtemp(join(tmpdir(), 'robolance-photo-'));
+    try {
+        await mkdir(join(project, 'segments'), { recursive: true });
+        await writeFile(join(project, 'segments/room-box.json'), JSON.stringify({
+            prompt: 'box', width: 100, height: 100, objects: [{ id: '0', box: { x1: 40, y1: 60, x2: 59, y2: 69 }, confidence: 0.8 }],
+        }));
+        const server = createHardwareServer({ compile: fakeCompile, recordDir: '', projectDir: project });
+        const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+        await server.connect(serverSide);
+        const client = new Client({ name: 'test', version: '0.0.0' });
+        await client.connect(clientSide);
+        try {
+            const area = { xMin: -0.4, xMax: 1.3, yMin: -0.7, yMax: 0.7 };
+            const res = JSON.parse(text(await client.callTool({ name: 'duck_obstacles_from_photo', arguments: { segments: 'segments/room-box.json', area } })));
+            assert.equal(res.obstacles.length, 1);
+            assert.equal(res.obstacles[0].name, 'box 1');
+            const field = { ...DEFAULT_FIELD, obstacles: res.obstacles };
+            const run = JSON.parse(text(await client.callTool({ name: 'duck_run', arguments: { mission: 'log(field.obstacles.length);', field, limitS: 2 } })));
+            assert.deepEqual(run.logs, ['1']);
+            const outside = await client.callTool({ name: 'duck_obstacles_from_photo', arguments: { segments: '../x.json', area } });
+            assert.equal(outside.isError, true);
         } finally {
             await client.close();
             await server.close();

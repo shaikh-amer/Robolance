@@ -20,8 +20,11 @@ import type { DuckEvent, KickRecord, Pose } from './world.js';
 /** What the mission program can call; shown to the agent as the API. */
 export const MISSION_API = `Your mission is the body of an async function. In scope:
 
-field                 the pitch: { duck: {x, y, heading}, ball: {x, y}, goal: {x, y, width}, bounds }
+field                 the pitch: { duck: {x, y, heading}, ball: {x, y}, goal: {x, y, width}, bounds, obstacles }
                       metres; x points at the goal line, y to the left; headings in degrees, counter-clockwise from +x
+field.obstacles       boxes on the pitch, if any: [{ name, x, y, width, depth, height, heading }]: x, y is the centre,
+                      width runs along heading. walkTo goes in a straight line: route around them with waypoints, keeping
+                      the duck's centre ~10 cm from a box (its body reaches ~7 cm). A ball hits them like a wall
 log(...values)        writes a line to the run's log
 
 duck.pose()           -> { x, y, heading }
@@ -241,6 +244,8 @@ export function missionNotes(r: NotesInput): string[] {
     for (const e of r.events) {
         if (e.kind === 'out' || e.kind === 'fell') {
             notes.push(`${e.atS} s: ${e.detail}.`);
+        } else if (e.kind === 'obstacle') {
+            notes.push(`${e.atS} s: ${e.detail}. walkTo goes straight: add a waypoint that keeps ~10 cm from it.`);
         }
     }
     if (r.outcome !== 'goal' && r.kicks.length === 0 && r.outcome !== 'error') {

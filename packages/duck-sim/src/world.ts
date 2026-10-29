@@ -11,7 +11,7 @@ import loadMujoco from '@mujoco/mujoco';
 import type { MainModule, MjData, MjModel } from '@mujoco/mujoco';
 import * as ort from 'onnxruntime-web';
 import { CONTROL_DT, HOME, JOINTS, observation, targets } from './controller.js';
-import { BALL_RADIUS, DEFAULT_FIELD, sceneXml, type FieldSpec } from './field.js';
+import { BALL_RADIUS, DEFAULT_FIELD, DUCK_RADIUS, distanceToObstacle, obstacleName, sceneXml, type FieldSpec } from './field.js';
 import { extractViewerModel } from 'robolance-mujoco';
 import type { MeshSimplifier, Quat, Vec3, ViewerModel } from 'robolance-mujoco/viewer';
 
@@ -81,7 +81,7 @@ export interface DuckAssets {
 
 export interface DuckEvent {
     atS: number;
-    kind: 'kick' | 'bump' | 'fell' | 'goal' | 'out';
+    kind: 'kick' | 'bump' | 'fell' | 'goal' | 'out' | 'obstacle';
     detail: string;
 }
 
@@ -192,6 +192,8 @@ export class DuckWorld {
     private ballPrevX: number;
     /** Where the ball was when the walking duck started pushing it. */
     private bumpFrom: { x: number; y: number; atS: number } | null = null;
+    /** Obstacles the duck is touching now (by index), so each contact is reported once. */
+    private readonly touching = new Set<number>();
     /** The last kick, followed while its ball rolls. */
     private rolling: { record: KickRecord; event: DuckEvent; from: { x: number; y: number }; slowS: number } | null = null;
 
@@ -465,6 +467,7 @@ export class DuckWorld {
         this.steps++;
         this.watchBall();
         this.watchBump(skill);
+        this.watchObstacles();
         this.followKick();
         this.record(false);
         if (this.fallen) {
@@ -492,6 +495,27 @@ export class DuckWorld {
         }
         this.ballPrevX = b.x;
         this.closestBallToGoal = Math.min(this.closestBallToGoal, this.ballToGoal());
+    }
+
+    /** Notices the duck walking into an obstacle (once per contact). */
+    private watchObstacles(): void {
+        const list = this.field.obstacles ?? [];
+        if (list.length === 0) {
+            return;
+        }
+        const p = this.pose();
+        list.forEach((o, i) => {
+            const touching = distanceToObstacle(o, p.x, p.y) < DUCK_RADIUS;
+            if (touching && !this.touching.has(i)) {
+                this.touching.add(i);
+                this.events.push({
+                    atS: round(this.time, 2), kind: 'obstacle',
+                    detail: `the duck walked into ${obstacleName(o, i)} at (${round(p.x, 2)}, ${round(p.y, 2)})`,
+                });
+            } else if (!touching && distanceToObstacle(o, p.x, p.y) > DUCK_RADIUS + 0.03) {
+                this.touching.delete(i);
+            }
+        });
     }
 
     /** Notices the walking duck shoving the ball along with its feet or body. */

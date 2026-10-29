@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     DEFAULT_FIELD, DuckFell, DuckWorld, HOME, RunOver, missionNotes, missionScore, observation, runMission, sceneXml, targets,
-    validateField, bodyPoses, decodeMesh, type FieldSpec, type ViewerModel,
+    validateField, bodyPoses, decodeMesh, distanceToObstacle, type FieldSpec, type ViewerModel,
 } from '../src/index.js';
 import { loadAssets } from '../src/node-assets.js';
 import { meshoptSimplifier } from 'robolance-mujoco';
@@ -275,4 +275,29 @@ test('viewer/duck-model.js is current (regenerate with npm run export-viewer)', 
     } finally {
         world.dispose();
     }
+});
+
+test('obstacles: validation and the scene', () => {
+    const box = { name: 'box', x: 0.3, y: -0.3, width: 0.2, depth: 0.15, height: 0.2, heading: 30 };
+    assert.equal(validateField({ ...DEFAULT_FIELD, obstacles: [box] }), undefined);
+    assert.match(validateField({ ...DEFAULT_FIELD, obstacles: [{ ...box, x: 0.05, y: 0 }] }) ?? '', /duck's start/);
+    assert.match(validateField({ ...DEFAULT_FIELD, obstacles: [{ ...box, x: 0.5, y: 0.2 }] }) ?? '', /covers the ball/);
+    assert.match(validateField({ ...DEFAULT_FIELD, obstacles: [{ ...box, height: 5 }] }) ?? '', /height/);
+    assert.match(validateField({ ...DEFAULT_FIELD, obstacles: [{ ...box, x: 9 }] }) ?? '', /inside the bounds/);
+    assert.match(validateField({ ...DEFAULT_FIELD, obstacles: Array.from({ length: 30 }, (_, i) => ({ ...box, y: -0.6 + i * 0.001 })) }) ?? '', /at most/);
+    const xml = sceneXml({ ...DEFAULT_FIELD, obstacles: [box] });
+    assert.match(xml, /<geom name="obstacle_0" type="box" size="0.1 0.075 0.1" pos="0.3 -0.3 0.1" quat="0.9659 0 0 0.2588"/);
+    assert.equal(distanceToObstacle(box, 0.3, -0.3), 0);
+    assert.ok(Math.abs(distanceToObstacle({ ...box, heading: 0 }, 0.6, -0.3) - 0.2) < 1e-9);
+});
+
+test('walking into an obstacle is noted; going round it is not', async () => {
+    const field: FieldSpec = { ...DEFAULT_FIELD, obstacles: [{ name: 'the cardboard box', x: 0.3, y: 0, width: 0.12, depth: 0.3, height: 0.25 }] };
+    const straight = await runMission('await duck.walkTo(0.6, 0);', { field, limitS: 12 });
+    const hit = straight.events.find(e => e.kind === 'obstacle');
+    assert.ok(hit, JSON.stringify(straight.events));
+    assert.match(straight.notes.join('\n'), /walked into the cardboard box.*add a waypoint/);
+    const around = await runMission('await duck.walkTo(0.1, 0.3); await duck.walkTo(0.55, 0.3);', { field, limitS: 20 });
+    assert.equal(around.events.filter(e => e.kind === 'obstacle').length, 0, around.notes.join('\n'));
+    assert.deepEqual(around.field.obstacles, field.obstacles);
 });
