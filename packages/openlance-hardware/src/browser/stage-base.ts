@@ -10,6 +10,7 @@
  */
 
 import * as THREE from 'three';
+import { distanceToFit, orbitPosition } from './frame-fit';
 import { skyCanvas } from './stage-textures';
 import { studioEnvironment } from './studio-environment';
 
@@ -46,6 +47,10 @@ export abstract class StageBase {
     protected readonly followAt = new THREE.Vector3();
     protected follow = false;
     protected readonly disposers: Array<() => void> = [];
+    /** The default view's distance after fitting `framePoints()` to the canvas (0 until fitted). */
+    private fittedDistance = 0;
+    /** Set once the user zooms: from then on a resize leaves the distance alone. */
+    private userZoomed = false;
     private sky?: THREE.Texture;
     private frameRequested = 0;
     private readonly resize: ResizeObserver;
@@ -97,7 +102,9 @@ export abstract class StageBase {
 
     resetView(): void {
         this.view = { ...this.defaultView };
+        this.userZoomed = false;
         this.home();
+        this.frameView();
         this.invalidate();
     }
 
@@ -111,6 +118,27 @@ export abstract class StageBase {
 
     /** Puts `target` back where the stage starts looking. */
     protected abstract home(): void;
+
+    /**
+     * What the default view must keep in frame (the robot's start, the ball,
+     * the goal...). The camera distance is fitted to these for the canvas's
+     * shape, so a tall phone panel shows the same things as a wide one.
+     */
+    protected framePoints(): THREE.Vector3[] {
+        return [];
+    }
+
+    /**
+     * Fits the default distance to `framePoints()` for the current canvas,
+     * unless the user has zoomed. Stages call it after `home()`.
+     */
+    protected frameView(): void {
+        const points = this.framePoints();
+        this.fittedDistance = points.length > 0 ? distanceToFit(points, this.target, this.view, this.camera.fov, this.camera.aspect) : 0;
+        if (!this.userZoomed && this.fittedDistance > 0) {
+            this.view.distance = this.fittedDistance;
+        }
+    }
 
     protected setSky(palette: SkyPalette, fogNear = 4, fogFar = 14): void {
         this.sky?.dispose();
@@ -147,14 +175,7 @@ export abstract class StageBase {
 
     private render(): void {
         const target = this.follow ? this.followAt : this.target;
-        const az = (this.view.azimuth * Math.PI) / 180;
-        const el = (this.view.elevation * Math.PI) / 180;
-        const d = this.view.distance;
-        this.camera.position.set(
-            target.x - d * Math.cos(el) * Math.cos(az),
-            target.y - d * Math.cos(el) * Math.sin(az),
-            target.z + d * Math.sin(el),
-        );
+        orbitPosition(target, this.view, this.view.distance, this.camera.position);
         this.camera.lookAt(target);
         this.renderer.render(this.scene, this.camera);
     }
@@ -165,6 +186,7 @@ export abstract class StageBase {
         this.renderer.setSize(w, h, false);
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
+        this.frameView();
         this.invalidate();
     }
 
@@ -223,7 +245,9 @@ export abstract class StageBase {
     }
 
     private zoom(factor: number): void {
-        this.view.distance = clamp(this.view.distance * factor, this.defaultView.distance / 8, this.defaultView.distance * 3);
+        const base = this.fittedDistance || this.defaultView.distance;
+        this.userZoomed = true;
+        this.view.distance = clamp(this.view.distance * factor, base / 8, base * 3);
         this.invalidate();
     }
 }
