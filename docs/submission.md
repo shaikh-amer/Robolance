@@ -4,7 +4,7 @@ Deadline: November 4, 2026, 9:00 PM ET. Track: Startup. Judged on Impact (30), M
 
 ## One-liner
 
-Tell your robot what to do in plain words; a Meta-powered agent codes it, runs it in a simulator, watches what happened and fixes it until it works.
+Tell what your robot should do in plain words; a Meta-powered agent codes it, runs it in a simulator, watches what happened and fixes it until it works.
 
 ## Two sentences
 

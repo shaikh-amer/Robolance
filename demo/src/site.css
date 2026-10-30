@@ -1,0 +1,210 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/*
+ * The site's look, shared by the home page, the runs gallery and the replay
+ * page: matte, flat surfaces, black and white with one soft green for a run
+ * that worked. The --openlance-* tokens feed the Hardware panel the replay
+ * page embeds, so it matches the page around it.
+ */
+
+:root {
+    color-scheme: dark;
+    --ol-bg: #0c0c0c;
+    --ol-surface: #131313;
+    --ol-surface-2: #1b1b1b;
+    --ol-border: rgba(255, 255, 255, 0.08);
+    --ol-border-strong: rgba(255, 255, 255, 0.18);
+    --ol-fg: #ececec;
+    --ol-muted: #8d8d8d;
+    --ol-primary: #f2f2f2;
+    --ol-primary-fg: #0c0c0c;
+    --ol-good: #86c08f;
+    --ol-danger: #e5776f;
+
+    --openlance-bg: var(--ol-bg);
+    --openlance-fg: var(--ol-fg);
+    --openlance-muted: var(--ol-muted);
+    --openlance-border: var(--ol-border);
+    --openlance-accent: var(--ol-fg);
+    --openlance-accent-fg: var(--ol-bg);
+    --openlance-layer-1: var(--ol-surface);
+    --openlance-layer-2: var(--ol-surface-2);
+    --openlance-wash-6: rgba(255, 255, 255, 0.06);
+    --openlance-wash-10: rgba(255, 255, 255, 0.1);
+    --openlance-wash-accent: rgba(255, 255, 255, 0.08);
+    --openlance-success: var(--ol-good);
+    --openlance-success-text: var(--ol-good);
+    --openlance-danger: var(--ol-danger);
+    --openlance-code-bg: var(--ol-surface-2);
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        color-scheme: light;
+        --ol-bg: #f2f2f0;
+        --ol-surface: #fafaf8;
+        --ol-surface-2: #e9e9e6;
+        --ol-border: rgba(0, 0, 0, 0.08);
+        --ol-border-strong: rgba(0, 0, 0, 0.2);
+        --ol-fg: #151515;
+        --ol-muted: #6b6b6b;
+        --ol-primary: #151515;
+        --ol-primary-fg: #fafaf8;
+        --ol-good: #2f7a3e;
+        --ol-danger: #b4372f;
+
+        --openlance-wash-6: rgba(0, 0, 0, 0.05);
+        --openlance-wash-10: rgba(0, 0, 0, 0.08);
+        --openlance-wash-accent: rgba(0, 0, 0, 0.06);
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    accent-color: var(--ol-fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ol-fg);
+    background: var(--ol-bg);
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: inherit;
+    text-decoration-color: var(--ol-border-strong);
+    text-underline-offset: 3px;
+}
+
+a:hover {
+    text-decoration-color: currentColor;
+}
+
+/* The header: OpenLance mark, ROBOLANCE, where it comes from. */
+
+.ol-site-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--ol-border);
+}
+
+.ol-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex-wrap: wrap;
+    row-gap: 2px;
+}
+
+.ol-brand-home {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.16em;
+}
+
+.ol-mark {
+    display: block;
+    width: 26px;
+    height: auto;
+    flex-shrink: 0;
+}
+
+.ol-mark-plate {
+    fill: var(--ol-fg);
+}
+
+.ol-mark-cut {
+    fill: var(--ol-bg);
+}
+
+.ol-brand-from {
+    font-size: 12px;
+    color: var(--ol-muted);
+    white-space: nowrap;
+}
+
+.ol-brand-from a {
+    color: var(--ol-fg);
+    text-decoration: none;
+}
+
+.ol-brand-from a:hover {
+    text-decoration: underline;
+}
+
+.ol-site-nav {
+    display: flex;
+    gap: 16px;
+    margin-left: auto;
+    font-size: 13px;
+}
+
+.ol-site-nav a {
+    color: var(--ol-muted);
+    text-decoration: none;
+}
+
+.ol-site-nav a:hover,
+.ol-site-nav a[aria-current="page"] {
+    color: var(--ol-fg);
+}
+
+/* Buttons: a white (black on light) pill, and an outlined one beside it. */
+
+.ol-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 11px 18px;
+    border-radius: 999px;
+    border: 1px solid var(--ol-border-strong);
+    background: transparent;
+    color: var(--ol-fg);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.ol-btn:hover {
+    background: var(--openlance-wash-6);
+}
+
+.ol-btn-primary {
+    background: var(--ol-primary);
+    border-color: var(--ol-primary);
+    color: var(--ol-primary-fg);
+}
+
+.ol-btn-primary:hover {
+    background: var(--ol-primary);
+    opacity: 0.88;
+}
+
+:focus-visible {
+    outline: 2px solid var(--ol-fg);
+    outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+    .ol-site-header {
+        padding: 8px 16px;
+    }
+
+    .ol-site-nav {
+        gap: 12px;
+    }
+}
