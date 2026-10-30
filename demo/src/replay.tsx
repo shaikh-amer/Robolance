@@ -8,7 +8,9 @@
  */
 
 import 'robolance-openlance-hardware/src/browser/style/hardware.css';
+import './site.css';
 import './replay.css';
+import { SiteHeader } from './brand';
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { DuckPanelBody } from 'robolance-openlance-hardware/lib/browser/DuckPanel';
@@ -16,7 +18,6 @@ import { HardwarePanelBody } from 'robolance-openlance-hardware/lib/browser/Hard
 import type { HardwareProject } from 'robolance-openlance-hardware/lib/browser/hardware-project';
 import { duckHeadline, headline, loadRecordText, loadShare, loadStoredShare, runSource, type LoadedRun } from './load-run';
 
-const REPO = 'https://github.com/shaikh-amer/robolance';
 
 type State =
     | { kind: 'loading' }
@@ -88,9 +89,9 @@ function App(): React.ReactElement {
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
         >
-            <header className="replay-header">
-                <a className="replay-brand" href={REPO} target="_blank" rel="noreferrer">robolance</a>
-                <span className="replay-title">run replay</span>
+            <SiteHeader home="../" current="replay" />
+            <div className="replay-header">
+                <span className="replay-title">Run replay</span>
                 {loaded && (
                     <span className="replay-headline">
                         {loaded.kind === 'duck' ? duckHeadline(loaded.run) : headline(loaded.run)}
@@ -102,14 +103,14 @@ function App(): React.ReactElement {
                     Open a run file
                     <input type="file" accept="application/json,.json" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { void openFile(f); } }} />
                 </label>
-            </header>
+            </div>
             {state.kind === 'loading' && <p className="replay-note">Loading the run…</p>}
             {state.kind === 'error' && <p className="replay-note replay-error">{state.message}</p>}
             {(state.kind === 'empty' || state.kind === 'error') && (
                 <div className="replay-empty">
                     <p>Open a run shared from OpenLance's Hardware tab (an Arduino robot or the Microduck), or drop a <code>.robolance/runs/&lt;time&gt;.json</code> file here.</p>
                     <p>A share link carries the whole run in its fragment: nothing is uploaded, and it works without an account.</p>
-                    <p><a href="../runs/">See runs people made</a> · <a href={REPO} target="_blank" rel="noreferrer">What is robolance?</a></p>
+                    <p><a href="../runs/">See runs people made</a> · <a href="../">What is robolance?</a></p>
                 </div>
             )}
             {project && (

@@ -3,18 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>robolance</title>
+<title>robolance · a new feature in OpenLance.ai</title>
+<meta name="description" content="Tell what your robot should do in plain words; a Meta-powered agent codes, runs, watches and fixes it until it works.">
+<link rel="stylesheet" href="site.css">
 <style>
-  body { font: 15px/1.5 system-ui, sans-serif; max-width: 640px; margin: 48px auto; padding: 0 16px; color: #1f2328; background: #fafafa; }
-  @media (prefers-color-scheme: dark) { body { color: #e6e6e6; background: #0f1115; } a { color: #a5b4fc; } }
-  a { color: #4f46e5; }
+  .home { max-width: 720px; margin: 0 auto; padding: 72px 20px 64px; }
+  .home h1 { margin: 0 0 14px; font-size: clamp(30px, 6vw, 44px); line-height: 1.12; letter-spacing: -0.02em; font-weight: 700; }
+  .home-lead { margin: 0 0 28px; font-size: 17px; color: var(--ol-muted); max-width: 600px; }
+  .home-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 48px; }
+  .home-card { padding: 18px 20px; border: 1px solid var(--ol-border); border-radius: 14px; background: var(--ol-surface); }
+  .home-card + .home-card { margin-top: 10px; }
+  .home-card h2 { margin: 0 0 4px; font-size: 15px; }
+  .home-card p { margin: 0; font-size: 14px; color: var(--ol-muted); }
+  .home-foot { margin-top: 40px; font-size: 13px; color: var(--ol-muted); }
+  @media (max-width: 520px) { .home { padding: 40px 16px 48px; } .home-actions .ol-btn { flex: 1 1 auto; } }
 </style>
 </head>
 <body>
-<h1>robolance</h1>
-<p><strong>Tell your robot what to do in plain words; a Meta-powered agent codes, runs, watches and fixes it until it works.</strong></p>
-<p>An <a href="https://openlance.ai">OpenLance</a> feature built for the Meta Global AI Developer Hackathon. Source and README: <a href="https://github.com/shaikh-amer/robolance">github.com/shaikh-amer/robolance</a>.</p>
-<p><strong><a href="runs/">Runs people made</a></strong>: robots an AI agent programmed, ran in a physics simulator and fixed until they worked. Open one to replay it in 3D.</p>
-<p><a href="replay/">Run replay</a>: open a run shared from the IDE's Hardware tab, or drop a recorded run file on the page.</p>
+<header class="ol-site-header">
+  <div class="ol-brand">
+    <a class="ol-brand-home" href="./" aria-label="robolance home"><!--OPENLANCE_MARK-->ROBOLANCE</a>
+    <span class="ol-brand-from">a new feature in <a href="https://openlance.ai">OpenLance.ai</a></span>
+  </div>
+  <nav class="ol-site-nav" aria-label="Site">
+    <a href="runs/">Runs</a>
+    <a href="replay/">Replay</a>
+    <a href="https://github.com/shaikh-amer/robolance">GitHub</a>
+  </nav>
+</header>
+<main class="home">
+  <h1>Tell what your robot should do in plain words.</h1>
+  <p class="home-lead">A Meta-powered agent codes it, runs it in a physics simulator, watches what happened and fixes it until it works.</p>
+  <div class="home-actions">
+    <a class="ol-btn ol-btn-primary" href="runs/">See runs people made</a>
+    <a class="ol-btn" href="https://openlance.ai">Try it in OpenLance</a>
+  </div>
+  <section class="home-card">
+    <h2><a href="runs/">Runs people made</a></h2>
+    <p>Robots an AI agent programmed, ran in a simulator and fixed until they worked. Open one to replay it in 3D.</p>
+  </section>
+  <section class="home-card">
+    <h2><a href="replay/">Run replay</a></h2>
+    <p>Open a run shared from the IDE's Hardware tab, or drop a recorded run file on the page.</p>
+  </section>
+  <p class="home-foot">Built for the Meta Global AI Developer Hackathon. Source and README on <a href="https://github.com/shaikh-amer/robolance">GitHub</a>.</p>
+</main>
 </body>
 </html>

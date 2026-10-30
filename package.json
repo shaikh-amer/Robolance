@@ -2,7 +2,7 @@
   "name": "robolance",
   "private": true,
   "version": "0.1.0",
-  "description": "Tell your robot what to do in plain words; a Meta-powered agent codes, runs, watches and fixes it until it works.",
+  "description": "Tell what your robot should do in plain words; a Meta-powered agent codes, runs, watches and fixes it until it works.",
   "license": "Apache-2.0",
   "workspaces": [
     "packages/mujoco-sim",

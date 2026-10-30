@@ -1,6 +1,6 @@
 # robolance
 
-**Tell your robot what to do in plain words; a Meta-powered agent codes, flashes, watches and fixes it until it works.**
+**Tell what your robot should do in plain words; a Meta-powered agent codes, flashes, watches and fixes it until it works.**
 
 robolance is an [OpenLance](https://openlance.ai) feature built in the open for the Meta Global AI Developer Hackathon (October 26 – November 4, 2026). It gives a coding agent a real feedback loop for embedded code: compile an Arduino sketch, run it on a simulated board wired to real parts (LEDs, buttons, servos, motors, an ultrasonic sensor), drive a two-wheel robot through an arena, and read back exactly what the firmware did. The agent iterates on that trace the way it iterates on a failing test, and the user watches the circuit, the robot and the run history in the browser. No hardware is needed; when a board is plugged in, the same sketch flashes to it.
 
