@@ -66,6 +66,18 @@ export function eyesShot(x: number, y: number, heading: number, eye = 0.09, heig
     return { position: [x + fx * eye, y + fy * eye, height], lookAt: [x + fx * 0.9, y + fy * 0.9, 0] };
 }
 
+/**
+ * A close-up from in front of the robot and to its left, a little above,
+ * looking at it and a third of the way toward what it is going for (`aim`):
+ * the shot a gallery thumbnail uses.
+ */
+export function portraitShot(x: number, y: number, heading: number, aim?: [number, number], distance = 0.56, height = 0.21): RobotShot {
+    const side = heading + 0.8;
+    const lookX = aim ? x + (aim[0] - x) * 0.33 : x;
+    const lookY = aim ? y + (aim[1] - y) * 0.33 : y;
+    return { position: [x + Math.cos(side) * distance, y + Math.sin(side) * distance, height], lookAt: [lookX, lookY, 0.12] };
+}
+
 /** Lens per camera mode (degrees, vertical): wider up close, like a game's. */
 export const CAMERA_FOV: Record<CameraMode, number> = { orbit: 38, chase: 55, eyes: 72, wide: 38 };
 
@@ -266,6 +278,30 @@ export abstract class StageBase {
             this.camera.lookAt(target);
         }
         this.renderer.render(this.scene, this.camera);
+    }
+
+    /**
+     * One picture of the stage from `shot`, `width` x `height` pixels, as a
+     * JPEG data URL. The canvas goes back to its own size afterwards.
+     */
+    protected snapshot(shot: RobotShot, width: number, height: number, fov = 42, quality = 0.84): string {
+        const size = this.renderer.getSize(new THREE.Vector2());
+        const ratio = this.renderer.getPixelRatio();
+        const cam = new THREE.PerspectiveCamera(fov, width / height, 0.01, 60);
+        cam.up.copy(this.camera.up);
+        cam.position.set(...shot.position);
+        cam.lookAt(...shot.lookAt);
+        try {
+            this.renderer.setPixelRatio(1);
+            this.renderer.setSize(width, height, false);
+            this.renderer.render(this.scene, cam);
+            // Read in the same task as the render, before the buffer is cleared.
+            return this.renderer.domElement.toDataURL('image/jpeg', quality);
+        } finally {
+            this.renderer.setPixelRatio(ratio);
+            this.renderer.setSize(size.x, size.y, false);
+            this.invalidate();
+        }
     }
 
     private fit(): void {

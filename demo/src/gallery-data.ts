@@ -25,6 +25,8 @@ export interface GalleryCard {
     publishedAt: string;
     /** Featured runs recorded with the site carry their own replay link. */
     href?: string;
+    /** A close-up picture of the run (16:9): a file of the site, or an OpenLance URL. */
+    thumb?: string;
 }
 
 export interface GalleryPage {
@@ -132,6 +134,34 @@ export function safeAvatar(url: string | undefined): string | undefined {
     } catch {
         return undefined;
     }
+}
+
+/**
+ * A card's picture, or undefined to draw the pitch instead: a thumbnail
+ * that ships with the site, or one OpenLance serves.
+ */
+export function safeThumb(url: string | undefined, api: string = GALLERY_API): string | undefined {
+    if (!url) {
+        return undefined;
+    }
+    if (/^thumbs\/[a-z0-9-]{1,64}\.jpg$/.test(url)) {
+        return url;
+    }
+    try {
+        const u = new URL(url);
+        return u.origin === new URL(api).origin && !u.username && !u.password ? u.toString() : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** A run's length as a video's: "0:21", "1:05". */
+export function formatLength(seconds: number | undefined): string | undefined {
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) {
+        return undefined;
+    }
+    const s = Math.round(seconds);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 /** "3 days ago", "just now": when a run was published. */

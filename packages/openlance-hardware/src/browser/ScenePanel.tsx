@@ -17,6 +17,7 @@ import {
 } from './scene-project';
 import { SceneView } from './SceneView';
 import type { PreviewTabContext } from './preview-tab';
+import { PlayerShell, Transport } from './player';
 
 export type SceneViewName = 'robot' | 'runs';
 
@@ -109,6 +110,24 @@ export function ScenePanelBody({ runs, scenes, context }: ScenePanelBodyProps): 
         );
     }
 
+    const toggle = () => { if (timeMs >= duration) { setTimeMs(0); } setPlaying(p => !p); };
+    const seek = (ms: number) => { setPlaying(false); setTimeMs(ms); };
+    const sceneTools = (
+        <>
+            <button
+                type="button"
+                className={`robolance-edit-btn${follow ? ' active' : ''}`}
+                aria-pressed={follow}
+                title="Keep the camera on the robot"
+                onClick={() => setFollow(f => !f)}
+            >
+                Follow
+            </button>
+            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the view)" onClick={() => setResetKey(k => k + 1)}>
+                Reset view
+            </button>
+        </>
+    );
     const views: [SceneViewName, string][] = [['robot', 'Robot'], ['runs', `Runs (${runs.length})`]];
     return (
         <div className="robolance-panel" data-theme={context.theme}>
@@ -128,22 +147,7 @@ export function ScenePanelBody({ runs, scenes, context }: ScenePanelBodyProps): 
                     ))}
                 </div>
                 <div className="robolance-toolbar-right">
-                    {view === 'robot' && (
-                        <>
-                            <button
-                                type="button"
-                                className={`robolance-edit-btn${follow ? ' active' : ''}`}
-                                aria-pressed={follow}
-                                title="Keep the camera on the robot"
-                                onClick={() => setFollow(f => !f)}
-                            >
-                                Follow
-                            </button>
-                            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the view)" onClick={() => setResetKey(k => k + 1)}>
-                                Reset view
-                            </button>
-                        </>
-                    )}
+                    {view === 'robot' && sceneTools}
                     {sceneFile && context.openFile && (
                         <button type="button" className="robolance-edit-btn" onClick={() => context.openFile?.(sceneFile)}>{sceneFile.split('/').pop()}</button>
                     )}
@@ -152,32 +156,28 @@ export function ScenePanelBody({ runs, scenes, context }: ScenePanelBodyProps): 
 
             <div className="robolance-body">
                 {view === 'robot' && (
-                    <div className="robolance-duck-wrap robolance-player" data-viewport={context.viewport ?? 'desktop'}>
+                    <PlayerShell
+                        className="robolance-duck-wrap"
+                        viewport={context.viewport}
+                        playing={playing}
+                        timeMs={timeMs}
+                        durationMs={duration}
+                        onToggle={toggle}
+                        onSeek={seek}
+                        fullscreenTools={sceneTools}
+                        label={`run #${runs.length - selected}`}
+                    >
                         {model
                             ? <SceneView model={model} frame={sceneFrameAt(entry.run, timeMs)} theme={context.theme} follow={follow} resetKey={resetKey} />
                             : <div className="robolance-empty"><p>This run's 3D model ({entry.modelPath}) is missing; run the scene again to record it.</p></div>}
                         <SceneReadout run={entry.run} timeMs={timeMs} />
-                    </div>
+                    </PlayerShell>
                 )}
                 {view === 'runs' && <SceneRunsView runs={runs} selected={selected} onSelect={select} onWatch={i => { select(i); setView('robot'); setPlaying(true); }} />}
             </div>
 
             <div className="robolance-footer">
-                <button type="button" onClick={() => { if (timeMs >= duration) { setTimeMs(0); } setPlaying(p => !p); }} aria-label={playing ? 'Pause' : 'Play'}>
-                    {playing ? '❚❚' : '▶'}
-                </button>
-                <input
-                    className="robolance-scrubber"
-                    type="range"
-                    min={0}
-                    max={duration}
-                    step={20}
-                    value={Math.min(timeMs, duration)}
-                    onChange={e => { setPlaying(false); setTimeMs(Number(e.target.value)); }}
-                    aria-label="Time in the recorded run"
-                />
-                <span className="robolance-time">{(Math.min(timeMs, duration) / 1000).toFixed(2)} / {(duration / 1000).toFixed(1)} s</span>
-                <span className="robolance-run-name">run #{runs.length - selected}</span>
+                <Transport playing={playing} timeMs={timeMs} durationMs={duration} onToggle={toggle} onSeek={seek} label={`run #${runs.length - selected}`} />
             </div>
         </div>
     );

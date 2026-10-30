@@ -32,6 +32,7 @@ await build({
 });
 cpSync('src/replay.html', 'site/replay/index.html');
 cpSync('src/gallery.html', 'site/runs/index.html');
+cpSync('src/thumbs', 'site/runs/thumbs', { recursive: true });
 cpSync('src/site.css', 'site/site.css');
 // The home page is plain HTML; its header gets the same OpenLance mark the bundles carry.
 const mark = readFileSync('src/openlance-mark.svg', 'utf8').trim();

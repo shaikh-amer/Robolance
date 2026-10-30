@@ -31,6 +31,8 @@ export interface DuckGallerySummary {
     score: number;
     /** When the goal went in or the lid closed, else how long the run lasted. */
     seconds: number;
+    /** How long the replay is, seconds (a card shows it like a video's length). */
+    lengthS?: number;
     kicks: number;
     /** The duck's walk, centimetre-rounded [x, y] metres. */
     path: Array<[number, number]>;
@@ -66,6 +68,7 @@ export function duckGallerySummary(run: DuckRun): DuckGallerySummary {
         outcomeLabel: outcomeLabel(r),
         score: r.score,
         seconds: Math.round((typeof done === 'number' ? done : r.simS) * 10) / 10,
+        lengthS: Math.round(r.simS * 10) / 10,
         kicks: r.kicks.length,
         path: thinPath(r.path, SUMMARY_PATH_POINTS).map(([x, y]) => [cm(x), cm(y)] as [number, number]),
         field: {

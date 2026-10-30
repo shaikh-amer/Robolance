@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseShareHash } from 'robolance-openlance-hardware/lib/browser/share-run';
 import featured from '../src/featured.json';
-import { ago, cardHref, fetchGallery, filterCards, mergeFeatured, pitchDrawing, safeAvatar, type GalleryCard } from '../src/gallery-data';
+import { ago, cardHref, fetchGallery, filterCards, formatLength, mergeFeatured, pitchDrawing, safeAvatar, safeThumb, type GalleryCard } from '../src/gallery-data';
 import { loadShare } from '../src/load-run';
 
 const fakeFetch = (status: number, body: unknown): typeof fetch =>
@@ -82,4 +82,27 @@ test('a card shows the owner\'s photo only from an https address', () => {
     assert.equal(safeAvatar('javascript:alert(1)'), undefined);
     assert.equal(safeAvatar('https://u:p@example.com/a.png'), undefined);
     assert.equal(safeAvatar(undefined), undefined);
+});
+
+test('a card\'s picture is a thumbnail the site ships or one OpenLance serves, nothing else', () => {
+    assert.equal(safeThumb('thumbs/featured-1.jpg'), 'thumbs/featured-1.jpg');
+    assert.equal(safeThumb('https://api.openlance.ai/api/v1/public/gallery/abc123/thumb.jpg'), 'https://api.openlance.ai/api/v1/public/gallery/abc123/thumb.jpg');
+    assert.equal(safeThumb('https://evil.example/x.jpg'), undefined);
+    assert.equal(safeThumb('thumbs/../secret.jpg'), undefined);
+    assert.equal(safeThumb('javascript:alert(1)'), undefined);
+    assert.equal(safeThumb(undefined), undefined);
+});
+
+test('a run\'s length reads like a video\'s', () => {
+    assert.equal(formatLength(22.1), '0:22');
+    assert.equal(formatLength(65), '1:05');
+    assert.equal(formatLength(0), undefined);
+    assert.equal(formatLength(undefined), undefined);
+});
+
+test('every Featured run has its own thumbnail and length', () => {
+    for (const card of featured as GalleryCard[]) {
+        assert.equal(safeThumb(card.thumb), `thumbs/${card.id}.jpg`);
+        assert.ok((card.summary?.lengthS ?? 0) > 0);
+    }
 });
