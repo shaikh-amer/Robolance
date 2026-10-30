@@ -49,6 +49,8 @@ export async function duckThumbnail(result: MissionResult, theme: 'light' | 'dar
         await nextFrame();
         return stage.portrait(THUMB_WIDTH, THUMB_HEIGHT);
     } finally {
+        // Browsers keep only a few WebGL contexts: give this one back now.
+        stage?.renderer.forceContextLoss();
         stage?.dispose();
         host.remove();
     }
