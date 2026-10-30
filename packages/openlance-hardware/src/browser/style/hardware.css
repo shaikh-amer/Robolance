@@ -952,3 +952,158 @@
 .robolance-publish-note a {
     color: var(--openlance-accent, #818cf8);
 }
+
+/* The player: space on both sides, rounded, a hairline frame, and a
+   fullscreen button on the picture. */
+
+.robolance-player {
+    position: relative;
+    box-sizing: border-box;
+    padding: 8px 10px 0;
+    outline: none;
+}
+
+.robolance-player:focus-visible .robolance-duck-scene {
+    box-shadow: 0 0 0 2px var(--theia-focus, var(--openlance-accent, #6366f1));
+}
+
+.robolance-duck-scene {
+    border-radius: 10px;
+    clip-path: inset(0 round 10px);
+}
+
+.robolance-duck-scene::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px var(--openlance-border, rgba(255, 255, 255, 0.1));
+    pointer-events: none;
+}
+
+.robolance-fs-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    /* On the 3D picture, not the panel: the same in every theme. */
+    color: white;
+    background: color-mix(in srgb, black 55%, transparent);
+    cursor: pointer;
+}
+
+.robolance-fs-btn:hover {
+    background: color-mix(in srgb, black 65%, transparent);
+}
+
+.robolance-player > .robolance-fs-btn {
+    position: absolute;
+    top: 18px;
+    right: 20px;
+    z-index: 2;
+    opacity: 0.9;
+    transition: opacity 0.15s ease;
+}
+
+.robolance-player:hover > .robolance-fs-btn,
+.robolance-player > .robolance-fs-btn:focus-visible {
+    opacity: 1;
+}
+
+/* Fullscreen: the picture is the whole screen; the tools sit on top, the
+   transport at the bottom, and both fade while the run plays. */
+
+.robolance-player.is-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-width: none;
+    padding: 0;
+    gap: 0;
+    background: black;
+}
+
+.robolance-player.is-fullscreen .robolance-duck-scene {
+    flex: 1 1 auto;
+    min-height: 0;
+    border-radius: 0;
+    clip-path: none;
+}
+
+.robolance-player.is-fullscreen .robolance-duck-scene::after {
+    display: none;
+}
+
+.robolance-player.is-fullscreen .robolance-duck-readout {
+    position: absolute;
+    left: 16px;
+    bottom: 64px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: white;
+    background: color-mix(in srgb, black 50%, transparent);
+    transition: opacity 0.25s ease;
+}
+
+.robolance-player.is-fullscreen .robolance-camera-toast {
+    top: 64px;
+    left: 16px;
+}
+
+.robolance-fs-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    color: white;
+    transition: opacity 0.25s ease;
+}
+
+.robolance-fs-top {
+    top: 0;
+    justify-content: flex-end;
+    padding-top: max(12px, env(safe-area-inset-top));
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+}
+
+.robolance-fs-bottom {
+    bottom: 0;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
+}
+
+.robolance-fs-bar .robolance-edit-btn,
+.robolance-fs-bar .robolance-play-btn {
+    color: white;
+    border-color: color-mix(in srgb, white 35%, transparent);
+    background: color-mix(in srgb, black 35%, transparent);
+}
+
+.robolance-fs-bar .robolance-scrubber {
+    accent-color: white;
+}
+
+.robolance-fs-bar .robolance-time,
+.robolance-fs-bar .robolance-run-name {
+    color: color-mix(in srgb, white 85%, transparent);
+}
+
+.robolance-player.controls-hidden {
+    cursor: none;
+}
+
+.robolance-player.controls-hidden .robolance-fs-bar,
+.robolance-player.controls-hidden .robolance-duck-readout {
+    opacity: 0;
+    pointer-events: none;
+}

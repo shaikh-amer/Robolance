@@ -2,7 +2,8 @@
 // Copyright 2026 OpenLance
 // Records the gallery's Featured runs: real Microduck runs from the
 // simulator, saved as card summaries and replay links that carry the run
-// (so they play with no server). Run from demo/: node scripts/make-featured.mjs
+// (so they play with no server). Run from demo/: node scripts/make-featured.mjs,
+// then node scripts/make-thumbs.mjs for their thumbnails.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { DEFAULT_FIELD, runMission } from 'robolance-duck-sim';

@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { BALL_RADIUS, GOAL_HEIGHT, LAPTOP, NET_DEPTH, POST_RADIUS, type FieldSpec, type Obstacle, type ViewerModel } from 'robolance-duck-sim/viewer';
 import { LaptopModel } from './laptop-model';
 import { RobotParts, place } from './robot-parts';
-import { StageBase, isSmallDevice, type SkyPalette, type StageView } from './stage-base';
+import { StageBase, isSmallDevice, portraitShot, type SkyPalette, type StageView } from './stage-base';
 import { netCanvas, paintPatches, paintTurf, seededRandom } from './stage-textures';
 
 export type { StageView } from './stage-base';
@@ -54,6 +54,8 @@ export class DuckStage extends StageBase {
     private readonly lidIndex: number;
     private field?: FieldSpec;
     private palette: Palette = PALETTES.dark;
+    /** The duck's heading in the frame shown last, not eased. */
+    private heading = 0;
 
     constructor(host: HTMLElement, model: ViewerModel) {
         super(host, DEFAULT_VIEW, 'robolance-duck-canvas');
@@ -117,10 +119,20 @@ export class DuckStage extends StageBase {
             }
             const trunk = poses[1];
             this.followAt.set(trunk.pos[0], trunk.pos[1], 0.08);
-            this.setFollowHeading(trunkHeading(trunk.quat));
+            this.heading = trunkHeading(trunk.quat);
+            this.setFollowHeading(this.heading);
         }
         this.setTrail(path);
         this.invalidate();
+    }
+
+    /** A close-up of the duck as shown now, facing the ball (or the laptop), as a JPEG data URL. */
+    portrait(width: number, height: number): string {
+        const laptop = this.field?.laptop;
+        const aim: [number, number] | undefined = laptop
+            ? [laptop.x, laptop.y]
+            : this.ball.visible ? [this.ball.position.x, this.ball.position.y] : undefined;
+        return this.snapshot(portraitShot(this.followAt.x, this.followAt.y, this.heading, aim), width, height);
     }
 
     protected home(): void {

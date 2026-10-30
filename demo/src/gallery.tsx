@@ -13,7 +13,8 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { OPENLANCE_URL as OPENLANCE, SiteHeader } from './brand';
 import featuredRuns from './featured.json';
-import { ago, cardHref, fetchGallery, filterCards, mergeFeatured, PAGE_SIZE, pitchDrawing, safeAvatar, type GalleryCard, type GallerySort, type MissionFilter } from './gallery-data';
+import { ago, cardHref, fetchGallery, filterCards, formatLength, mergeFeatured, PAGE_SIZE, pitchDrawing, safeAvatar, safeThumb, type GalleryCard, type GallerySort, type MissionFilter } from './gallery-data';
+import mark from './openlance-mark.svg';
 
 const FEATURED = featuredRuns as GalleryCard[];
 const MISSIONS: Array<[MissionFilter, string]> = [['all', 'All'], ['goal', 'Goal'], ['obstacles', 'Obstacles'], ['laptop', 'Laptop']];
@@ -24,7 +25,7 @@ function Pitch({ card }: { card: GalleryCard }): React.ReactElement | null {
     }
     const d = pitchDrawing(card.summary);
     return (
-        <svg className="gallery-pitch" viewBox={`0 0 ${d.width} ${d.height}`} role="img" aria-label="The duck's walk from above">
+        <svg className="gallery-pitch" viewBox={`0 0 ${d.width} ${d.height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="The duck's walk from above">
             <rect x="0" y="0" width={d.width} height={d.height} className="gallery-turf" />
             <line x1={d.goal.x} y1={d.goal.y1} x2={d.goal.x} y2={d.goal.y2} className="gallery-goal" />
             {d.boxes.map((b, i) => (
@@ -42,22 +43,33 @@ function Card({ card }: { card: GalleryCard }): React.ReactElement {
     const s = card.summary;
     const good = s ? s.outcome === 'goal' || s.outcome === 'closed' : card.score >= 80;
     const avatar = safeAvatar(card.avatar);
+    const thumb = safeThumb(card.thumb);
+    const length = formatLength(s?.lengthS ?? s?.seconds);
+    const author = card.author || 'Anonymous';
     return (
         <a className="gallery-card" href={cardHref(card)}>
-            <Pitch card={card} />
+            <div className="gallery-thumb">
+                {thumb
+                    ? <img src={thumb} alt="" loading="lazy" width={640} height={360} />
+                    : <Pitch card={card} />}
+                {length && <span className="gallery-length">{length}</span>}
+            </div>
             <div className="gallery-card-body">
-                <h3>{card.title}</h3>
-                <div className="gallery-card-meta">
-                    {s && <span className={`gallery-outcome${good ? ' good' : ''}`}>{s.outcomeLabel}</span>}
-                    <span className="gallery-score">score {card.score}</span>
-                    {s && <span>{s.seconds} s</span>}
-                </div>
-                <div className="gallery-card-by">
-                    {avatar && <img className="gallery-avatar" src={avatar} alt="" referrerPolicy="no-referrer" loading="lazy" width={18} height={18} />}
-                    <span>
-                        {card.author || (avatar ? '' : 'anonymous')}
-                        {!card.featured && card.publishedAt && <>{card.author || !avatar ? ' · ' : ''}{ago(card.publishedAt)}</>}
-                    </span>
+                <span className="gallery-channel" aria-hidden="true">
+                    {avatar
+                        ? <img src={avatar} alt="" referrerPolicy="no-referrer" loading="lazy" width={36} height={36} />
+                        : card.featured
+                            ? <span className="gallery-channel-mark" dangerouslySetInnerHTML={{ __html: mark }} />
+                            : <span className="gallery-channel-initial">{author.slice(0, 1).toUpperCase()}</span>}
+                </span>
+                <div className="gallery-card-text">
+                    <h3>{card.title}</h3>
+                    <div className="gallery-card-by">{author}</div>
+                    <div className="gallery-card-meta">
+                        {s && <span className={`gallery-outcome${good ? ' good' : ''}`}>{s.outcomeLabel}</span>}
+                        <span>score {card.score}</span>
+                        {!card.featured && card.publishedAt && <span>{ago(card.publishedAt)}</span>}
+                    </div>
                 </div>
             </div>
         </a>

@@ -10,6 +10,7 @@
 import * as React from 'react';
 import type { MissionResult } from 'robolance-duck-sim/viewer';
 import { DuckScene } from './DuckScene';
+import { duckThumbnail } from './duck-thumbnail';
 import { describeDuckRun, describeDuckSkills, duckRunMs, outcomeLabel, readDuckRuns, missionPath, type DuckRun } from './duck-project';
 import { formatRunTime } from './hardware-project';
 import { advanceReplay } from './replay';
@@ -19,6 +20,7 @@ import { Score, ScoreCurve, ShareLink } from './RunsView';
 import { encodeShare, REPLAY_PAGE_URL, SHORT_SHARE_PARAM } from './share-run';
 import type { GalleryShow, GalleryVisibility, PreviewTabContext, StoreShare } from './preview-tab';
 import { CAMERA_LABELS, nextCameraMode, type CameraMode } from './stage-base';
+import { PlayerShell, Transport } from './player';
 
 export type DuckView = 'pitch' | 'runs';
 
@@ -111,6 +113,17 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
     }
 
     const r = run.result;
+    const toggle = () => { if (timeMs >= duration) { setTimeMs(0); } setPlaying(p => !p); };
+    const seek = (ms: number) => { setPlaying(false); setTimeMs(ms); };
+    const nextCamera = () => { setCamera(nextCameraMode); setCameraToast(t => t + 1); };
+    const cameraTools = (
+        <>
+            <CameraButton mode={camera} onClick={nextCamera} />
+            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the pitch)" onClick={() => { setCamera('orbit'); setResetKey(k => k + 1); }}>
+                Reset view
+            </button>
+        </>
+    );
     const views: [DuckView, string][] = [['pitch', 'Pitch'], ['runs', `Runs (${runs.length})`]];
     return (
         <div className="robolance-panel" data-theme={context.theme}>
@@ -130,14 +143,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
                     ))}
                 </div>
                 <div className="robolance-toolbar-right">
-                    {view === 'pitch' && (
-                        <>
-                            <CameraButton mode={camera} onClick={() => { setCamera(nextCameraMode); setCameraToast(t => t + 1); }} />
-                            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the pitch)" onClick={() => { setCamera('orbit'); setResetKey(k => k + 1); }}>
-                                Reset view
-                            </button>
-                        </>
-                    )}
+                    {view === 'pitch' && cameraTools}
                     {mission && context.openFile && (
                         <button type="button" className="robolance-edit-btn" onClick={() => context.openFile?.(mission)}>mission.js</button>
                     )}
@@ -146,31 +152,28 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
 
             <div className="robolance-body">
                 {view === 'pitch' && (
-                    <div className="robolance-duck-wrap robolance-player" data-viewport={context.viewport ?? 'desktop'}>
+                    <PlayerShell
+                        className="robolance-duck-wrap"
+                        viewport={context.viewport}
+                        playing={playing}
+                        timeMs={timeMs}
+                        durationMs={duration}
+                        onToggle={toggle}
+                        onSeek={seek}
+                        onCamera={nextCamera}
+                        fullscreenTools={cameraTools}
+                        label={`run #${runs.length - selected}`}
+                    >
                         <DuckScene result={r} timeMs={timeMs} theme={context.theme} camera={camera} resetKey={resetKey} />
                         {cameraToast > 0 && <span className="robolance-camera-toast" role="status">{CAMERA_LABELS[camera]}</span>}
                         <DuckReadout result={r} timeMs={timeMs} />
-                    </div>
+                    </PlayerShell>
                 )}
                 {view === 'runs' && <DuckRunsView runs={runs} selected={selected} onSelect={i => { select(i); }} onWatch={i => { select(i); setView('pitch'); setPlaying(true); }} shareBase={shareBase} storeShare={context.storeShare} gallery={galleryActions(context)} />}
             </div>
 
             <div className="robolance-footer">
-                <button type="button" onClick={() => { if (timeMs >= duration) { setTimeMs(0); } setPlaying(p => !p); }} aria-label={playing ? 'Pause' : 'Play'}>
-                    {playing ? '❚❚' : '▶'}
-                </button>
-                <input
-                    className="robolance-scrubber"
-                    type="range"
-                    min={0}
-                    max={duration}
-                    step={20}
-                    value={Math.min(timeMs, duration)}
-                    onChange={e => { setPlaying(false); setTimeMs(Number(e.target.value)); }}
-                    aria-label="Time in the recorded run"
-                />
-                <span className="robolance-time">{(Math.min(timeMs, duration) / 1000).toFixed(2)} / {(duration / 1000).toFixed(1)} s</span>
-                <span className="robolance-run-name">run #{runs.length - selected}</span>
+                <Transport playing={playing} timeMs={timeMs} durationMs={duration} onToggle={toggle} onSeek={seek} label={`run #${runs.length - selected}`} />
             </div>
         </div>
     );
@@ -324,7 +327,7 @@ export const SHOW_CHOICES: Array<[PublishOptions['show'], string]> = [
 
 /** The gallery as the host offers it: storing a share, publishing it, and recording it in the project. */
 export function galleryActions(context: PreviewTabContext): GalleryActions | undefined {
-    const { storeShare, publishShare, unpublishShare, writeFile, files } = context;
+    const { storeShare, publishShare, unpublishShare, publishThumbnail, writeFile, files } = context;
     if (!storeShare || !publishShare || !unpublishShare || !writeFile) {
         return undefined;
     }
@@ -344,6 +347,13 @@ export function galleryActions(context: PreviewTabContext): GalleryActions | und
                 visibility,
                 summary: { ...duckGallerySummary(run) },
             });
+            if (publishThumbnail && visibility === 'public') {
+                try {
+                    await publishThumbnail(id, await duckThumbnail(run.result));
+                } catch {
+                    // No WebGL here, or the host could not store it: the card draws the pitch instead.
+                }
+            }
             await writeFile(PUBLISHED_FILE, writePublished(files, run.path, { id, title: done.title, at: new Date().toISOString(), visibility }));
         },
         async unpublish(run) {

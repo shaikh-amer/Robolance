@@ -57,6 +57,11 @@ export interface PreviewTabContext {
      * rest of the tab keeps the panel's.
      */
     viewport?: PreviewViewport;
+    /**
+     * Gives a published run its gallery picture: a 16:9 JPEG data URL.
+     * Absent where the host cannot store one (the card then draws the pitch).
+     */
+    publishThumbnail?: (id: string, jpegDataUrl: string) => Promise<void>;
 }
 
 export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';

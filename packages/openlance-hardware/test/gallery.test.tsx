@@ -96,6 +96,26 @@ test('publishing stores the run (without the code when asked), publishes it, and
     assert.equal(galleryActions({ files, theme: 'dark' }), undefined);
 });
 
+test('a run still publishes when its picture cannot be drawn (no WebGL), and only public runs get one', async () => {
+    const thumbs: string[] = [];
+    const files = new Map<string, string>();
+    const context: PreviewTabContext = {
+        files,
+        theme: 'dark',
+        storeShare: async () => 'share1AB',
+        publishShare: async (_id, p) => ({ title: p.title }),
+        unpublishShare: async () => undefined,
+        publishThumbnail: async id => { thumbs.push(id); },
+        writeFile: (path, content) => { files.set(path, content); },
+    };
+    // Node has no DOM, so drawing the thumbnail fails: publishing must not.
+    await galleryActions(context)!.publish(run, { title: 'Public', show: 'anonymous', includeCode: false });
+    assert.equal(readPublished(files)[run.path].id, 'share1AB');
+    assert.deepEqual(thumbs, []);
+    await galleryActions(context)!.publish(run, { title: 'Mine', show: 'private', includeCode: false });
+    assert.deepEqual(thumbs, []);
+});
+
 test('the runs view offers Publish beside Watch and Share, and says when a run is in the gallery', () => {
     const files = new Map<string, string>();
     const context: PreviewTabContext = {
