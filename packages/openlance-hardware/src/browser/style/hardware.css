@@ -292,7 +292,7 @@
 
 .robolance-arena-line {
     fill: none;
-    stroke: #111;
+    stroke: var(--openlance-fg, #111);
     stroke-linecap: round;
     stroke-linejoin: round;
     opacity: 0.85;
@@ -305,14 +305,14 @@
 }
 
 .robolance-arena-goal {
-    fill: rgba(22, 163, 74, 0.18);
-    stroke: #16a34a;
+    fill: color-mix(in srgb, var(--openlance-success, #16a34a) 18%, transparent);
+    stroke: var(--openlance-success, #16a34a);
     stroke-width: 0.8;
     stroke-dasharray: 2 1.5;
 }
 
 .robolance-arena-goal.reached {
-    fill: rgba(22, 163, 74, 0.5);
+    fill: color-mix(in srgb, var(--openlance-success, #16a34a) 50%, transparent);
 }
 
 .robolance-arena-text {
@@ -333,18 +333,18 @@
 }
 
 .robolance-arena-collision line {
-    stroke: #ef4444;
+    stroke: var(--openlance-danger, #ef4444);
     stroke-width: 1;
 }
 
 .robolance-arena-ray {
-    stroke: #f59e0b;
+    stroke: var(--openlance-warning, #f59e0b);
     stroke-width: 0.6;
     stroke-dasharray: 1.5 1;
 }
 
 .robolance-arena-robot {
-    fill: rgba(99, 102, 241, 0.35);
+    fill: color-mix(in srgb, var(--openlance-accent, #6366f1) 35%, transparent);
     stroke: var(--openlance-accent, #6366f1);
     stroke-width: 1;
 }
@@ -524,7 +524,7 @@
 }
 
 .robolance-score-goal-line {
-    stroke: #16a34a;
+    stroke: var(--openlance-success, #16a34a);
     stroke-dasharray: 3 3;
     opacity: 0.6;
 }
@@ -541,7 +541,7 @@
 }
 
 .robolance-score-dot.selected {
-    fill: #fff;
+    fill: var(--openlance-bg, #fff);
     stroke: var(--openlance-accent, #6366f1);
 }
 
@@ -591,15 +591,15 @@
     border-radius: 10px;
     padding: 1px 6px;
     font-weight: 600;
-    background: rgba(239, 68, 68, 0.25);
+    background: color-mix(in srgb, var(--openlance-danger, #ef4444) 25%, transparent);
 }
 
 .robolance-score.mid {
-    background: rgba(245, 158, 11, 0.3);
+    background: color-mix(in srgb, var(--openlance-warning, #f59e0b) 30%, transparent);
 }
 
 .robolance-score.good {
-    background: rgba(22, 163, 74, 0.35);
+    background: color-mix(in srgb, var(--openlance-success, #16a34a) 35%, transparent);
 }
 
 .robolance-run-detail {
@@ -613,7 +613,7 @@
 .robolance-run-notes {
     margin: 0;
     padding: 6px 8px 6px 24px;
-    color: #f59e0b;
+    color: var(--openlance-warning-text, var(--openlance-warning, #f59e0b));
     flex-shrink: 0;
 }
 
@@ -648,7 +648,53 @@
 }
 
 .robolance-error {
-    color: #ef4444;
+    color: var(--openlance-danger, #ef4444);
+}
+
+/* Watch and Share side by side on every screen. */
+.robolance-run-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    min-width: 0;
+}
+
+.robolance-run-actions > .robolance-edit-btn {
+    flex-shrink: 0;
+}
+
+.robolance-run-actions .robolance-share {
+    margin: 0;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+/* The camera button: an icon and the current view's name. */
+.robolance-camera-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* The view's name on the pitch for a moment after a switch. */
+.robolance-duck-wrap {
+    position: relative;
+}
+
+.robolance-camera-toast {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    /* On the 3D picture, not the panel: the same in every theme. */
+    color: white;
+    background: color-mix(in srgb, black 55%, transparent);
+    pointer-events: none;
 }
 
 /* Microduck pitch */

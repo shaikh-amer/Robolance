@@ -158,3 +158,13 @@ test('the duck runs view offers a share link unless sharing is off', () => {
     const off = renderToStaticMarkup(<DuckRunsView runs={runs} selected={0} onSelect={() => undefined} onWatch={() => undefined} shareBase={false} />);
     assert.doesNotMatch(off, /Share this run/);
 });
+
+test('Watch this run and Share this run sit in one row', () => {
+    const runs = readDuckRuns(files);
+    const html = renderToStaticMarkup(<DuckRunsView runs={runs} selected={0} onSelect={() => undefined} onWatch={() => undefined} />);
+    assert.match(html, /<div class="robolance-run-actions"><button[^>]*>Watch this run<\/button><div class="robolance-share">/);
+    const css = readFileSync(require('node:path').join(__dirname, '..', '..', 'src', 'browser', 'style', 'hardware.css'), 'utf8');
+    assert.match(css, /\.robolance-run-actions \{\s*display: flex;\s*flex-wrap: nowrap;/);
+    // Status colours come from the IDE theme, not fixed hex values.
+    assert.doesNotMatch(css, /^\s*(color|background|fill|stroke): (#[0-9a-f]{3,6}|rgba?\([^)]*\));/im);
+});

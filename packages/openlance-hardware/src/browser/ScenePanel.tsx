@@ -230,7 +230,9 @@ export function SceneRunsView({ runs, selected, onSelect, onWatch }: SceneRunsVi
             </ol>
             {entry && r && (
                 <div className="robolance-run-detail">
-                    <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
+                    <div className="robolance-run-actions">
+                        <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
+                    </div>
                     {r.message && r.outcome !== 'done' && <pre className={r.outcome === 'stopped' ? 'robolance-run-serial' : 'robolance-error'}>{r.message}</pre>}
                     {r.check.issues.length > 0 && (
                         <ul className="robolance-run-notes" aria-label="Checks">
