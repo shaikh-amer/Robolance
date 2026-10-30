@@ -7,7 +7,7 @@ import { before, test } from 'node:test';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { runMission, type MissionResult } from 'robolance-duck-sim';
-import { DuckRunsView, galleryActions } from '../src/browser/DuckPanel';
+import { DuckRunsView, galleryActions, PublishForm, SHOW_CHOICES } from '../src/browser/DuckPanel';
 import type { DuckRun } from '../src/browser/duck-project';
 import { duckGallerySummary, PUBLISHED_FILE, readPublished, suggestedTitle, SUMMARY_PATH_POINTS, writePublished } from '../src/browser/gallery';
 import type { PreviewTabContext } from '../src/browser/preview-tab';
@@ -43,7 +43,7 @@ test('the project remembers which runs it published, and ignores a broken record
     const files = new Map<string, string>();
     const text = writePublished(files, run.path, { id: 'abc123XYZ', title: 'Goal!', at: '2026-10-30T00:00:00Z' });
     files.set(PUBLISHED_FILE, text);
-    assert.deepEqual(readPublished(files)[run.path], { id: 'abc123XYZ', title: 'Goal!', at: '2026-10-30T00:00:00Z' });
+    assert.deepEqual(readPublished(files)[run.path], { id: 'abc123XYZ', title: 'Goal!', at: '2026-10-30T00:00:00Z', visibility: 'public' });
     files.set(PUBLISHED_FILE, writePublished(files, run.path, undefined));
     assert.deepEqual(readPublished(files), {});
     files.set(PUBLISHED_FILE, '{"runs":{"x":{"id":"../../etc","title":"bad"}}}');
@@ -54,7 +54,7 @@ test('the project remembers which runs it published, and ignores a broken record
 
 test('publishing stores the run (without the code when asked), publishes it, and records it in the project', async () => {
     const stored: string[] = [];
-    const published: Array<{ id: string; title: string; showName: boolean; summary: Record<string, unknown> }> = [];
+    const published: Array<{ id: string; title: string; show: string; visibility: string; summary: Record<string, unknown> }> = [];
     const written = new Map<string, string>();
     const unpublished: string[] = [];
     const files = new Map<string, string>();
@@ -62,26 +62,33 @@ test('publishing stores the run (without the code when asked), publishes it, and
         files,
         theme: 'dark',
         storeShare: async encoded => { stored.push(encoded); return `share${stored.length}AB`; },
-        publishShare: async (id, p) => { published.push({ id, ...p }); return { title: p.title }; },
+        publishShare: async (id, p) => { published.push({ id, ...p }); return { title: p.title, visibility: p.visibility }; },
         unpublishShare: async id => { unpublished.push(id); },
         writeFile: (path, content) => { written.set(path, content); files.set(path, content); },
     };
     const gallery = galleryActions(context)!;
-    await gallery.publish(run, { title: 'No code please', showName: false, includeCode: false });
+    await gallery.publish(run, { title: 'No code please', show: 'anonymous', includeCode: false });
     const shared = await decodeShare(stored[0]) as { mission: string; result: { score: number } };
     assert.equal(shared.mission, '', 'the code was left out of the published share');
     assert.equal(shared.result.score, result.score);
     assert.equal(published[0].id, 'share1AB');
-    assert.equal(published[0].showName, false);
+    assert.equal(published[0].show, 'anonymous');
+    assert.equal(published[0].visibility, 'public');
     assert.equal(published[0].summary.mission, 'goal');
     assert.equal(readPublished(files)[run.path].id, 'share1AB');
 
-    await galleryActions(context)!.publish(run, { title: 'With code', showName: true, includeCode: true });
+    await galleryActions(context)!.publish(run, { title: 'With code', show: 'name_photo', includeCode: true });
     assert.equal(((await decodeShare(stored[1])) as { mission: string }).mission, MISSION);
-    assert.equal(published[1].showName, true);
+    assert.equal(published[1].show, 'name_photo');
+
+    // Only me: saved private, anonymous, and recorded as private.
+    await galleryActions(context)!.publish(run, { title: 'Just mine', show: 'private', includeCode: true });
+    assert.equal(published[2].visibility, 'private');
+    assert.equal(published[2].show, 'anonymous');
+    assert.equal(readPublished(files)[run.path].visibility, 'private');
 
     await galleryActions(context)!.unpublish(run);
-    assert.deepEqual(unpublished, ['share2AB']);
+    assert.deepEqual(unpublished, ['share3AB']);
     assert.deepEqual(readPublished(files), {});
     assert.ok(written.has(PUBLISHED_FILE));
 
@@ -96,13 +103,30 @@ test('the runs view offers Publish beside Watch and Share, and says when a run i
         storeShare: async () => 'abcdef1', publishShare: async (_id, p) => ({ title: p.title }), unpublishShare: async () => undefined, writeFile: () => undefined,
     };
     const off = renderToStaticMarkup(<DuckRunsView runs={[run]} selected={0} onSelect={() => undefined} onWatch={() => undefined} gallery={galleryActions(context)} />);
-    assert.match(off, /<div class="robolance-run-actions"><button[^>]*>Watch this run<\/button><div class="robolance-share">.*?<\/div><button[^>]*>Publish to gallery<\/button><\/div>/);
+    assert.match(off, /<div class="robolance-run-actions"><button[^>]*>Watch this run<\/button><div class="robolance-share">.*?<\/div><button[^>]*>Publish<\/button><\/div>/);
     files.set(PUBLISHED_FILE, writePublished(files, run.path, { id: 'abc123XYZ', title: 'Goal from the left', at: '' }));
     const on = renderToStaticMarkup(<DuckRunsView runs={[run]} selected={0} onSelect={() => undefined} onWatch={() => undefined} gallery={galleryActions(context)} />);
     assert.match(on, /In the gallery/);
     assert.match(on, /Goal from the left/);
     assert.match(on, /Take it off/);
-    assert.doesNotMatch(on, /Publish to gallery/);
+    assert.doesNotMatch(on, />Publish</);
     const none = renderToStaticMarkup(<DuckRunsView runs={[run]} selected={0} onSelect={() => undefined} onWatch={() => undefined} />);
-    assert.doesNotMatch(none, /Publish to gallery/);
+    assert.doesNotMatch(none, />Publish</);
+    files.set(PUBLISHED_FILE, writePublished(files, run.path, { id: 'abc123XYZ', title: 'Mine', at: '', visibility: 'private' }));
+    const mine = renderToStaticMarkup(<DuckRunsView runs={[run]} selected={0} onSelect={() => undefined} onWatch={() => undefined} gallery={galleryActions(context)} />);
+    assert.match(mine, /Only you/);
+    assert.match(mine, /href="https:\/\/robolance\.openlance\.ai\/replay\/\?s=abc123XYZ"/);
+    assert.match(mine, />Remove</);
+});
+
+test('the publish form starts anonymous, without the code, and offers every way to appear', () => {
+    const html = renderToStaticMarkup(<PublishForm run={run} gallery={{ published: {}, publish: async () => undefined, unpublish: async () => undefined }} onClose={() => undefined} />);
+    for (const label of ['Name and photo', 'Photo only', 'Name only', 'Anonymous', 'Only me']) {
+        assert.match(html, new RegExp(`<span>${label}</span>`));
+    }
+    const checked = html.match(/<input type="radio"[^>]*checked=""[^>]*>/g) ?? [];
+    assert.equal(checked.length, 1);
+    assert.match(checked[0], /value="anonymous"/);
+    assert.doesNotMatch(html, /role="switch" checked=""/, 'the mission code is off until the user turns it on');
+    assert.deepEqual(SHOW_CHOICES.map(([v]) => v), ['name_photo', 'photo', 'name', 'anonymous', 'private']);
 });

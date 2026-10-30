@@ -735,6 +735,50 @@
     cursor: pointer;
 }
 
+.robolance-publish-show {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.robolance-publish-show legend {
+    padding: 0;
+    margin-bottom: 4px;
+    color: var(--openlance-muted, #9a9a9a);
+}
+
+.robolance-publish-choice {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.12));
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.robolance-publish-choice input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.robolance-publish-choice.active {
+    border-color: var(--openlance-accent, #6366f1);
+    background: var(--openlance-wash-accent, rgba(99, 102, 241, 0.18));
+}
+
+.robolance-publish-choice:focus-within {
+    outline: 1px solid var(--theia-focusBorder, var(--openlance-accent, #6366f1));
+}
+
+.robolance-published-badge.private {
+    color: var(--openlance-fg, inherit);
+    background: var(--openlance-wash-10, rgba(255, 255, 255, 0.1));
+}
+
 .robolance-publish-note {
     margin: 0;
     color: var(--openlance-muted, #9a9a9a);
@@ -903,4 +947,8 @@
     margin: 6px 0;
     font-size: 12px;
     color: var(--openlance-muted, #8a8f98);
+}
+
+.robolance-publish-note a {
+    color: var(--openlance-accent, #818cf8);
 }

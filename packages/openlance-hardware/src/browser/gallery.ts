@@ -96,6 +96,8 @@ export interface PublishedEntry {
     id: string;
     title: string;
     at: string;
+    /** private: saved for the owner only, not in the gallery. */
+    visibility?: 'public' | 'private';
 }
 
 /** The runs this project published, by run path. */
@@ -109,7 +111,12 @@ export function readPublished(files: ReadonlyMap<string, string>): Record<string
         const out: Record<string, PublishedEntry> = {};
         for (const [path, entry] of Object.entries(parsed.runs ?? {})) {
             if (entry && typeof entry.id === 'string' && /^[0-9A-Za-z]{6,32}$/.test(entry.id) && typeof entry.title === 'string') {
-                out[path] = { id: entry.id, title: entry.title, at: typeof entry.at === 'string' ? entry.at : '' };
+                out[path] = {
+                    id: entry.id,
+                    title: entry.title,
+                    at: typeof entry.at === 'string' ? entry.at : '',
+                    visibility: entry.visibility === 'private' ? 'private' : 'public',
+                };
             }
         }
         return out;

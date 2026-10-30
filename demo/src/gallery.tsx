@@ -11,7 +11,7 @@ import './gallery.css';
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import featuredRuns from './featured.json';
-import { ago, cardHref, fetchGallery, filterCards, mergeFeatured, PAGE_SIZE, pitchDrawing, type GalleryCard, type GallerySort, type MissionFilter } from './gallery-data';
+import { ago, cardHref, fetchGallery, filterCards, mergeFeatured, PAGE_SIZE, pitchDrawing, safeAvatar, type GalleryCard, type GallerySort, type MissionFilter } from './gallery-data';
 
 const FEATURED = featuredRuns as GalleryCard[];
 const MISSIONS: Array<[MissionFilter, string]> = [['all', 'All'], ['goal', 'Goal'], ['obstacles', 'Obstacles'], ['laptop', 'Laptop']];
@@ -40,6 +40,7 @@ function Pitch({ card }: { card: GalleryCard }): React.ReactElement | null {
 function Card({ card }: { card: GalleryCard }): React.ReactElement {
     const s = card.summary;
     const good = s ? s.outcome === 'goal' || s.outcome === 'closed' : card.score >= 80;
+    const avatar = safeAvatar(card.avatar);
     return (
         <a className="gallery-card" href={cardHref(card)}>
             <Pitch card={card} />
@@ -51,8 +52,11 @@ function Card({ card }: { card: GalleryCard }): React.ReactElement {
                     {s && <span>{s.seconds} s</span>}
                 </div>
                 <div className="gallery-card-by">
-                    {card.author || 'anonymous'}
-                    {!card.featured && card.publishedAt && <> · {ago(card.publishedAt)}</>}
+                    {avatar && <img className="gallery-avatar" src={avatar} alt="" referrerPolicy="no-referrer" loading="lazy" width={18} height={18} />}
+                    <span>
+                        {card.author || (avatar ? '' : 'anonymous')}
+                        {!card.featured && card.publishedAt && <>{card.author || !avatar ? ' · ' : ''}{ago(card.publishedAt)}</>}
+                    </span>
                 </div>
             </div>
         </a>
