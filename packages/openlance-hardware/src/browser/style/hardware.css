@@ -668,7 +668,106 @@
 .robolance-run-actions .robolance-share {
     margin: 0;
     min-width: 0;
+    flex: 0 1 auto;
+}
+
+/* Publishing a run to the public gallery: a link that looks like the buttons beside it. */
+.robolance-panel a.robolance-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.1));
+    border-radius: 4px;
+    background: var(--openlance-wash-6, rgba(255, 255, 255, 0.06));
+    color: var(--openlance-fg, var(--theia-foreground, #e6e6e6));
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.robolance-panel .robolance-primary-btn {
+    background: var(--openlance-accent, #6366f1);
+    border-color: transparent;
+    color: var(--openlance-accent-fg, #fff);
+}
+
+.robolance-panel .robolance-primary-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--openlance-accent, #6366f1) 85%, var(--openlance-fg, #fff));
+}
+
+.robolance-publish {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    margin: 0 0 6px;
+    border: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.1));
+    border-radius: 8px;
+    background: var(--openlance-layer-1, rgba(255, 255, 255, 0.03));
+    flex-shrink: 0;
+}
+
+.robolance-publish-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.robolance-publish-field > span {
+    color: var(--openlance-muted, #9a9a9a);
+}
+
+.robolance-publish-field input {
+    font: inherit;
+    padding: 4px 8px;
+    border: 1px solid var(--openlance-border, rgba(255, 255, 255, 0.12));
+    border-radius: 4px;
+    background: var(--openlance-bg, transparent);
+    color: inherit;
+    min-width: 0;
+}
+
+.robolance-publish-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.robolance-publish-note {
+    margin: 0;
+    color: var(--openlance-muted, #9a9a9a);
+}
+
+.robolance-publish .robolance-run-actions {
+    padding: 2px 0 0;
+}
+
+.robolance-published {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 6px;
+    min-width: 0;
+    flex-shrink: 0;
+}
+
+.robolance-published-badge {
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+    color: var(--openlance-success-text, var(--openlance-success, #16a34a));
+    background: color-mix(in srgb, var(--openlance-success, #16a34a) 15%, transparent);
+}
+
+.robolance-published-title {
+    min-width: 0;
     flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* The camera button: an icon and the current view's name. */

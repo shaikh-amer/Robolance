@@ -1,0 +1,247 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+:root {
+    --bg: #fafafa;
+    --fg: #1f2328;
+    --muted: #656d76;
+    --card: #ffffff;
+    --border: #d0d7de;
+    --accent: #4f46e5;
+    --good: #1a7f37;
+    --turf: #3b6b30;
+    --line: rgba(255, 255, 255, 0.9);
+    --walk: #f59e0b;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0f1115;
+        --fg: #e6e6e6;
+        --muted: #9aa0a6;
+        --card: #171a21;
+        --border: #2a2f3a;
+        --accent: #a5b4fc;
+        --good: #3fb950;
+        --turf: #2f5a28;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font: 15px/1.5 system-ui, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+}
+
+a {
+    color: var(--accent);
+}
+
+.gallery {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 32px 16px 64px;
+}
+
+.gallery-home {
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.gallery-header h1 {
+    margin: 8px 0 4px;
+    font-size: 28px;
+}
+
+.gallery-header p {
+    margin: 0 0 20px;
+    max-width: 680px;
+    color: var(--muted);
+}
+
+.gallery-filters,
+.gallery-sort {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.gallery-filters {
+    margin-bottom: 8px;
+}
+
+.gallery button {
+    font: inherit;
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--fg);
+    cursor: pointer;
+}
+
+.gallery button.active {
+    background: var(--fg);
+    color: var(--bg);
+    border-color: var(--fg);
+}
+
+.gallery h2 {
+    font-size: 17px;
+    margin: 24px 0 12px;
+}
+
+.gallery-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+}
+
+.gallery-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--card);
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.gallery-card:hover,
+.gallery-card:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.gallery-pitch {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 17 / 14;
+    background: var(--turf);
+}
+
+.gallery-turf {
+    fill: var(--turf);
+}
+
+.gallery-goal {
+    stroke: var(--line);
+    stroke-width: 4;
+    stroke-linecap: round;
+}
+
+.gallery-box {
+    fill: #c8a27a;
+    stroke: rgba(0, 0, 0, 0.35);
+}
+
+.gallery-walk {
+    fill: none;
+    stroke: var(--walk);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.gallery-start {
+    fill: #fff;
+    stroke: rgba(0, 0, 0, 0.4);
+}
+
+.gallery-ball {
+    fill: #f07d1e;
+    stroke: rgba(0, 0, 0, 0.3);
+}
+
+.gallery-card-body {
+    padding: 10px 12px 12px;
+}
+
+.gallery-card-body h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    line-height: 1.3;
+}
+
+.gallery-card-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 13px;
+}
+
+.gallery-outcome {
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+}
+
+.gallery-outcome.good {
+    color: var(--good);
+    border-color: color-mix(in srgb, var(--good) 40%, transparent);
+}
+
+.gallery-score {
+    font-weight: 600;
+}
+
+.gallery-card-by {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.gallery-note {
+    color: var(--muted);
+}
+
+.gallery-more {
+    display: block;
+    margin: 20px auto 0;
+}
+
+/* Phones: two cards a row, so a screen shows several runs. */
+@media (max-width: 520px) {
+    .gallery {
+        padding-top: 20px;
+    }
+
+    .gallery-header h1 {
+        font-size: 24px;
+    }
+
+    .gallery-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .gallery-card-body {
+        padding: 8px 9px 10px;
+    }
+
+    .gallery-card-body h3 {
+        font-size: 13px;
+    }
+
+    .gallery-card-meta {
+        font-size: 12px;
+        gap: 6px;
+    }
+}
