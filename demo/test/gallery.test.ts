@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseShareHash } from 'robolance-openlance-hardware/lib/browser/share-run';
 import featured from '../src/featured.json';
-import { ago, cardHref, fetchGallery, filterCards, mergeFeatured, pitchDrawing, type GalleryCard } from '../src/gallery-data';
+import { ago, cardHref, fetchGallery, filterCards, mergeFeatured, pitchDrawing, safeAvatar, type GalleryCard } from '../src/gallery-data';
 import { loadShare } from '../src/load-run';
 
 const fakeFetch = (status: number, body: unknown): typeof fetch =>
@@ -74,4 +74,12 @@ test('when a run was published reads as a short phrase', () => {
     assert.equal(ago('2026-10-30T09:00:00Z', now), '3 hours ago');
     assert.equal(ago('2026-10-29T12:00:00Z', now), '1 day ago');
     assert.equal(ago('nope', now), '');
+});
+
+test('a card shows the owner\'s photo only from an https address', () => {
+    assert.equal(safeAvatar('https://lh3.googleusercontent.com/a/x=s96'), 'https://lh3.googleusercontent.com/a/x=s96');
+    assert.equal(safeAvatar('http://example.com/a.png'), undefined);
+    assert.equal(safeAvatar('javascript:alert(1)'), undefined);
+    assert.equal(safeAvatar('https://u:p@example.com/a.png'), undefined);
+    assert.equal(safeAvatar(undefined), undefined);
 });

@@ -16,8 +16,8 @@ import { advanceReplay } from './replay';
 import { shareDuckRunUrl, trimDuckRunForShare } from './duck-share';
 import { duckGallerySummary, GALLERY_PAGE_URL, PUBLISHED_FILE, readPublished, suggestedTitle, writePublished, type PublishedEntry } from './gallery';
 import { Score, ScoreCurve, ShareLink } from './RunsView';
-import { encodeShare, REPLAY_PAGE_URL } from './share-run';
-import type { PreviewTabContext, StoreShare } from './preview-tab';
+import { encodeShare, REPLAY_PAGE_URL, SHORT_SHARE_PARAM } from './share-run';
+import type { GalleryShow, GalleryVisibility, PreviewTabContext, StoreShare } from './preview-tab';
 import { CAMERA_LABELS, nextCameraMode, type CameraMode } from './stage-base';
 
 export type DuckView = 'pitch' | 'runs';
@@ -271,7 +271,7 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
                         <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
                         {shareBase && <ShareLink id={run.path} makeUrl={() => shareDuckRunUrl(run, shareBase, storeShare)} />}
                         {gallery && !published && !publishing && (
-                            <button type="button" className="robolance-edit-btn" onClick={() => setPublishing(true)}>Publish to gallery</button>
+                            <button type="button" className="robolance-edit-btn" onClick={() => setPublishing(true)}>Publish</button>
                         )}
                     </div>
                     {gallery && published && <PublishedRow run={run} entry={published} gallery={gallery} />}
@@ -302,9 +302,25 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
 export interface GalleryActions {
     /** Runs this project published, by run path. */
     published: Record<string, PublishedEntry>;
-    publish(run: DuckRun, options: { title: string; showName: boolean; includeCode: boolean }): Promise<void>;
+    publish(run: DuckRun, options: PublishOptions): Promise<void>;
     unpublish(run: DuckRun): Promise<void>;
 }
+
+export interface PublishOptions {
+    title: string;
+    /** How the owner appears, or 'private' to keep the run for themselves. */
+    show: GalleryShow | 'private';
+    includeCode: boolean;
+}
+
+/** The choices the publish form offers, in its order; anonymous is the default. */
+export const SHOW_CHOICES: Array<[PublishOptions['show'], string]> = [
+    ['name_photo', 'Name and photo'],
+    ['photo', 'Photo only'],
+    ['name', 'Name only'],
+    ['anonymous', 'Anonymous'],
+    ['private', 'Only me'],
+];
 
 /** The gallery as the host offers it: storing a share, publishing it, and recording it in the project. */
 export function galleryActions(context: PreviewTabContext): GalleryActions | undefined {
@@ -314,15 +330,21 @@ export function galleryActions(context: PreviewTabContext): GalleryActions | und
     }
     return {
         published: readPublished(files),
-        async publish(run, { title, showName, includeCode }) {
+        async publish(run, { title, show, includeCode }) {
             // Without the code, the share the gallery opens carries no mission.
             const encoded = await encodeShare(trimDuckRunForShare(includeCode ? run : { ...run, mission: '' }));
             const id = await storeShare(encoded, 'duck');
             if (!/^[0-9A-Za-z]{6,32}$/.test(id ?? '')) {
                 throw new Error('The run could not be stored.');
             }
-            const done = await publishShare(id, { title, showName, summary: { ...duckGallerySummary(run) } });
-            await writeFile(PUBLISHED_FILE, writePublished(files, run.path, { id, title: done.title, at: new Date().toISOString() }));
+            const visibility: GalleryVisibility = show === 'private' ? 'private' : 'public';
+            const done = await publishShare(id, {
+                title,
+                show: show === 'private' ? 'anonymous' : show,
+                visibility,
+                summary: { ...duckGallerySummary(run) },
+            });
+            await writeFile(PUBLISHED_FILE, writePublished(files, run.path, { id, title: done.title, at: new Date().toISOString(), visibility }));
         },
         async unpublish(run) {
             const entry = readPublished(files)[run.path];
@@ -341,17 +363,18 @@ export function galleryActions(context: PreviewTabContext): GalleryActions | und
     };
 }
 
-/** Asks for a title, whether to show the account's name and whether to include the code, then publishes. */
+/** Asks for a title, how the owner appears (or only for them) and whether to include the code, then publishes. */
 export function PublishForm({ run, gallery, onClose }: { run: DuckRun; gallery: GalleryActions; onClose(): void }): React.ReactElement {
     const [title, setTitle] = React.useState(() => suggestedTitle(run));
-    const [showName, setShowName] = React.useState(false);
-    const [includeCode, setIncludeCode] = React.useState(true);
+    const [show, setShow] = React.useState<PublishOptions['show']>('anonymous');
+    const [includeCode, setIncludeCode] = React.useState(false);
+    const privately = show === 'private';
     const [state, setState] = React.useState<{ kind: 'idle' | 'working' } | { kind: 'failed'; message: string }>({ kind: 'idle' });
     const valid = title.trim().length >= 3;
     const publish = async (): Promise<void> => {
         setState({ kind: 'working' });
         try {
-            await gallery.publish(run, { title: title.trim(), showName, includeCode });
+            await gallery.publish(run, { title: title.trim(), show, includeCode });
             onClose();
         } catch (err) {
             setState({ kind: 'failed', message: err instanceof Error ? err.message : String(err) });
@@ -363,22 +386,29 @@ export function PublishForm({ run, gallery, onClose }: { run: DuckRun; gallery: 
                 <span>Title</span>
                 <input type="text" value={title} maxLength={80} onChange={e => setTitle(e.target.value)} />
             </label>
+            <fieldset className="robolance-publish-show">
+                <legend>Show as</legend>
+                {SHOW_CHOICES.map(([value, label]) => (
+                    <label key={value} className={`robolance-publish-choice${show === value ? ' active' : ''}`}>
+                        <input type="radio" name="robolance-publish-show" value={value} checked={show === value} onChange={() => setShow(value)} />
+                        <span>{label}</span>
+                    </label>
+                ))}
+            </fieldset>
             <label className="robolance-publish-check">
-                <input type="checkbox" checked={showName} onChange={e => setShowName(e.target.checked)} />
-                <span>Show my name</span>
-            </label>
-            <label className="robolance-publish-check">
-                <input type="checkbox" checked={includeCode} onChange={e => setIncludeCode(e.target.checked)} />
+                <input type="checkbox" role="switch" checked={includeCode} onChange={e => setIncludeCode(e.target.checked)} />
                 <span>Include my mission code</span>
             </label>
             <p className="robolance-publish-note">
-                Anyone can watch this run on <a href={GALLERY_PAGE_URL} target="_blank" rel="noreferrer">robolance.openlance.ai/runs</a>
-                {includeCode ? ', with its mission code and log' : ''}. You can take it off any time.
+                {privately
+                    ? 'Saved for you only: it is not in the gallery, and only someone with its link can open it.'
+                    : <>Anyone can watch this run on <a href={GALLERY_PAGE_URL} target="_blank" rel="noreferrer">robolance.openlance.ai/runs</a>
+                        {includeCode ? ', with its mission code and log' : ''}. You can take it off any time.</>}
             </p>
             {state.kind === 'failed' && <p className="robolance-error" role="alert">{state.message}</p>}
             <div className="robolance-run-actions">
                 <button type="submit" className="robolance-edit-btn robolance-primary-btn" disabled={!valid || state.kind === 'working'}>
-                    {state.kind === 'working' ? 'Publishing…' : 'Publish'}
+                    {state.kind === 'working' ? 'Saving…' : privately ? 'Save for me' : 'Publish'}
                 </button>
                 <button type="button" className="robolance-edit-btn" onClick={onClose} disabled={state.kind === 'working'}>Cancel</button>
             </div>
@@ -397,13 +427,16 @@ export function PublishedRow({ run, entry, gallery }: { run: DuckRun; entry: Pub
             setState({ kind: 'failed', message: err instanceof Error ? err.message : String(err) });
         }
     };
+    const privately = entry.visibility === 'private';
     return (
         <div className="robolance-published">
-            <span className="robolance-published-badge">In the gallery</span>
+            <span className={`robolance-published-badge${privately ? ' private' : ''}`}>{privately ? 'Only you' : 'In the gallery'}</span>
             <span className="robolance-published-title" title={entry.title}>{entry.title}</span>
-            <a className="robolance-edit-btn" href={GALLERY_PAGE_URL} target="_blank" rel="noreferrer">View</a>
+            <a className="robolance-edit-btn" href={privately ? `${REPLAY_PAGE_URL}?${SHORT_SHARE_PARAM}=${entry.id}` : GALLERY_PAGE_URL} target="_blank" rel="noreferrer">
+                {privately ? 'Open' : 'View'}
+            </a>
             <button type="button" className="robolance-edit-btn" onClick={() => { void takeOff(); }} disabled={state.kind === 'working'}>
-                {state.kind === 'working' ? 'Taking off…' : 'Take it off'}
+                {state.kind === 'working' ? 'Removing…' : privately ? 'Remove' : 'Take it off'}
             </button>
             {state.kind === 'failed' && <span className="robolance-error" role="alert">{state.message}</span>}
         </div>

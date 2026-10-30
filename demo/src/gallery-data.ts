@@ -17,6 +17,8 @@ export interface GalleryCard {
     id: string;
     title: string;
     author?: string;
+    /** The owner's photo, when they chose to show it (https). */
+    avatar?: string;
     summary?: DuckGallerySummary;
     score: number;
     featured?: boolean;
@@ -118,6 +120,19 @@ export function pitchDrawing(summary: DuckGallerySummary, width = 240): PitchDra
 }
 
 const round = (v: number): number => Math.round(v * 10) / 10;
+
+/** A photo URL the page may show: https only, else none. */
+export function safeAvatar(url: string | undefined): string | undefined {
+    if (!url) {
+        return undefined;
+    }
+    try {
+        const u = new URL(url);
+        return u.protocol === 'https:' && !u.username && !u.password ? u.toString() : undefined;
+    } catch {
+        return undefined;
+    }
+}
 
 /** "3 days ago", "just now": when a run was published. */
 export function ago(iso: string, now: number = Date.now()): string {

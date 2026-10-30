@@ -61,7 +61,17 @@ export interface PreviewTabContext {
 
 export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
 
-export type PublishShare = (id: string, publication: { title: string; showName: boolean; summary: Record<string, unknown> }) => Promise<{ title: string; author?: string }>;
+/** How a run's owner appears on its gallery card. */
+export type GalleryShow = 'name_photo' | 'photo' | 'name' | 'anonymous';
+/** public: in the gallery; private: saved for its owner only. */
+export type GalleryVisibility = 'public' | 'private';
+
+export type PublishShare = (id: string, publication: {
+    title: string;
+    show: GalleryShow;
+    visibility: GalleryVisibility;
+    summary: Record<string, unknown>;
+}) => Promise<{ title: string; author?: string; avatar?: string; visibility?: GalleryVisibility }>;
 
 /** Stores an encoded run (`kind`: duck, arduino) and returns its id. */
 export type StoreShare = (encoded: string, kind: string) => Promise<string>;
