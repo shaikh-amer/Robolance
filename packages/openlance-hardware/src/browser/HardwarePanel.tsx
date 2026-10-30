@@ -222,7 +222,7 @@ export function HardwarePanelBody({ project, context, shareBase }: HardwarePanel
                     />
                 )}
                 {view === 'arena' && arenaSpec && !editingArena && (
-                    <div className="robolance-arena-wrap">
+                    <div className="robolance-arena-wrap robolance-player" data-viewport={context.viewport ?? 'desktop'}>
                         <ZoomPane className="robolance-arena-pane" contentWidth={arenaSpec.width + 8} contentHeight={arenaSpec.height + 8} mode="contain" maxScale={12} label="Arena">
                             <ArenaView
                                 spec={arenaSpec}

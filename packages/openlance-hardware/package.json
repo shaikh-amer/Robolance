@@ -1,6 +1,6 @@
 {
   "name": "robolance-openlance-hardware",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "OpenLance preview tab for hardware projects: the circuit, the robot arena, the Microduck on its pitch and the history of runs.",
   "license": "Apache-2.0",
   "keywords": [
