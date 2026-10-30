@@ -29,7 +29,8 @@ New, built during the event, in https://github.com/shaikh-amer/robolance:
 New, built during the event, in OpenLance (https://github.com/shaikh-amer/openlance, a separate repository):
 - the agent prompting and the closed run-and-fix loop around the tools;
 - the Meta model provider (Muse Spark, Muse Spark Open);
-- the SAM 3.1 and Muse Image tools on the user's own Meta key;
+- image generation with Muse Image: ask for a picture in plain words and it appears in the chat in a card that animates while it is made, saved in the project;
+- SAM 3.1 segmentation, and photo-to-obstacles from plain words ("here's my room, walk around the chair") with no tool names;
 - GPU training jobs on the user's own compute provider (Modal);
 - the glue that hosts the extension: preview tabs, photo attachments, robot and Microduck templates, built-in tools, the sandbox toolchain.
 
@@ -47,7 +48,7 @@ New, built during the event, in OpenLance (https://github.com/shaikh-amer/openla
 
 1:00 Photo to obstacles (SAM 3.1).
 - Type: "Here's my floor, walk to the ball without hitting anything." Attach a top-down photo of a few cardboard boxes.
-- With no photo to hand: "Generate a top-down photo of cardboard boxes on a wooden floor" with Muse Image first.
+- With no photo to hand: "Make a picture of cardboard boxes on a wooden floor, seen from above" first. The picture appears in the chat card while Muse Image makes it.
 - Chat rows: "Found 'cardboard box' in floor.jpg: 3 found" (SAM 3.1), then the obstacles on the pitch.
 - The replay shows the duck walking around the boxes. "Meta's SAM 3.1 turned a photo into the robot's world."
 
@@ -104,7 +105,7 @@ Meta products used:
 - **Muse Spark 1.3** (Meta Model API): the coding agent's model, and its vision checks a photo of a real breadboard against the circuit the agent designed.
 - **Muse Spark Open** via Baseten and Fireworks AI: the open-weight option for the same agent.
 - **SAM 3.1** (Meta Model API): finds objects in a photo ("cardboard box") so a room becomes obstacles for the simulated robot.
-- **Muse Image**: generates scene images and test photos for SAM.
+- **Muse Image**: image generation in the chat. Ask for a picture in plain words; it appears in an animated card as it is made and is saved in the project. Also makes test photos for SAM.
 
 All of them run on each user's own Meta key, saved once in Settings and never sent to the sandbox. Planned: a Muse Glimmer fine-tune on the agent's run logs.
 
@@ -151,6 +152,7 @@ Repository: https://github.com/shaikh-amer/robolance (hackathon work only). Open
   - Modal under Compute providers.
 - [ ] End to end on the deployed IDE:
   - [ ] score a goal;
+  - [x] image generation (the picture appears in the chat card);
   - [ ] photo to obstacles (a SAM 3.1 call returns boxes);
   - [ ] close the laptop;
   - [ ] wall avoider;

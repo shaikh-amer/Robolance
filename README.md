@@ -26,13 +26,13 @@
 
 robolance is an [OpenLance](https://openlance.ai) feature built in the open for the Meta Global AI Developer Hackathon (October 26 – November 4, 2026). It gives a coding agent a real feedback loop for embedded code: compile an Arduino sketch, run it on a simulated board wired to real parts (LEDs, buttons, servos, motors, an ultrasonic sensor), drive a two-wheel robot through an arena, and read back exactly what the firmware did. The agent iterates on that trace the way it iterates on a failing test, and the user watches the circuit, the robot and the run history in the browser. No hardware is needed; when a board is plugged in, the same sketch flashes to it.
 
-The same loop works for robots that walk. [Microduck](https://github.com/pollen-robotics/microduck), Pollen Robotics' 25 cm open-source duck robot, runs in a MuJoCo physics simulator with its own trained skills. The agent writes a mission ("score a goal", "close the developer's laptop"), runs it, reads why a kick missed or the lid stayed open, and runs again. It can turn a photo of a room into obstacles with Meta's SAM 3.1, and train new skills on the user's own GPU provider. Any other robot comes in as a MuJoCo model the agent checks and drives with a controller script.
+The same loop works for robots that walk. [Microduck](https://github.com/pollen-robotics/microduck), Pollen Robotics' 25 cm open-source duck robot, runs in a MuJoCo physics simulator with its own trained skills. The agent writes a mission ("score a goal", "close the developer's laptop"), runs it, reads why a kick missed or the lid stayed open, and runs again. It can turn a photo of a room into obstacles with Meta's SAM 3.1, make pictures from plain words with Muse Image right in the chat, and train new skills on the user's own GPU provider. Any other robot comes in as a MuJoCo model the agent checks and drives with a controller script.
 
 ## What is pre-existing and what is new
 
 - **Pre-existing**: OpenLance, the web IDE and agent harness this plugs into (separate repository, not part of the hackathon submission). Open-source libraries: [avr8js](https://github.com/wokwi/avr8js) (ATmega328p emulation, MIT), [@wokwi/elements](https://github.com/wokwi/wokwi-elements) (part graphics, MIT), avr-gcc and [ArduinoCore-avr](https://github.com/arduino/ArduinoCore-avr), the [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk), [MuJoCo](https://github.com/google-deepmind/mujoco) (physics, Apache-2.0), [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT), and Pollen Robotics' Microduck robot model and trained skills (walk, stand, kicks; Apache-2.0; see `packages/duck-sim/THIRD_PARTY_NOTICES.md`).
 - **New, written during the event, in this repository**: everything under `packages/` and `demo/`: the circuit and robot-arena simulation (wall avoidance and line following), the compile and run tools served over MCP, the IDE extension that shows the circuit, arena and runs (with the arena editor, the wiring check from a photo and shareable run links), and the replay page. Also the Microduck simulator and mission API (football pitch, obstacles, the laptop mission, scoring and notes), the `duck_*` and `scene_*` tools, photo-to-obstacles from SAM 3.1 output, running policies a project trained, the generic MuJoCo runner for any robot, and the 3D replay views.
-- **New, written during the event, in OpenLance** (separate repository): the agent prompting and the closed compile-run-fix loop around the tools, the Meta model provider, the SAM 3.1 and Muse Image tools, GPU training jobs on the user's own compute provider, and the glue that hosts the extension (preview tabs, photo attachments, robot template, built-in hardware tools, sandbox toolchain).
+- **New, written during the event, in OpenLance** (separate repository): the agent prompting and the closed compile-run-fix loop around the tools, the Meta model provider, image generation with Muse Image (the picture appears in the chat as it is made), SAM 3.1 segmentation and photo-to-obstacles from plain words, GPU training jobs on the user's own compute provider, and the glue that hosts the extension (preview tabs, photo attachments, robot template, built-in hardware tools, sandbox toolchain).
 
 ## Packages
 
@@ -73,6 +73,17 @@ Each run returns the outcome (`goal`, `no-goal`, `closed`, `still-open`, `fell`,
 - **Close the laptop**: with `field.laptop` set, the duck walks behind the open laptop and headbutts the lid shut (`examples/close-the-laptop.js`, scores 88–96 from any placement). The developer has to come and play.
 - **Obstacles from a photo**: SAM 3.1 finds the boxes in a top-down photo; `duck_obstacles_from_photo` maps them onto the pitch as `field.obstacles`, and the duck walks around them.
 - **Trained skills**: a policy the project trained (ONNX, 61 inputs, 14 outputs) replaces the built-in walk or adds a new skill, so a new skill is tested in the same simulator before anyone calls it done.
+
+## Pictures with Meta models
+
+Image generation is new in OpenLance, built for this hackathon on Meta's models. Everything runs on the user's own Meta key, saved once in Settings and never sent to the sandbox.
+
+<p align="center"><img src="docs/media/muse-image-in-chat.jpg" alt="The OpenLance chat: the prompt 'Make a picture of a cosy room with a chair and a laptop on the floor' and the picture Muse Image made, in the chat card" width="420"></p>
+
+- **Make a picture (Muse Image)**: ask in plain words, e.g. "Make a picture of a cosy room with a chair and a laptop on the floor." The chat shows one card in the picture's shape that glows while Muse Image draws it; the picture fades in inside the same card, with the prompt as its caption. It is saved in the project (`images/` by default) and opens full size on a click. Muse Image makes pictures from words; it does not edit a photo.
+- **Find things in a photo (SAM 3.1)**: the agent finds every "chair" or "cardboard box" in a project image and gets back a mask and a box for each.
+- **Your room as the pitch**: attach a photo of a room and say "Make the duck walk around the chair and score a goal." The agent finds the things standing on the floor with SAM 3.1, estimates the floor from things of known size (a chair seat is about 45 cm), turns them into `field.obstacles` with `duck_obstacles_from_photo` and runs the mission. No tool names or measurements needed.
+- **Test photos for SAM**: with no photo to hand, have Muse Image make one first ("a top-down photo of cardboard boxes on a wooden floor"), then turn it into obstacles.
 
 ## Run it
 
