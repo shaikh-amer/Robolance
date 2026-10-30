@@ -33,6 +33,7 @@ body {
 .replay-headline { flex: 1 1 auto; min-width: 0; }
 .replay-when { color: var(--openlance-muted); }
 .replay-open {
+    color: inherit; text-decoration: none;
     cursor: pointer; padding: 3px 10px; border: 1px solid var(--openlance-border); border-radius: 6px;
 }
 .replay-open:hover { border-color: var(--openlance-accent); }

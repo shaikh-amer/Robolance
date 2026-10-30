@@ -45,6 +45,13 @@ export interface PreviewTabContext {
      */
     storeShare?: StoreShare;
     /**
+     * Shows a stored share in the public runs gallery with a title, the
+     * account's name when asked, and a card summary. Absent: no Publish button.
+     */
+    publishShare?: PublishShare;
+    /** Takes a share off the gallery; its link keeps working. */
+    unpublishShare?: (id: string) => Promise<void>;
+    /**
      * The screen size picked in the preview's Desktop / Tablet / Phone
      * switch. The player (the 3D or arena replay) takes that width; the
      * rest of the tab keeps the panel's.
@@ -53,6 +60,8 @@ export interface PreviewTabContext {
 }
 
 export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
+
+export type PublishShare = (id: string, publication: { title: string; showName: boolean; summary: Record<string, unknown> }) => Promise<{ title: string; author?: string }>;
 
 /** Stores an encoded run (`kind`: duck, arduino) and returns its id. */
 export type StoreShare = (encoded: string, kind: string) => Promise<string>;

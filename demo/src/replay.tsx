@@ -97,6 +97,7 @@ function App(): React.ReactElement {
                         {loaded.run.at && <span className="replay-when"> · {new Date(loaded.run.at).toLocaleString()}</span>}
                     </span>
                 )}
+                <a className="replay-open" href="../runs/">More runs</a>
                 <label className="replay-open">
                     Open a run file
                     <input type="file" accept="application/json,.json" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { void openFile(f); } }} />
@@ -108,7 +109,7 @@ function App(): React.ReactElement {
                 <div className="replay-empty">
                     <p>Open a run shared from OpenLance's Hardware tab (an Arduino robot or the Microduck), or drop a <code>.robolance/runs/&lt;time&gt;.json</code> file here.</p>
                     <p>A share link carries the whole run in its fragment: nothing is uploaded, and it works without an account.</p>
-                    <p><a href={REPO} target="_blank" rel="noreferrer">What is robolance?</a></p>
+                    <p><a href="../runs/">See runs people made</a> · <a href={REPO} target="_blank" rel="noreferrer">What is robolance?</a></p>
                 </div>
             )}
             {project && (

@@ -13,9 +13,10 @@ import { DuckScene } from './DuckScene';
 import { describeDuckRun, describeDuckSkills, duckRunMs, outcomeLabel, readDuckRuns, missionPath, type DuckRun } from './duck-project';
 import { formatRunTime } from './hardware-project';
 import { advanceReplay } from './replay';
-import { shareDuckRunUrl } from './duck-share';
+import { shareDuckRunUrl, trimDuckRunForShare } from './duck-share';
+import { duckGallerySummary, GALLERY_PAGE_URL, PUBLISHED_FILE, readPublished, suggestedTitle, writePublished, type PublishedEntry } from './gallery';
 import { Score, ScoreCurve, ShareLink } from './RunsView';
-import { REPLAY_PAGE_URL } from './share-run';
+import { encodeShare, REPLAY_PAGE_URL } from './share-run';
 import type { PreviewTabContext, StoreShare } from './preview-tab';
 import { CAMERA_LABELS, nextCameraMode, type CameraMode } from './stage-base';
 
@@ -151,7 +152,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
                         <DuckReadout result={r} timeMs={timeMs} />
                     </div>
                 )}
-                {view === 'runs' && <DuckRunsView runs={runs} selected={selected} onSelect={i => { select(i); }} onWatch={i => { select(i); setView('pitch'); setPlaying(true); }} shareBase={shareBase} storeShare={context.storeShare} />}
+                {view === 'runs' && <DuckRunsView runs={runs} selected={selected} onSelect={i => { select(i); }} onWatch={i => { select(i); setView('pitch'); setPlaying(true); }} shareBase={shareBase} storeShare={context.storeShare} gallery={galleryActions(context)} />}
             </div>
 
             <div className="robolance-footer">
@@ -229,10 +230,15 @@ interface DuckRunsViewProps {
     shareBase?: string | false;
     /** Stores a share for a short link; see PreviewTabContext.storeShare. */
     storeShare?: StoreShare;
+    /** Publishing to the public runs gallery; absent where the host cannot. */
+    gallery?: GalleryActions;
 }
 
-export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = REPLAY_PAGE_URL, storeShare }: DuckRunsViewProps): React.ReactElement {
+export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = REPLAY_PAGE_URL, storeShare, gallery }: DuckRunsViewProps): React.ReactElement {
     const run = runs[selected];
+    const [publishing, setPublishing] = React.useState(false);
+    React.useEffect(() => setPublishing(false), [run?.path]);
+    const published = run && gallery?.published[run.path];
     return (
         <div className="robolance-runs">
             {runs.length > 1 && (
@@ -264,7 +270,12 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
                     <div className="robolance-run-actions">
                         <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
                         {shareBase && <ShareLink id={run.path} makeUrl={() => shareDuckRunUrl(run, shareBase, storeShare)} />}
+                        {gallery && !published && !publishing && (
+                            <button type="button" className="robolance-edit-btn" onClick={() => setPublishing(true)}>Publish to gallery</button>
+                        )}
                     </div>
+                    {gallery && published && <PublishedRow run={run} entry={published} gallery={gallery} />}
+                    {gallery && !published && publishing && <PublishForm run={run} gallery={gallery} onClose={() => setPublishing(false)} />}
                     {describeDuckSkills(run) && <p className="robolance-duck-skills">Trained policies from the project: {describeDuckSkills(run)}</p>}
                     {run.result.error && <pre className="robolance-error">{run.result.error}</pre>}
                     {run.result.notes.length > 0 && (
@@ -283,6 +294,118 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
                     )}
                 </div>
             )}
+        </div>
+    );
+}
+
+/** Publishing runs to the public gallery (robolance.openlance.ai/runs/). */
+export interface GalleryActions {
+    /** Runs this project published, by run path. */
+    published: Record<string, PublishedEntry>;
+    publish(run: DuckRun, options: { title: string; showName: boolean; includeCode: boolean }): Promise<void>;
+    unpublish(run: DuckRun): Promise<void>;
+}
+
+/** The gallery as the host offers it: storing a share, publishing it, and recording it in the project. */
+export function galleryActions(context: PreviewTabContext): GalleryActions | undefined {
+    const { storeShare, publishShare, unpublishShare, writeFile, files } = context;
+    if (!storeShare || !publishShare || !unpublishShare || !writeFile) {
+        return undefined;
+    }
+    return {
+        published: readPublished(files),
+        async publish(run, { title, showName, includeCode }) {
+            // Without the code, the share the gallery opens carries no mission.
+            const encoded = await encodeShare(trimDuckRunForShare(includeCode ? run : { ...run, mission: '' }));
+            const id = await storeShare(encoded, 'duck');
+            if (!/^[0-9A-Za-z]{6,32}$/.test(id ?? '')) {
+                throw new Error('The run could not be stored.');
+            }
+            const done = await publishShare(id, { title, showName, summary: { ...duckGallerySummary(run) } });
+            await writeFile(PUBLISHED_FILE, writePublished(files, run.path, { id, title: done.title, at: new Date().toISOString() }));
+        },
+        async unpublish(run) {
+            const entry = readPublished(files)[run.path];
+            if (entry) {
+                try {
+                    await unpublishShare(entry.id);
+                } catch (err) {
+                    // Already gone from the gallery (deleted, or another device took it off): forget it here too.
+                    if (!/no shared run/i.test(err instanceof Error ? err.message : String(err))) {
+                        throw err;
+                    }
+                }
+            }
+            await writeFile(PUBLISHED_FILE, writePublished(files, run.path, undefined));
+        },
+    };
+}
+
+/** Asks for a title, whether to show the account's name and whether to include the code, then publishes. */
+export function PublishForm({ run, gallery, onClose }: { run: DuckRun; gallery: GalleryActions; onClose(): void }): React.ReactElement {
+    const [title, setTitle] = React.useState(() => suggestedTitle(run));
+    const [showName, setShowName] = React.useState(false);
+    const [includeCode, setIncludeCode] = React.useState(true);
+    const [state, setState] = React.useState<{ kind: 'idle' | 'working' } | { kind: 'failed'; message: string }>({ kind: 'idle' });
+    const valid = title.trim().length >= 3;
+    const publish = async (): Promise<void> => {
+        setState({ kind: 'working' });
+        try {
+            await gallery.publish(run, { title: title.trim(), showName, includeCode });
+            onClose();
+        } catch (err) {
+            setState({ kind: 'failed', message: err instanceof Error ? err.message : String(err) });
+        }
+    };
+    return (
+        <form className="robolance-publish" onSubmit={e => { e.preventDefault(); if (valid) { void publish(); } }}>
+            <label className="robolance-publish-field">
+                <span>Title</span>
+                <input type="text" value={title} maxLength={80} onChange={e => setTitle(e.target.value)} />
+            </label>
+            <label className="robolance-publish-check">
+                <input type="checkbox" checked={showName} onChange={e => setShowName(e.target.checked)} />
+                <span>Show my name</span>
+            </label>
+            <label className="robolance-publish-check">
+                <input type="checkbox" checked={includeCode} onChange={e => setIncludeCode(e.target.checked)} />
+                <span>Include my mission code</span>
+            </label>
+            <p className="robolance-publish-note">
+                Anyone can watch this run on <a href={GALLERY_PAGE_URL} target="_blank" rel="noreferrer">robolance.openlance.ai/runs</a>
+                {includeCode ? ', with its mission code and log' : ''}. You can take it off any time.
+            </p>
+            {state.kind === 'failed' && <p className="robolance-error" role="alert">{state.message}</p>}
+            <div className="robolance-run-actions">
+                <button type="submit" className="robolance-edit-btn robolance-primary-btn" disabled={!valid || state.kind === 'working'}>
+                    {state.kind === 'working' ? 'Publishing…' : 'Publish'}
+                </button>
+                <button type="button" className="robolance-edit-btn" onClick={onClose} disabled={state.kind === 'working'}>Cancel</button>
+            </div>
+        </form>
+    );
+}
+
+/** A published run: where to see it and how to take it off. */
+export function PublishedRow({ run, entry, gallery }: { run: DuckRun; entry: PublishedEntry; gallery: GalleryActions }): React.ReactElement {
+    const [state, setState] = React.useState<{ kind: 'idle' | 'working' } | { kind: 'failed'; message: string }>({ kind: 'idle' });
+    const takeOff = async (): Promise<void> => {
+        setState({ kind: 'working' });
+        try {
+            await gallery.unpublish(run);
+        } catch (err) {
+            setState({ kind: 'failed', message: err instanceof Error ? err.message : String(err) });
+        }
+    };
+    return (
+        <div className="robolance-published">
+            <span className="robolance-published-badge">In the gallery</span>
+            <span className="robolance-published-title" title={entry.title}>{entry.title}</span>
+            <a className="robolance-edit-btn" href={GALLERY_PAGE_URL} target="_blank" rel="noreferrer">View</a>
+            <button type="button" className="robolance-edit-btn" onClick={() => { void takeOff(); }} disabled={state.kind === 'working'}>
+                {state.kind === 'working' ? 'Taking off…' : 'Take it off'}
+            </button>
+            {state.kind === 'failed' && <span className="robolance-error" role="alert">{state.message}</span>}
         </div>
     );
 }
