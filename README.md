@@ -1,6 +1,28 @@
 # robolance
 
+<p align="center">
+  <a href="https://cerebralvalley.ai"><img alt="Cerebral Valley" src="https://img.shields.io/badge/Organized%20by-Cerebral%20Valley-111111?style=for-the-badge&labelColor=555555"></a>
+  <a href="https://ai.meta.com"><img alt="Meta" src="https://img.shields.io/badge/-Meta-0467DF?style=for-the-badge&logo=meta&logoColor=white"></a>
+  <a href="https://www.baseten.co"><img alt="Baseten" src="https://img.shields.io/badge/-Baseten-1E1E1E?style=for-the-badge"></a>
+  <a href="https://fireworks.ai"><img alt="Fireworks AI" src="https://img.shields.io/badge/-Fireworks%20AI-6720FF?style=for-the-badge"></a>
+  <a href="https://modal.com"><img alt="Modal" src="https://img.shields.io/badge/-Modal-3FAE3C?style=for-the-badge"></a>
+</p>
+
 **Tell what your robot should do in plain words; a Meta-powered agent codes, flashes, watches and fixes it until it works.**
+
+<p align="center">
+  <a href="https://github.com/google-deepmind/mujoco"><img alt="MuJoCo on GitHub" src="https://img.shields.io/github/stars/google-deepmind/mujoco?style=social&label=MuJoCo"></a>
+  <a href="https://github.com/pollen-robotics/microduck"><img alt="Microduck on GitHub" src="https://img.shields.io/github/stars/pollen-robotics/microduck?style=social&label=Microduck"></a>
+  <a href="https://github.com/facebookresearch/sam3"><img alt="SAM 3 on GitHub" src="https://img.shields.io/github/stars/facebookresearch/sam3?style=social&label=SAM%203"></a>
+  <a href="https://github.com/microsoft/onnxruntime"><img alt="ONNX Runtime on GitHub" src="https://img.shields.io/github/stars/microsoft/onnxruntime?style=social&label=ONNX%20Runtime"></a>
+  <a href="https://github.com/mrdoob/three.js"><img alt="three.js on GitHub" src="https://img.shields.io/github/stars/mrdoob/three.js?style=social&label=three.js"></a>
+  <a href="https://github.com/eclipse-theia/theia"><img alt="Eclipse Theia on GitHub" src="https://img.shields.io/github/stars/eclipse-theia/theia?style=social&label=Eclipse%20Theia"></a>
+  <a href="https://github.com/modelcontextprotocol/typescript-sdk"><img alt="MCP SDK on GitHub" src="https://img.shields.io/github/stars/modelcontextprotocol/typescript-sdk?style=social&label=MCP%20SDK"></a>
+  <a href="https://github.com/wokwi/avr8js"><img alt="avr8js on GitHub" src="https://img.shields.io/github/stars/wokwi/avr8js?style=social&label=avr8js"></a>
+  <a href="https://github.com/wokwi/wokwi-elements"><img alt="Wokwi Elements on GitHub" src="https://img.shields.io/github/stars/wokwi/wokwi-elements?style=social&label=Wokwi%20Elements"></a>
+  <a href="https://github.com/arduino/ArduinoCore-avr"><img alt="ArduinoCore-avr on GitHub" src="https://img.shields.io/github/stars/arduino/ArduinoCore-avr?style=social&label=ArduinoCore-avr"></a>
+  <a href="https://github.com/facebook/react"><img alt="React on GitHub" src="https://img.shields.io/github/stars/facebook/react?style=social&label=React"></a>
+</p>
 
 robolance is an [OpenLance](https://openlance.ai) feature built in the open for the Meta Global AI Developer Hackathon (October 26 – November 4, 2026). It gives a coding agent a real feedback loop for embedded code: compile an Arduino sketch, run it on a simulated board wired to real parts (LEDs, buttons, servos, motors, an ultrasonic sensor), drive a two-wheel robot through an arena, and read back exactly what the firmware did. The agent iterates on that trace the way it iterates on a failing test, and the user watches the circuit, the robot and the run history in the browser. No hardware is needed; when a board is plugged in, the same sketch flashes to it.
 
@@ -103,6 +125,17 @@ The extension binds `Symbol.for('openlance.previewTab')` in its inversify module
 ```
 
 Buttons are wired to ground (use `INPUT_PULLUP`, pressed reads LOW). Servos take the Arduino `Servo` library's pulses. The HC-SR04 answers a 10 µs trigger pulse with an echo of 58 µs per centimetre. Motors are one H-bridge channel each: two direction pins and a PWM enable. The corner arena is a 200 × 120 cm room with two inner walls; the robot starts bottom-left facing east and the goal is top-right.
+
+## Thanks
+
+robolance was built for the **Meta Global AI Developer Hackathon**. Thank you to:
+
+- **[Cerebral Valley](https://cerebralvalley.ai)** for organizing the hackathon and bringing everyone together.
+- **[Meta](https://ai.meta.com)** for the Llama and Muse models the agent thinks with, and SAM 3.1, which turns a photo of a room into obstacles.
+- **[Baseten](https://www.baseten.co)** and **[Fireworks AI](https://fireworks.ai)** for serving Muse Spark Open fast enough for a coding agent's loop.
+- **[Modal](https://modal.com)** for the GPUs that train new Microduck skills.
+
+And to the open-source projects at the top of this page, which robolance is built on.
 
 ## License
 
