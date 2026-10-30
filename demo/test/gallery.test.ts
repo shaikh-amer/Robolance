@@ -87,6 +87,9 @@ test('a card shows the owner\'s photo only from an https address', () => {
 test('a card\'s picture is a thumbnail the site ships or one OpenLance serves, nothing else', () => {
     assert.equal(safeThumb('thumbs/featured-1.jpg'), 'thumbs/featured-1.jpg');
     assert.equal(safeThumb('https://api.openlance.ai/api/v1/public/gallery/abc123/thumb.jpg'), 'https://api.openlance.ai/api/v1/public/gallery/abc123/thumb.jpg');
+    assert.equal(safeThumb('/api/v1/public/gallery/abc123/thumb.jpg?v=1761800000'), 'https://api.openlance.ai/api/v1/public/gallery/abc123/thumb.jpg?v=1761800000');
+    assert.equal(safeThumb('//evil.example/x.jpg'), undefined);
+    assert.equal(safeThumb('/other/path.jpg'), undefined);
     assert.equal(safeThumb('https://evil.example/x.jpg'), undefined);
     assert.equal(safeThumb('thumbs/../secret.jpg'), undefined);
     assert.equal(safeThumb('javascript:alert(1)'), undefined);

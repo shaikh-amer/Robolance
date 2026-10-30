@@ -148,7 +148,8 @@ export function safeThumb(url: string | undefined, api: string = GALLERY_API): s
         return url;
     }
     try {
-        const u = new URL(url);
+        // OpenLance lists its pictures as paths on its API.
+        const u = url.startsWith('/api/v1/public/gallery/') ? new URL(url, api) : new URL(url);
         return u.origin === new URL(api).origin && !u.username && !u.password ? u.toString() : undefined;
     } catch {
         return undefined;
