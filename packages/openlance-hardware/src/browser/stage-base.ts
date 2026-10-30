@@ -22,6 +22,59 @@ export interface StageView {
     distance: number;
 }
 
+/**
+ * How the camera films the robot, like a game's camera button:
+ * - orbit: the broadcast view, dragged and zoomed by hand;
+ * - chase: third person, behind the robot and turning with it;
+ * - eyes: first person, from the robot's head, looking where it walks;
+ * - wide: high above, the whole field in frame.
+ */
+export type CameraMode = 'orbit' | 'chase' | 'eyes' | 'wide';
+
+export const CAMERA_MODES: readonly CameraMode[] = ['orbit', 'chase', 'eyes', 'wide'];
+
+export const CAMERA_LABELS: Record<CameraMode, string> = {
+    orbit: 'Broadcast',
+    chase: 'Third person',
+    eyes: 'First person',
+    wide: 'Wide angle',
+};
+
+/** The mode after `mode` on the camera button (wraps around). */
+export function nextCameraMode(mode: CameraMode): CameraMode {
+    return CAMERA_MODES[(CAMERA_MODES.indexOf(mode) + 1) % CAMERA_MODES.length];
+}
+
+/** Where the camera sits and looks for a robot at (x, y) facing `heading` (radians). */
+export interface RobotShot {
+    position: [number, number, number];
+    lookAt: [number, number, number];
+}
+
+/** Behind and above the robot, looking a little ahead of it. */
+export function chaseShot(x: number, y: number, heading: number, back = 0.7, height = 0.36): RobotShot {
+    const fx = Math.cos(heading);
+    const fy = Math.sin(heading);
+    return { position: [x - fx * back, y - fy * back, height], lookAt: [x + fx * 0.35, y + fy * 0.35, 0.06] };
+}
+
+/** Just in front of the robot's face, looking down the way it walks. */
+export function eyesShot(x: number, y: number, heading: number, eye = 0.09, height = 0.2): RobotShot {
+    const fx = Math.cos(heading);
+    const fy = Math.sin(heading);
+    // Tilted down a little, so the ball at the robot's feet is in view.
+    return { position: [x + fx * eye, y + fy * eye, height], lookAt: [x + fx * 0.9, y + fy * 0.9, 0] };
+}
+
+/** Lens per camera mode (degrees, vertical): wider up close, like a game's. */
+export const CAMERA_FOV: Record<CameraMode, number> = { orbit: 38, chase: 55, eyes: 72, wide: 38 };
+
+/** Eases `from` toward `to` by `t`, the short way round the circle (radians). */
+export function easeAngle(from: number, to: number, t: number): number {
+    const d = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+    return from + d * t;
+}
+
 export interface SkyPalette {
     /** Sky at the zenith and at the horizon (the fog fades into the horizon). */
     skyTop: string;
@@ -46,6 +99,9 @@ export abstract class StageBase {
     /** Where the camera looks when following. */
     protected readonly followAt = new THREE.Vector3();
     protected follow = false;
+    /** The robot's heading (radians), eased so a walking gait does not shake the chase and eye cameras. */
+    protected followHeading = 0;
+    protected cameraMode: CameraMode = 'orbit';
     protected readonly disposers: Array<() => void> = [];
     /** The default view's distance after fitting `framePoints()` to the canvas (0 until fitted). */
     private fittedDistance = 0;
@@ -100,6 +156,20 @@ export abstract class StageBase {
         this.invalidate();
     }
 
+    setCameraMode(mode: CameraMode): void {
+        this.cameraMode = mode;
+        this.invalidate();
+    }
+
+    /**
+     * The robot's heading from the replay: a big jump (a seek, a new run)
+     * snaps, a walking wobble is eased.
+     */
+    protected setFollowHeading(heading: number): void {
+        const jump = Math.abs(Math.atan2(Math.sin(heading - this.followHeading), Math.cos(heading - this.followHeading)));
+        this.followHeading = jump > Math.PI / 3 ? heading : easeAngle(this.followHeading, heading, 0.35);
+    }
+
     resetView(): void {
         this.view = { ...this.defaultView };
         this.userZoomed = false;
@@ -134,7 +204,7 @@ export abstract class StageBase {
      */
     protected frameView(): void {
         const points = this.framePoints();
-        this.fittedDistance = points.length > 0 ? distanceToFit(points, this.target, this.view, this.camera.fov, this.camera.aspect) : 0;
+        this.fittedDistance = points.length > 0 ? distanceToFit(points, this.target, this.view, CAMERA_FOV.orbit, this.camera.aspect) : 0;
         if (!this.userZoomed && this.fittedDistance > 0) {
             this.view.distance = this.fittedDistance;
         }
@@ -174,9 +244,27 @@ export abstract class StageBase {
     }
 
     private render(): void {
-        const target = this.follow ? this.followAt : this.target;
-        orbitPosition(target, this.view, this.view.distance, this.camera.position);
-        this.camera.lookAt(target);
+        const mode = this.cameraMode;
+        if (this.camera.fov !== CAMERA_FOV[mode]) {
+            this.camera.fov = CAMERA_FOV[mode];
+            this.camera.updateProjectionMatrix();
+        }
+        if (mode === 'chase' || mode === 'eyes') {
+            const shot = (mode === 'chase' ? chaseShot : eyesShot)(this.followAt.x, this.followAt.y, this.followHeading);
+            this.camera.position.set(...shot.position);
+            this.camera.lookAt(...shot.lookAt);
+        } else if (mode === 'wide') {
+            const wide: StageView = { azimuth: this.defaultView.azimuth, elevation: 62, distance: this.view.distance };
+            const points = this.framePoints();
+            const fitted = points.length > 0 ? distanceToFit(points, this.target, wide, CAMERA_FOV.wide, this.camera.aspect) : this.defaultView.distance;
+            // Some room around the field, so the whole pitch reads as a place.
+            orbitPosition(this.target, wide, fitted * 1.3, this.camera.position);
+            this.camera.lookAt(this.target);
+        } else {
+            const target = this.follow ? this.followAt : this.target;
+            orbitPosition(target, this.view, this.view.distance, this.camera.position);
+            this.camera.lookAt(target);
+        }
         this.renderer.render(this.scene, this.camera);
     }
 

@@ -11,18 +11,21 @@ import type { MissionResult } from 'robolance-duck-sim/viewer';
 import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
 import { frameAt, pathUntil } from './duck-project';
 import { DuckStage } from './duck-stage';
+import type { CameraMode } from './stage-base';
 
 export interface DuckSceneProps {
     result: MissionResult;
     timeMs: number;
     theme: 'light' | 'dark';
-    /** Keep the camera on the duck. */
+    /** Keep the camera on the duck (orbit mode only). */
     follow?: boolean;
+    /** How the camera films the duck (DuckPanel's camera button). */
+    camera?: CameraMode;
     /** Bumped to put the camera back where it started. */
     resetKey?: number;
 }
 
-export function DuckScene({ result, timeMs, theme, follow = false, resetKey = 0 }: DuckSceneProps): React.ReactElement {
+export function DuckScene({ result, timeMs, theme, follow = false, camera = 'orbit', resetKey = 0 }: DuckSceneProps): React.ReactElement {
     const host = React.useRef<HTMLDivElement>(null);
     const stage = React.useRef<DuckStage>();
     const [failed, setFailed] = React.useState<string>();
@@ -46,6 +49,7 @@ export function DuckScene({ result, timeMs, theme, follow = false, resetKey = 0 
     React.useEffect(() => stage.current?.setTheme(theme), [theme, failed]);
     React.useEffect(() => stage.current?.setField(result.field), [result.field, failed]);
     React.useEffect(() => stage.current?.setFollow(follow), [follow, failed]);
+    React.useEffect(() => stage.current?.setCameraMode(camera), [camera, failed]);
     React.useEffect(() => {
         if (resetKey) {
             stage.current?.resetView();

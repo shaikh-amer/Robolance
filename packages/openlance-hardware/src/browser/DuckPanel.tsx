@@ -17,6 +17,7 @@ import { shareDuckRunUrl } from './duck-share';
 import { Score, ScoreCurve, ShareLink } from './RunsView';
 import { REPLAY_PAGE_URL } from './share-run';
 import type { PreviewTabContext, StoreShare } from './preview-tab';
+import { CAMERA_LABELS, nextCameraMode, type CameraMode } from './stage-base';
 
 export type DuckView = 'pitch' | 'runs';
 
@@ -42,8 +43,17 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
     const [selected, setSelected] = React.useState(0);
     const [timeMs, setTimeMs] = React.useState(0);
     const [playing, setPlaying] = React.useState(false);
-    const [follow, setFollow] = React.useState(false);
+    const [camera, setCamera] = React.useState<CameraMode>('orbit');
+    /** The mode's name shown on the pitch for a moment after a switch. */
+    const [cameraToast, setCameraToast] = React.useState(0);
     const [resetKey, setResetKey] = React.useState(0);
+    React.useEffect(() => {
+        if (!cameraToast) {
+            return;
+        }
+        const t = setTimeout(() => setCameraToast(0), 1400);
+        return () => clearTimeout(t);
+    }, [cameraToast]);
 
     const run: DuckRun | undefined = runs[Math.min(selected, Math.max(0, runs.length - 1))];
     const duration = run ? duckRunMs(run) : 0;
@@ -121,16 +131,8 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
                 <div className="robolance-toolbar-right">
                     {view === 'pitch' && (
                         <>
-                            <button
-                                type="button"
-                                className={`robolance-edit-btn${follow ? ' active' : ''}`}
-                                aria-pressed={follow}
-                                title="Keep the camera on the duck"
-                                onClick={() => setFollow(f => !f)}
-                            >
-                                Follow
-                            </button>
-                            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the pitch)" onClick={() => setResetKey(k => k + 1)}>
+                            <CameraButton mode={camera} onClick={() => { setCamera(nextCameraMode); setCameraToast(t => t + 1); }} />
+                            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the pitch)" onClick={() => { setCamera('orbit'); setResetKey(k => k + 1); }}>
                                 Reset view
                             </button>
                         </>
@@ -144,7 +146,8 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
             <div className="robolance-body">
                 {view === 'pitch' && (
                     <div className="robolance-duck-wrap robolance-player" data-viewport={context.viewport ?? 'desktop'}>
-                        <DuckScene result={r} timeMs={timeMs} theme={context.theme} follow={follow} resetKey={resetKey} />
+                        <DuckScene result={r} timeMs={timeMs} theme={context.theme} camera={camera} resetKey={resetKey} />
+                        {cameraToast > 0 && <span className="robolance-camera-toast" role="status">{CAMERA_LABELS[camera]}</span>}
                         <DuckReadout result={r} timeMs={timeMs} />
                     </div>
                 )}
@@ -169,6 +172,30 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
                 <span className="robolance-run-name">run #{runs.length - selected}</span>
             </div>
         </div>
+    );
+}
+
+/**
+ * The camera button, as in a game: each click moves to the next view
+ * (broadcast, third person, first person, wide angle).
+ */
+export function CameraButton({ mode, onClick }: { mode: CameraMode; onClick(): void }): React.ReactElement {
+    const next = CAMERA_LABELS[nextCameraMode(mode)];
+    return (
+        <button
+            type="button"
+            className={`robolance-edit-btn robolance-camera-btn${mode !== 'orbit' ? ' active' : ''}`}
+            title={`Camera: ${CAMERA_LABELS[mode]}. Click for ${next}.`}
+            aria-label={`Camera: ${CAMERA_LABELS[mode]}. Click for ${next}.`}
+            data-camera={mode}
+            onClick={onClick}
+        >
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 7l-7 5 7 5V7z" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+            </svg>
+            <span className="robolance-camera-name">{CAMERA_LABELS[mode]}</span>
+        </button>
     );
 }
 
@@ -234,8 +261,10 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
             </ol>
             {run && (
                 <div className="robolance-run-detail">
-                    <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
-                    {shareBase && <ShareLink id={run.path} makeUrl={() => shareDuckRunUrl(run, shareBase, storeShare)} />}
+                    <div className="robolance-run-actions">
+                        <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
+                        {shareBase && <ShareLink id={run.path} makeUrl={() => shareDuckRunUrl(run, shareBase, storeShare)} />}
+                    </div>
                     {describeDuckSkills(run) && <p className="robolance-duck-skills">Trained policies from the project: {describeDuckSkills(run)}</p>}
                     {run.result.error && <pre className="robolance-error">{run.result.error}</pre>}
                     {run.result.notes.length > 0 && (

@@ -117,6 +117,7 @@ export class DuckStage extends StageBase {
             }
             const trunk = poses[1];
             this.followAt.set(trunk.pos[0], trunk.pos[1], 0.08);
+            this.setFollowHeading(trunkHeading(trunk.quat));
         }
         this.setTrail(path);
         this.invalidate();
@@ -367,4 +368,13 @@ function obstacleCorners(o: Obstacle): THREE.Vector3[] {
         }
     }
     return out;
+}
+
+/**
+ * The way the trunk faces on the ground (radians): its body x axis, as
+ * duck-sim's own heading reads it. `quat` is MuJoCo's w, x, y, z.
+ */
+export function trunkHeading(quat: ArrayLike<number>): number {
+    const [w, x, y, z] = [quat[0], quat[1], quat[2], quat[3]];
+    return Math.atan2(2 * (x * y + w * z), 1 - 2 * (y * y + z * z));
 }
