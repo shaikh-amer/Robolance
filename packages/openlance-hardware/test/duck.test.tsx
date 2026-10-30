@@ -82,6 +82,20 @@ test('the Hardware tab shows the pitch for a duck project, and the agent prompt 
     assert.match(empty, /Ask the agent to score a goal/);
 });
 
+test('the player takes the preview\'s Desktop / Tablet / Phone size, and only the player', () => {
+    const desktop = renderToStaticMarkup(<HardwarePanel files={files} theme="dark" />);
+    assert.match(desktop, /class="robolance-duck-wrap robolance-player" data-viewport="desktop"/);
+    const phone = renderToStaticMarkup(<HardwarePanel files={files} theme="dark" viewport="mobile" />);
+    assert.match(phone, /class="robolance-duck-wrap robolance-player" data-viewport="mobile"/);
+    // The toolbar and the scrubber keep the panel's width: one sized element.
+    assert.equal(phone.match(/data-viewport=/g)?.length, 1);
+    const css = readFileSync(require('node:path').join(__dirname, '..', '..', 'src', 'browser', 'style', 'hardware.css'), 'utf8');
+    assert.match(css, /\.robolance-player\[data-viewport="tablet"\] \{\s*max-width: 768px;/);
+    assert.match(css, /\.robolance-player\[data-viewport="mobile"\] \{\s*max-width: 390px;/);
+    // GPU-drawn canvases ignore overflow + radius in Chrome: the corners need clip-path.
+    assert.match(css, /clip-path: inset\(0 round 8px\)/);
+});
+
 test('the readout says what has happened by the replay time', () => {
     const before = renderToStaticMarkup(<DuckReadout result={result} timeMs={0} />);
     assert.match(before, /0 kicks/);

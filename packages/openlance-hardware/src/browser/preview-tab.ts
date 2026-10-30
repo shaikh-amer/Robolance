@@ -44,7 +44,15 @@ export interface PreviewTabContext {
      * run" copies the long link that carries the run itself.
      */
     storeShare?: StoreShare;
+    /**
+     * The screen size picked in the preview's Desktop / Tablet / Phone
+     * switch. The player (the 3D or arena replay) takes that width; the
+     * rest of the tab keeps the panel's.
+     */
+    viewport?: PreviewViewport;
 }
+
+export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
 
 /** Stores an encoded run (`kind`: duck, arduino) and returns its id. */
 export type StoreShare = (encoded: string, kind: string) => Promise<string>;

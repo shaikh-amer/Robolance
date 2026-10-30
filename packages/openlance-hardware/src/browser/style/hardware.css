@@ -666,13 +666,33 @@
     min-height: 220px;
     overflow: hidden;
     border-radius: 8px;
+    /* A WebGL canvas is drawn on its own GPU layer, which overflow + radius
+       alone does not clip in Chrome: clip-path does. */
+    clip-path: inset(0 round 8px);
 }
 
 .robolance-duck-canvas {
     display: block;
     width: 100%;
     height: 100%;
+    border-radius: 8px;
     cursor: grab;
+}
+
+/* The player follows the preview's Desktop / Tablet / Phone switch: only its
+   width changes, centred in the panel, with no device frame around it. */
+.robolance-player {
+    width: 100%;
+    margin: 0 auto;
+    transition: max-width 0.3s ease;
+}
+
+.robolance-player[data-viewport="tablet"] {
+    max-width: 768px;
+}
+
+.robolance-player[data-viewport="mobile"] {
+    max-width: 390px;
 }
 
 .robolance-duck-canvas:active {

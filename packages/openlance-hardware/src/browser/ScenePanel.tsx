@@ -152,7 +152,7 @@ export function ScenePanelBody({ runs, scenes, context }: ScenePanelBodyProps): 
 
             <div className="robolance-body">
                 {view === 'robot' && (
-                    <div className="robolance-duck-wrap">
+                    <div className="robolance-duck-wrap robolance-player" data-viewport={context.viewport ?? 'desktop'}>
                         {model
                             ? <SceneView model={model} frame={sceneFrameAt(entry.run, timeMs)} theme={context.theme} follow={follow} resetKey={resetKey} />
                             : <div className="robolance-empty"><p>This run's 3D model ({entry.modelPath}) is missing; run the scene again to record it.</p></div>}

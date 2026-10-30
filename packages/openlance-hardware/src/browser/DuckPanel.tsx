@@ -143,7 +143,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
 
             <div className="robolance-body">
                 {view === 'pitch' && (
-                    <div className="robolance-duck-wrap">
+                    <div className="robolance-duck-wrap robolance-player" data-viewport={context.viewport ?? 'desktop'}>
                         <DuckScene result={r} timeMs={timeMs} theme={context.theme} follow={follow} resetKey={resetKey} />
                         <DuckReadout result={r} timeMs={timeMs} />
                     </div>
