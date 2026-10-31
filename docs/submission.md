@@ -40,7 +40,7 @@ New, built during the event, in OpenLance (https://github.com/shaikh-amer/openla
 
 0:12 The problem. "Programming a robot means write, flash, watch, guess, repeat. An AI assistant can write the code, but it cannot see the robot. We gave the agent eyes in a simulator."
 
-0:25 OpenLance Home → "New Microduck project". Type: "Make the duck score a goal."
+0:25 OpenLance Dashboard → "New build". Type: "Make the duck score a goal." The agent sets up the Microduck project by itself and names it from the request; no template to pick.
 - Show the chat rows: "Ran the Microduck mission: no goal · score 30 · 1 kick".
 - Show the note it reads: "right kick missed - the ball was 10 cm ahead…".
 - Show it editing `mission.js` and running again: "goal in 10.9 s · score 94".
@@ -49,7 +49,7 @@ New, built during the event, in OpenLance (https://github.com/shaikh-amer/openla
 1:00 Photo to obstacles (SAM 3.1).
 - Type: "Here's my floor, walk to the ball without hitting anything." Attach a top-down photo of a few cardboard boxes.
 - With no photo to hand: "Make a picture of cardboard boxes on a wooden floor, seen from above" first. The picture appears in the chat card while Muse Image makes it.
-- Chat rows: "Found 'cardboard box' in floor.jpg: 3 found" (SAM 3.1), then the obstacles on the pitch.
+- The chat shows the photo with each box SAM 3.1 found outlined and numbered (3 × "cardboard box" found); a tap opens it full size with names and confidence. Then the obstacles on the pitch.
 - The replay shows the duck walking around the boxes. "Meta's SAM 3.1 turned a photo into the robot's world."
 
 1:30 The laptop (the funny one). Type: "I've been coding all day. Close my laptop so I come and play."
@@ -137,10 +137,10 @@ Repository: https://github.com/shaikh-amer/robolance (hackathon work only). Open
 - [x] Packages on npm:
   - robolance-mujoco 0.1.0
   - robolance-hardware-sim 0.2.1
-  - robolance-duck-sim 0.5.0
-  - robolance-hardware-tools 0.5.0
-  - robolance-openlance-hardware 0.9.0
-- [x] OpenLance IDE pinned to robolance-openlance-hardware 0.9.0 (openlance #406).
+  - robolance-duck-sim 0.6.0 (rooms and furniture)
+  - robolance-hardware-tools 0.6.0 (furniture from a photo)
+  - robolance-openlance-hardware 0.13.1 (rooms in 3D, fog fix)
+- [x] OpenLance IDE on robolance-openlance-hardware 0.13.1 (openlance #449).
 - [ ] Sandbox template rebuilt from robolance main:
   - run `export E2B_API_KEY="$(cat ~/.e2b/api_key)"`, then `bash scripts/build-e2b-template.sh openlance-ide`;
   - the log shows `duck-sim ok`.
@@ -153,7 +153,8 @@ Repository: https://github.com/shaikh-amer/robolance (hackathon work only). Open
 - [ ] End to end on the deployed IDE:
   - [ ] score a goal;
   - [x] image generation (the picture appears in the chat card);
-  - [ ] photo to obstacles (a SAM 3.1 call returns boxes);
+  - [ ] photo to obstacles (the chat shows the photo with the boxes SAM 3.1 found);
+  - [ ] a room from a photo: "use this photo as the duck's room and walk the duck to the sofa" (the duck walks, it does not play football);
   - [ ] close the laptop;
   - [ ] wall avoider;
   - [ ] a wiring-check photo gets a verdict;

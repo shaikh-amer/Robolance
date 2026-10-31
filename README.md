@@ -84,7 +84,7 @@ Image generation is new in OpenLance, built for this hackathon on Meta's models.
 <p align="center"><img src="docs/media/muse-image-in-chat.jpg" alt="The OpenLance chat: the prompt 'Make a picture of a cosy room with a chair and a laptop on the floor' and the picture Muse Image made, in the chat card" width="420"></p>
 
 - **Make a picture (Muse Image)**: ask in plain words, e.g. "Make a picture of a cosy room with a chair and a laptop on the floor." The chat shows one card in the picture's shape that glows while Muse Image draws it; the picture fades in inside the same card, with the prompt as its caption. It is saved in the project (`images/` by default) and opens full size on a click. Muse Image makes pictures from words; it does not edit a photo.
-- **Find things in a photo (SAM 3.1)**: the agent finds every "chair" or "cardboard box" in a project image and gets back a mask and a box for each.
+- **Find things in a photo (SAM 3.1)**: the agent finds every "chair" or "cardboard box" in a project image and gets back a mask and a box for each. The chat shows the photo with every match outlined and numbered; a tap opens it full size with each one named and its confidence.
 - **Your room as the pitch**: attach a photo of a room and say "Make the duck walk around the chair and score a goal." The agent finds the things standing on the floor with SAM 3.1, estimates the floor from things of known size (a chair seat is about 45 cm), turns them into `field.obstacles` with `duck_obstacles_from_photo` and runs the mission. No tool names or measurements needed.
 - **Test photos for SAM**: with no photo to hand, have Muse Image make one first ("a top-down photo of cardboard boxes on a wooden floor"), then turn it into obstacles.
 
