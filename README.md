@@ -71,7 +71,10 @@ Each run returns the outcome (`goal`, `no-goal`, `closed`, `still-open`, `fell`,
 
 - **Score a goal**: `examples/score-a-goal.js` scores from anywhere on the default pitch.
 - **Close the laptop**: with `field.laptop` set, the duck walks behind the open laptop and headbutts the lid shut (`examples/close-the-laptop.js`, scores 88–96 from any placement). The developer has to come and play.
-- **Obstacles from a photo**: SAM 3.1 finds the boxes in a top-down photo; `duck_obstacles_from_photo` maps them onto the pitch as `field.obstacles`, and the duck walks around them.
+- **Obstacles from a photo**: SAM 3.1 finds the boxes in a top-down photo; `duck_obstacles_from_photo` maps them onto the pitch as `field.obstacles`, and the duck walks around them. A chair, table, desk, fridge, shelf or sofa it finds comes back as that piece of furniture at real size.
+- **Rooms and furniture**: `field.room` puts the pitch indoors (wood, tile, carpet or concrete floor, painted walls) and `field.furniture` adds real-size pieces: a fridge, a table or desk with a laptop, monitor, lamp or plant on top, chairs, a bookshelf, a sofa, boxes, each with its own place, size and colour. Only what stands on the floor is solid (a table's legs, a fridge's body), so the 26 cm duck walks under tables and chairs, and a note names what it bumped into.
+
+<p align="center"><img src="docs/media/room-living.jpg" alt="The duck in a living room: wood floor, sofa, bookshelf, a table with a laptop, mug and plant, a chair, a fridge and a cardboard box" width="49%"> <img src="docs/media/room-office.jpg" alt="The duck in an office: tile floor, a desk with a monitor, laptop and lamp, a chair, a fridge, a bookshelf and a low table with books" width="49%"></p>
 - **Trained skills**: a policy the project trained (ONNX, 61 inputs, 14 outputs) replaces the built-in walk or adds a new skill, so a new skill is tested in the same simulator before anyone calls it done.
 
 ## Pictures with Meta models

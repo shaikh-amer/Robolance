@@ -11,7 +11,7 @@ import loadMujoco from '@mujoco/mujoco';
 import type { MainModule, MjData, MjModel } from '@mujoco/mujoco';
 import * as ort from 'onnxruntime-web';
 import { CONTROL_DT, HOME, JOINTS, observation, targets } from './controller.js';
-import { BALL_RADIUS, DEFAULT_FIELD, DUCK_RADIUS, LAPTOP, LAPTOP_CLOSED_DEG, distanceToObstacle, obstacleName, sceneXml, type FieldSpec } from './field.js';
+import { BALL_RADIUS, DEFAULT_FIELD, DUCK_RADIUS, LAPTOP, LAPTOP_CLOSED_DEG, distanceToObstacle, obstacleName, sceneXml, solidObstacles, type FieldSpec } from './field.js';
 import { extractViewerModel } from 'robolance-mujoco';
 import type { MeshSimplifier, Quat, Vec3, ViewerModel } from 'robolance-mujoco/viewer';
 
@@ -155,6 +155,8 @@ export interface WorldOptions {
 
 export class DuckWorld {
     readonly field: FieldSpec;
+    /** The boxes and the furniture's floor parts, for notes. */
+    private readonly solids: ReturnType<typeof solidObstacles>;
     readonly limitS: number;
     time = 0;
     fallen = false;
@@ -211,6 +213,7 @@ export class DuckWorld {
         options: WorldOptions,
     ) {
         this.field = options.field ?? DEFAULT_FIELD;
+        this.solids = solidObstacles(this.field);
         this.limitS = options.limitS ?? 40;
         this.frameEvery = Math.max(1, Math.round(1 / CONTROL_DT / (options.frameHz ?? 25)));
         const m = model;
@@ -535,7 +538,7 @@ export class DuckWorld {
 
     /** Notices the duck walking into an obstacle (once per contact). */
     private watchObstacles(): void {
-        const list = this.field.obstacles ?? [];
+        const list = this.solids;
         if (list.length === 0) {
             return;
         }

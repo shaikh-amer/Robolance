@@ -71,7 +71,7 @@ export class LaptopModel {
 }
 
 /** The screen: a dark editor with a file tree, code and a chat, glowing a little. */
-function screenMaterial(): THREE.Material {
+export function screenMaterial(): THREE.Material {
     if (typeof document === 'undefined') {
         return new THREE.MeshBasicMaterial({ color: 0x10131a });
     }

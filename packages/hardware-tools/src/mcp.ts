@@ -155,7 +155,10 @@ mission, run again. Use log() to see positions while you work out the approach.
 
 Obstacles from a photo (a room, a desk): run openlance_segmentImage on the photo once per kind of thing ("cardboard
 box", "chair"), then duck_obstacles_from_photo with the JSON it saved and the floor area the photo shows in pitch
-metres; pass the obstacles it returns in field.obstacles.
+metres; pass the obstacles it returns in field.obstacles and the furniture in field.furniture.
+
+A room: field.room ({ floor: "wood" | "tile" | "carpet" | "concrete", walls: true }) and field.furniture (a fridge, a table
+with a laptop on it, a sofa...) at real size; widen the bounds to the room's size (e.g. 4 x 3.4 m) and keep the goal inside.
 
 A policy the project trained (an ONNX file exported from microduck_rl: 61 values in, 14 out) runs in the simulator by
 passing "skills" to duck_run, e.g. {"walk": "policies/walk/policy.onnx", "getUp": "policies/standup/policy.onnx"}:
@@ -316,7 +319,9 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
     server.registerTool('duck_obstacles_from_photo', {
         description: 'Turns what Segment Anything (openlance_segmentImage) found in a photo into obstacles for the duck\'s pitch: '
             + 'give the JSON it saved and the floor rectangle the photo shows, in pitch metres (photo top = far side xMax, bottom = near side xMin, '
-            + 'left = yMax, right = yMin; a top-down photo is most accurate). Returns obstacles to pass in duck_run\'s field.obstacles, and the matches it left out.',
+            + 'left = yMax, right = yMin; a top-down photo is most accurate). When the prompt names furniture the pitch knows (chair, table, desk, fridge, '
+            + 'shelf, sofa) the matches come back as furniture at real size for field.furniture (a table the duck walks under); anything else as '
+            + 'boxes for field.obstacles. Also returns the matches it left out.',
         inputSchema: {
             segments: z.string().min(1).describe('Project path of the JSON openlance_segmentImage saved, e.g. segments/room-cardboard-box.json'),
             area: z.object({ xMin: z.number(), xMax: z.number(), yMin: z.number(), yMax: z.number() })
@@ -324,8 +329,9 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
             height: z.number().min(0.02).max(2).optional().describe('Obstacle height, metres (default 0.25)'),
             name: z.string().max(30).optional().describe('Names become "<name> 1", "<name> 2"... (default: the prompt)'),
             minConfidence: z.number().min(0).max(1).optional().describe('Leave out matches below this confidence (default 0.3)'),
+            boxesOnly: z.boolean().optional().describe('Plain boxes even when the prompt is a kind of furniture (default false)'),
         },
-    }, async ({ segments, area, height, name, minConfidence }) => {
+    }, async ({ segments, area, height, name, minConfidence, boxesOnly }) => {
         let parsed: SegmentsFile;
         try {
             parsed = JSON.parse(await readFile(insideProject(projectDir, segments), 'utf8')) as SegmentsFile;
@@ -333,7 +339,7 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
             return { content: [{ type: 'text', text: `${segments}: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
         }
         try {
-            const result = obstaclesFromSegments(parsed, area, { height, name, minConfidence });
+            const result = obstaclesFromSegments(parsed, area, { height, name, minConfidence, boxesOnly });
             return { content: [{ type: 'text', text: JSON.stringify(result, null, 1) }] };
         } catch (err) {
             return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true };

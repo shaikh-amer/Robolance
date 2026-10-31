@@ -7,6 +7,8 @@
  * in degrees counter-clockwise from +x.
  */
 
+import { allFurnitureParts, validateFurniture, type Furniture, type RoomSpec } from './furniture.js';
+
 /**
  * A box standing on the pitch: a cardboard box, a chair leg, a fridge. x, y
  * is its centre, width runs along its heading (degrees, default 0 = along
@@ -36,6 +38,15 @@ export interface FieldSpec {
      * it (push the lid past upright, then it falls shut); the ball and goal are just there.
      */
     laptop?: LaptopSpec;
+    /** A room around the pitch: the floor it stands on and walls along the bounds. */
+    room?: RoomSpec;
+    /** Furniture at real size (furniture.ts); the parts that stand on the floor are solid. */
+    furniture?: Furniture[];
+}
+
+/** Everything solid on the pitch: the boxes and the furniture's floor parts. */
+export function solidObstacles(f: FieldSpec): Obstacle[] {
+    return [...(f.obstacles ?? []), ...allFurnitureParts(f.furniture)];
 }
 
 /**
@@ -104,7 +115,7 @@ function validateLaptop(f: FieldSpec): string | undefined {
     if (distanceToLaptop(l, f.ball.x, f.ball.y) < BALL_RADIUS + 0.02) {
         return 'laptop: it covers the ball';
     }
-    for (const [i, o] of (f.obstacles ?? []).entries()) {
+    for (const [i, o] of solidObstacles(f).entries()) {
         const fp = laptopFootprint(l);
         if (distanceToObstacle(o, fp.x, fp.y) < 0.01) {
             return `laptop: it sits on ${obstacleName(o, i)}`;
@@ -165,7 +176,42 @@ function validateObstacles(f: FieldSpec): string | undefined {
             return `${label}: it covers the ball`;
         }
     }
+    return validateFurniturePlaces(f);
+}
+
+/** The furniture's floor parts stand inside the pitch, clear of the duck's start and the ball. */
+function validateFurniturePlaces(f: FieldSpec): string | undefined {
+    const problem = validateFurniture(f.room, f.furniture);
+    if (problem) {
+        return problem;
+    }
+    for (const part of allFurnitureParts(f.furniture)) {
+        const label = part.name ?? 'furniture';
+        if (footprintCorners(part).some(([x, y]) => x < f.bounds.xMin || x > f.bounds.xMax || y < f.bounds.yMin || y > f.bounds.yMax)) {
+            return `${label}: it reaches outside the bounds (the walls); move the piece in or widen the bounds`;
+        }
+        if (distanceToObstacle(part, f.duck.x, f.duck.y) < DUCK_RADIUS + 0.03) {
+            return `${label}: it covers the duck's start; keep 10 cm clear around the duck`;
+        }
+        if (distanceToObstacle(part, f.ball.x, f.ball.y) < BALL_RADIUS + 0.01) {
+            return `${label}: it covers the ball`;
+        }
+    }
     return undefined;
+}
+
+/** A box's four footprint corners on the floor. */
+function footprintCorners(o: Obstacle): Array<[number, number]> {
+    const h = ((o.heading ?? 0) * Math.PI) / 180;
+    const c = Math.cos(h);
+    const s = Math.sin(h);
+    const out: Array<[number, number]> = [];
+    for (const a of [-o.width / 2, o.width / 2]) {
+        for (const b of [-o.depth / 2, o.depth / 2]) {
+            out.push([o.x + a * c - b * s, o.y + a * s + b * c]);
+        }
+    }
+    return out;
 }
 
 export const BALL_RADIUS = 0.025;
@@ -229,20 +275,47 @@ export function sceneXml(f: FieldSpec, robotFile = 'robot_groundcontact.xml'): s
   <include file="${robotFile}"/>
   <worldbody>
     <light pos="0 0 3.5" dir="0 0 -1" directional="true"/>
-    <geom name="floor" size="0 0 0.05" type="plane" rgba="0.2 0.45 0.25 1"/>
+    <geom name="floor" size="0 0 0.05" type="plane" rgba="${FLOOR_RGBA[f.room?.floor ?? (f.room ? 'wood' : 'grass')]}"/>
     ${post('post_right', y1)}
     ${post('post_left', y2)}
     <geom name="net_back" type="box" size="0.003 ${n(f.goal.width / 2)} ${GOAL_HEIGHT / 2}" pos="${back} ${n(f.goal.y)} ${GOAL_HEIGHT / 2}" ${net}/>
     ${side('net_right', y1)}
     ${side('net_left', y2)}
     <geom name="crossbar" type="capsule" fromto="${n(f.goal.x)} ${n(y1)} ${GOAL_HEIGHT} ${n(f.goal.x)} ${n(y2)} ${GOAL_HEIGHT}" size="${POST_RADIUS}" rgba="0.95 0.95 0.95 1" contype="0" conaffinity="0"/>
-    ${(f.obstacles ?? []).map((o, i) => obstacleGeom(o, i, n)).join('\n    ')}
+    ${solidObstacles(f).map((o, i) => obstacleGeom(o, i, n)).join('\n    ')}${wallsXml(f, n)}
     <body name="football" pos="${n(f.ball.x)} ${n(f.ball.y)} ${BALL_RADIUS}">
       <freejoint name="football_free"/>
       <geom name="football_geom" type="sphere" size="${BALL_RADIUS}" mass="0.035" rgba="0.95 0.55 0.18 1" friction="0.5 0.005 0.001" condim="3"/>
     </body>${f.laptop ? '\n    ' + laptopXml(f.laptop, n) : ''}
   </worldbody>
 </mujoco>`;
+}
+
+/** The floor's colour in MuJoCo's own viewer; the IDE draws the real surface. */
+const FLOOR_RGBA: Record<string, string> = {
+    grass: '0.2 0.45 0.25 1', wood: '0.55 0.38 0.22 1', tile: '0.82 0.8 0.76 1', carpet: '0.45 0.42 0.4 1', concrete: '0.6 0.6 0.58 1',
+};
+
+/** Walls just outside the bounds, as high as a ball or a duck needs: the IDE draws them room-high. */
+function wallsXml(f: FieldSpec, n: (v: number) => number): string {
+    if (!f.room || f.room.walls === false) {
+        return '';
+    }
+    const t = 0.05;
+    const h = 0.4;
+    const b = f.bounds;
+    const cx = (b.xMin + b.xMax) / 2;
+    const cy = (b.yMin + b.yMax) / 2;
+    const halfX = (b.xMax - b.xMin) / 2 + t;
+    const halfY = (b.yMax - b.yMin) / 2 + t;
+    const wall = (name: string, x: number, y: number, sx: number, sy: number) =>
+        `<geom name="${name}" type="box" size="${n(sx)} ${n(sy)} ${h / 2}" pos="${n(x)} ${n(y)} ${h / 2}" rgba="0.9 0.9 0.88 1"/>`;
+    return '\n    ' + [
+        wall('wall_far', b.xMax + t / 2, cy, t / 2, halfY),
+        wall('wall_near', b.xMin - t / 2, cy, t / 2, halfY),
+        wall('wall_left', cx, b.yMax + t / 2, halfX, t / 2),
+        wall('wall_right', cx, b.yMin - t / 2, halfX, t / 2),
+    ].join('\n    ');
 }
 
 /** A static box geom for an obstacle (cardboard brown), turned by its heading. */

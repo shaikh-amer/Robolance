@@ -9,8 +9,10 @@
  */
 
 import * as THREE from 'three';
-import { BALL_RADIUS, GOAL_HEIGHT, LAPTOP, NET_DEPTH, POST_RADIUS, type FieldSpec, type Obstacle, type ViewerModel } from 'robolance-duck-sim/viewer';
+import { BALL_RADIUS, GOAL_HEIGHT, LAPTOP, NET_DEPTH, POST_RADIUS, furnitureSize, type FieldSpec, type Obstacle, type ViewerModel } from 'robolance-duck-sim/viewer';
+import { FurnitureModel } from './furniture-models';
 import { LaptopModel } from './laptop-model';
+import { carpetFloor, concreteFloor, tileFloor, wallPaint, woodFloor, type Surface } from './room-textures';
 import { RobotParts, place } from './robot-parts';
 import { StageBase, isSmallDevice, portraitShot, type SkyPalette, type StageView } from './stage-base';
 import { netCanvas, paintPatches, paintTurf, seededRandom } from './stage-textures';
@@ -50,6 +52,7 @@ export class DuckStage extends StageBase {
     private trail?: THREE.Line;
     private ballIndex = -1;
     private laptop?: LaptopModel;
+    private furniture: FurnitureModel[] = [];
     /** The lid's place in a replay frame: right after the robot and the ball. */
     private readonly lidIndex: number;
     private field?: FieldSpec;
@@ -75,6 +78,7 @@ export class DuckStage extends StageBase {
             ballMaterial.dispose();
             this.clearPitch();
             this.clearLaptop();
+            this.clearFurniture();
             this.trail?.geometry.dispose();
             (this.trail?.material as THREE.Material | undefined)?.dispose();
         });
@@ -98,6 +102,12 @@ export class DuckStage extends StageBase {
             if (field.laptop) {
                 this.laptop = new LaptopModel(field.laptop);
                 this.scene.add(this.laptop.group);
+            }
+            this.clearFurniture();
+            for (const piece of field.furniture ?? []) {
+                const model = new FurnitureModel(piece);
+                this.furniture.push(model);
+                this.scene.add(model.group);
             }
             this.home();
             this.frameView();
@@ -158,8 +168,21 @@ export class DuckStage extends StageBase {
             new THREE.Vector3(f.ball.x, f.ball.y, 0),
             ...[f.goal.x, back].flatMap(x => [y1, y2].flatMap(y => [new THREE.Vector3(x, y, 0), new THREE.Vector3(x, y, GOAL_HEIGHT)])),
             ...(f.obstacles ?? []).flatMap(obstacleCorners),
+            ...(f.furniture ?? []).flatMap(p => {
+                const size = furnitureSize(p);
+                // Footprints only, kept low: a 1.8 m fridge must not pull the camera out to the ceiling.
+                return obstacleCorners({ x: p.x, y: p.y, width: size.depth, depth: size.width, height: Math.min(size.height, 0.35), heading: p.heading });
+            }),
             ...(f.laptop ? obstacleCorners({ x: f.laptop.x, y: f.laptop.y, width: LAPTOP.depth + 0.08, depth: LAPTOP.width, height: LAPTOP.lidLength, heading: f.laptop.heading }) : []),
         ];
+    }
+
+    private clearFurniture(): void {
+        for (const model of this.furniture) {
+            this.scene.remove(model.group);
+            model.dispose();
+        }
+        this.furniture = [];
     }
 
     private clearLaptop(): void {
@@ -191,25 +214,42 @@ export class DuckStage extends StageBase {
         const cy = (f.bounds.yMin + f.bounds.yMax) / 2;
         // A margin of grass around the playing area.
         const margin = 0.25;
-        const turf = pitchTextures(f, margin, this.palette);
-        const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(width + 2 * margin, depth + 2 * margin),
-            new THREE.MeshStandardMaterial({ map: turf.color, bumpMap: turf.bump, bumpScale: 0.6, roughness: 0.95 }),
-        );
+        const indoor = f.room && f.room.floor !== 'grass';
+        const turf = indoor ? undefined : pitchTextures(f, margin, this.palette);
+        const ground = indoor
+            ? roomFloor(f, width, depth)
+            : new THREE.Mesh(
+                new THREE.PlaneGeometry(width + 2 * margin, depth + 2 * margin),
+                new THREE.MeshStandardMaterial({ map: turf!.color, bumpMap: turf!.bump, bumpScale: 0.6, roughness: 0.95 }),
+            );
         ground.position.set(cx, cy, 0);
         ground.receiveShadow = true;
         this.pitch.add(ground);
+        if (indoor) {
+            this.pitch.add(tapeLines(f));
+        }
+        if (f.room && f.room.walls !== false) {
+            for (const wall of roomWalls(f)) {
+                this.pitch.add(wall);
+            }
+        }
 
         for (const o of f.obstacles ?? []) {
             this.pitch.add(obstacleMesh(o));
         }
 
-        // Turf to the horizon around the pitch, a hair lower so the two never fight.
+        // Turf to the horizon around the pitch (indoors: the floor's colour, plain), a hair lower so the two never fight.
         const rough = roughTextures(this.palette);
         const surround = new THREE.Mesh(
             new THREE.CircleGeometry(16, 64),
-            new THREE.MeshStandardMaterial({ map: rough.color, bumpMap: rough.bump, bumpScale: 0.6, roughness: 1 }),
+            indoor
+                ? new THREE.MeshStandardMaterial({ color: this.palette === PALETTES.dark ? 0x2b2a28 : 0xcfcac2, roughness: 1 })
+                : new THREE.MeshStandardMaterial({ map: rough.color, bumpMap: rough.bump, bumpScale: 0.6, roughness: 1 }),
         );
+        if (indoor) {
+            rough.color.dispose();
+            rough.bump.dispose();
+        }
         surround.position.set(cx, cy, -0.0008);
         surround.receiveShadow = true;
         this.pitch.add(surround);
@@ -389,4 +429,86 @@ function obstacleCorners(o: Obstacle): THREE.Vector3[] {
 export function trunkHeading(quat: ArrayLike<number>): number {
     const [w, x, y, z] = [quat[0], quat[1], quat[2], quat[3]];
     return Math.atan2(2 * (x * y + w * z), 1 - 2 * (y * y + z * z));
+}
+
+/** The room's floor over the bounds and a little beyond (under the walls). */
+function roomFloor(f: FieldSpec, width: number, depth: number): THREE.Mesh {
+    const w = width + 0.1;
+    const d = depth + 0.1;
+    const floors: Record<string, (w: number, d: number) => Surface> = {
+        wood: (a, b) => woodFloor(undefined, a, b),
+        tile: (a, b) => tileFloor(undefined, a, b),
+        carpet: (a, b) => carpetFloor(undefined, a, b),
+        concrete: (a, b) => concreteFloor(undefined, a, b),
+    };
+    const surface = (floors[f.room?.floor ?? 'wood'] ?? floors.wood)(w, d);
+    const material = new THREE.MeshStandardMaterial({
+        map: surface.color, bumpMap: surface.bump, bumpScale: 0.5,
+        roughness: f.room?.floor === 'tile' ? 0.35 : f.room?.floor === 'wood' ? 0.5 : 0.95,
+    });
+    return new THREE.Mesh(new THREE.PlaneGeometry(w, d), material);
+}
+
+/**
+ * The pitch marked out with white tape on an indoor floor: the boundary, the
+ * goal line and the spot.
+ */
+function tapeLines(f: FieldSpec): THREE.Group {
+    const group = new THREE.Group();
+    const tape = new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.6 });
+    const t = 0.02;
+    const strip = (x1: number, y1: number, x2: number, y2: number) => {
+        const len = Math.hypot(x2 - x1, y2 - y1);
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(len, t), tape);
+        m.position.set((x1 + x2) / 2, (y1 + y2) / 2, 0.0006);
+        m.rotation.z = Math.atan2(y2 - y1, x2 - x1);
+        m.receiveShadow = true;
+        group.add(m);
+    };
+    const b = f.bounds;
+    const inset = 0.05;
+    strip(b.xMin + inset, b.yMin + inset, b.xMax - inset, b.yMin + inset);
+    strip(b.xMin + inset, b.yMax - inset, b.xMax - inset, b.yMax - inset);
+    strip(b.xMin + inset, b.yMin + inset, b.xMin + inset, b.yMax - inset);
+    strip(b.xMax - inset, b.yMin + inset, b.xMax - inset, b.yMax - inset);
+    strip(f.goal.x, b.yMin + inset, f.goal.x, b.yMax - inset);
+    const spot = new THREE.Mesh(new THREE.CircleGeometry(0.012, 24), tape);
+    spot.position.set(f.ball.x, f.ball.y, 0.0006);
+    group.add(spot);
+    return group;
+}
+
+/** Room-high walls along the bounds, each facing in, so the near walls vanish from outside and the far ones stand behind the play. */
+function roomWalls(f: FieldSpec): THREE.Mesh[] {
+    const b = f.bounds;
+    const height = 2.4;
+    const color = f.room?.wallColor ?? '#e8e4dc';
+    const out: THREE.Mesh[] = [];
+    const wall = (length: number, x: number, y: number, facing: number) => {
+        const paint = wallPaint(color, length, height);
+        const mesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(length, height),
+            new THREE.MeshStandardMaterial({ map: paint.color, bumpMap: paint.bump, bumpScale: 0.2, roughness: 0.92, side: THREE.FrontSide }),
+        );
+        // The plane faces +z: stand it up (its face turns to -y), then turn it to face `facing`.
+        mesh.rotation.set(Math.PI / 2, 0, facing + Math.PI / 2, 'ZXY');
+        mesh.position.set(x, y, height / 2);
+        mesh.receiveShadow = true;
+        const skirting = new THREE.Mesh(
+            new THREE.PlaneGeometry(length, 0.08),
+            new THREE.MeshStandardMaterial({ color: 0xf6f5f1, roughness: 0.4, side: THREE.FrontSide }),
+        );
+        skirting.rotation.copy(mesh.rotation);
+        skirting.position.set(x + Math.cos(facing) * 0.012, y + Math.sin(facing) * 0.012, 0.04);
+        out.push(mesh, skirting);
+    };
+    const cx = (b.xMin + b.xMax) / 2;
+    const cy = (b.yMin + b.yMax) / 2;
+    const w = b.xMax - b.xMin + 0.1;
+    const d = b.yMax - b.yMin + 0.1;
+    wall(d, b.xMax + 0.05, cy, Math.PI);
+    wall(d, b.xMin - 0.05, cy, 0);
+    wall(w, cx, b.yMax + 0.05, -Math.PI / 2);
+    wall(w, cx, b.yMin - 0.05, Math.PI / 2);
+    return out;
 }

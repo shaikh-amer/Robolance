@@ -25,6 +25,12 @@ field                 the pitch: { duck: {x, y, heading}, ball: {x, y}, goal: {x
 field.obstacles       boxes on the pitch, if any: [{ name, x, y, width, depth, height, heading }]: x, y is the centre,
                       width runs along heading. walkTo goes in a straight line: route around them with waypoints, keeping
                       the duck's centre ~10 cm from a box (its body reaches ~7 cm). A ball hits them like a wall
+field.room            if set, the pitch is indoors: { floor: wood|tile|carpet|concrete|grass, walls } (walls along the bounds;
+                      the ball stops at them)
+field.furniture       real-size furniture, if any: [{ kind: table|desk|chair|fridge|shelf|sofa|box, x, y, heading, width,
+                      depth, height, color, name, items }]. x, y is the middle; heading is the way its front faces. The duck
+                      (26 cm) walks under a table, desk or chair: only their legs or side panels are solid, and they are
+                      already in field.obstacles (named "the table's leg"), so route around those boxes as usual
 field.laptop          if set, the task is to close a laptop open on the pitch: { x, y, heading, openDeg } (x, y the middle of
                       its base, heading the way the screen faces, the lid open openDeg, default 100). Close it from behind
                       the screen: line up behind it on its centre line facing the hinge, then walk into the back of the lid

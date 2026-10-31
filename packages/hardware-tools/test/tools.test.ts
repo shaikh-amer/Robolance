@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { buildSketch, createHardwareServer, obstaclesFromSegments, summarize, withPrototypes, type BuildResult } from '../src/index.js';
+import { buildSketch, createHardwareServer, furnitureKindOf, obstaclesFromSegments, summarize, withPrototypes, type BuildResult } from '../src/index.js';
 import { Recorder } from '../src/mcp.js';
 import { DEFAULT_FIELD } from 'robolance-duck-sim';
 
@@ -396,10 +396,23 @@ test('obstacles from a photo: SAM boxes mapped onto the floor the photo shows', 
     };
     const r = obstaclesFromSegments(seg, { xMin: 0, xMax: 2, yMin: -1, yMax: 1 });
     assert.deepEqual(r.obstacles, [{ name: 'cardboard box 1', x: 1.75, y: 0.75, width: 0.5, depth: 0.5, height: 0.25 }]);
+    assert.deepEqual(r.furniture, []);
     assert.match(r.skipped.join('\n'), /confidence 0.20/);
     assert.match(r.skipped.join('\n'), /too small/);
     assert.throws(() => obstaclesFromSegments(seg, { xMin: 1, xMax: 0, yMin: 0, yMax: 1 }), /floor area/);
     assert.throws(() => obstaclesFromSegments({ width: 0, height: 0, objects: [] }, { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }), /segmentImage/);
+});
+
+test('furniture from a photo: a chair found by SAM becomes a real-size chair, not a box', () => {
+    const seg = { prompt: 'dining chair', width: 400, height: 200, objects: [{ id: '0', box: { x1: 100, y1: 40, x2: 139, y2: 79 }, confidence: 0.8 }] };
+    const r = obstaclesFromSegments(seg, { xMin: 0, xMax: 2, yMin: -1, yMax: 1 });
+    assert.deepEqual(r.obstacles, []);
+    assert.deepEqual(r.furniture, [{ kind: 'chair', name: 'dining chair 1', x: 1.4, y: 0.4, heading: 180, width: 0.2, depth: 0.4, height: 0.9 }]);
+    assert.equal(obstaclesFromSegments(seg, { xMin: 0, xMax: 2, yMin: -1, yMax: 1 }, { boxesOnly: true }).obstacles.length, 1);
+    assert.equal(furnitureKindOf('Refrigerator'), 'fridge');
+    assert.equal(furnitureKindOf('coffee table'), 'table');
+    assert.equal(furnitureKindOf('bookcase'), 'shelf');
+    assert.equal(furnitureKindOf('cardboard box'), undefined);
 });
 
 test('duck_obstacles_from_photo reads the saved segments and the obstacles run in duck_run', async () => {
