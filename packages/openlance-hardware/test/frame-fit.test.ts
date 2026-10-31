@@ -39,3 +39,13 @@ test('a tall phone panel stands further back than a wide desktop one', () => {
     const desktop = distanceToFit(points, target, angles, 38, 1280 / 650);
     assert.ok(phone > desktop * 1.3, `${phone} vs ${desktop}`);
 });
+
+test('fogRange: the fog backs off with the camera, never comes closer', async () => {
+    const { fogRange } = await import('../src/browser/frame-fit');
+    assert.deepEqual(fogRange(3, 3, 4, 14), { near: 4, far: 14 });
+    // Zoomed out from 3 m to 9 m: the fog starts 6 m further away.
+    assert.deepEqual(fogRange(9, 3, 4, 14), { near: 10, far: 20 });
+    // Zoomed in: it stays where it was.
+    assert.deepEqual(fogRange(1, 3, 4, 14), { near: 4, far: 14 });
+    assert.deepEqual(fogRange(Number.NaN, 3, 4, 14), { near: 4, far: 14 });
+});

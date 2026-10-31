@@ -10,7 +10,7 @@
  */
 
 import * as THREE from 'three';
-import { distanceToFit, orbitPosition } from './frame-fit';
+import { distanceToFit, fogRange, orbitPosition } from './frame-fit';
 import { skyCanvas } from './stage-textures';
 import { studioEnvironment } from './studio-environment';
 
@@ -120,6 +120,8 @@ export abstract class StageBase {
     /** Set once the user zooms: from then on a resize leaves the distance alone. */
     private userZoomed = false;
     private sky?: THREE.Texture;
+    /** The fog's start and end at the home view (pushed back as the camera backs off). */
+    private fogBase = { near: 4, far: 14 };
     private frameRequested = 0;
     private readonly resize: ResizeObserver;
 
@@ -229,6 +231,7 @@ export abstract class StageBase {
         this.scene.background = this.sky;
         // Distant ground fades into the horizon instead of ending at an edge.
         this.scene.fog = new THREE.Fog(new THREE.Color(palette.horizon), fogNear, fogFar);
+        this.fogBase = { near: fogNear, far: fogFar };
         this.renderer.toneMappingExposure = palette.exposure;
     }
 
@@ -277,7 +280,26 @@ export abstract class StageBase {
             orbitPosition(target, this.view, this.view.distance, this.camera.position);
             this.camera.lookAt(target);
         }
+        this.followFog(mode === 'chase' || mode === 'eyes' ? 0 : this.camera.position.distanceTo(this.follow && mode === 'orbit' ? this.followAt : this.target));
         this.renderer.render(this.scene, this.camera);
+    }
+
+    /** Keeps the fog behind the stage however far the camera has backed off. */
+    private followFog(distance: number): void {
+        const fog = this.scene.fog;
+        if (!(fog instanceof THREE.Fog)) {
+            return;
+        }
+        const range = fogRange(distance, this.fittedDistance || this.defaultView.distance, this.fogBase.near, this.fogBase.far);
+        fog.near = range.near;
+        fog.far = range.far;
+        // Past the fog's end everything is horizon-coloured; the far plane
+        // must not cut the ground off before it gets there.
+        const far = Math.max(60, range.far * 1.5);
+        if (this.camera.far !== far) {
+            this.camera.far = far;
+            this.camera.updateProjectionMatrix();
+        }
     }
 
     /**

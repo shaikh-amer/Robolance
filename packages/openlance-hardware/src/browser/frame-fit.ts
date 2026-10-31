@@ -65,3 +65,14 @@ export function distanceToFit(
     }
     return hi;
 }
+
+/**
+ * Where the fog starts and ends for a camera `distance` from what it looks
+ * at. The fog is tuned for the home view; zooming out pushes it back by the
+ * same amount, so the stage looks as clear from afar as from home and only
+ * the ground beyond it fades. Zooming in leaves it where it is.
+ */
+export function fogRange(distance: number, home: number, near: number, far: number): { near: number; far: number } {
+    const back = Number.isFinite(distance) && Number.isFinite(home) ? Math.max(0, distance - home) : 0;
+    return { near: near + back, far: far + back };
+}
