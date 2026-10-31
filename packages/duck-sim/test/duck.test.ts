@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     DEFAULT_FIELD, DuckFell, DuckWorld, HOME, RunOver, missionNotes, missionScore, observation, runMission, sceneXml, targets,
-    validateField, bodyPoses, decodeMesh, distanceToObstacle, type FieldSpec, type ViewerModel,
+    validateField, bodyPoses, decodeMesh, distanceToObstacle, furnitureParts, solidObstacles, type FieldSpec, type ViewerModel,
 } from '../src/index.js';
 import { loadAssets } from '../src/node-assets.js';
 import { meshoptSimplifier } from 'robolance-mujoco';
@@ -347,4 +347,58 @@ test('a laptop left open is explained and scored on how far the lid went', async
     assert.equal(r.outcome, 'still-open');
     assert.equal(r.score, 0);
     assert.match(r.notes.join('\n'), /lid never moved.*behind the screen/);
+});
+
+/** A room 3.5 x 3 m with a wood floor, a table the duck can walk under and a fridge by the wall. */
+const ROOM: FieldSpec = {
+    duck: { x: 0, y: 0, heading: 0 },
+    ball: { x: 1.9, y: 0.4 },
+    goal: { x: 2.6, y: 0, width: 0.6 },
+    bounds: { xMin: -0.5, xMax: 3, yMin: -1.5, yMax: 1.5 },
+    room: { floor: 'wood' },
+    furniture: [
+        { kind: 'table', x: 0.9, y: 0, items: ['laptop', 'mug'] },
+        { kind: 'fridge', x: 1.4, y: -1.1, heading: 90, name: 'the fridge' },
+    ],
+};
+
+test('furniture: real-size floor parts, validation and the scene', () => {
+    assert.equal(validateField(ROOM), undefined);
+    const legs = furnitureParts({ kind: 'table', x: 0.9, y: 0 });
+    assert.equal(legs.length, 4);
+    assert.ok(legs.every(l => l.width === 0.05 && l.height === 0.72 && l.name === "the table's leg"));
+    assert.deepEqual(legs.map(l => [l.x, l.y]).sort(), [[0.58, -0.545], [0.58, 0.545], [1.22, -0.545], [1.22, 0.545]]);
+    // Turned 90 degrees, the fridge's 70 cm width runs along x and its 65 cm depth along y.
+    const [fridge] = furnitureParts({ kind: 'fridge', x: 1.4, y: -1.1, heading: 90 });
+    assert.equal(distanceToObstacle(fridge, 1.4 + 0.349, -1.1), 0);
+    assert.ok(distanceToObstacle(fridge, 1.4, -1.1 + 0.34) > 0);
+    assert.equal(furnitureParts({ kind: 'desk', x: 0, y: 1 }).length, 2);
+    assert.equal(solidObstacles(ROOM).length, 5);
+
+    const bad = (patch: Partial<FieldSpec>) => validateField({ ...ROOM, ...patch }) ?? '';
+    assert.match(bad({ furniture: [{ kind: 'piano' as 'table', x: 1, y: 1 }] }), /kind is one of/);
+    assert.match(bad({ furniture: [{ kind: 'fridge', x: 0.1, y: 0 }] }), /the fridge: it covers the duck's start/);
+    assert.match(bad({ furniture: [{ kind: 'box', x: 1.9, y: 0.4 }] }), /covers the ball/);
+    assert.match(bad({ furniture: [{ kind: 'sofa', x: 2.9, y: 1.4 }] }), /outside the bounds/);
+    assert.match(bad({ furniture: [{ kind: 'chair', x: 1, y: 1, items: ['lamp'] }] }), /only a desk or a table/);
+    assert.match(bad({ furniture: [{ kind: 'table', x: 1, y: 1, color: 'red' }] }), /#rrggbb/);
+    assert.match(bad({ room: { floor: 'lava' as 'wood' } }), /room.floor/);
+
+    const xml = sceneXml(ROOM);
+    assert.match(xml, /name="floor"[^>]*rgba="0.55 0.38 0.22 1"/);
+    assert.equal((xml.match(/<geom name="wall_/g) ?? []).length, 4);
+    assert.equal((xml.match(/<geom name="obstacle_/g) ?? []).length, 5);
+    assert.doesNotMatch(sceneXml({ ...ROOM, room: { floor: 'tile', walls: false } }), /wall_/);
+});
+
+test('the duck walks under a table, and a fridge in its way is noted by name', async () => {
+    const under = await runMission('log(field.obstacles.length); await duck.walkTo(1.5, 0);', { field: ROOM, limitS: 20 });
+    assert.equal(under.events.filter(e => e.kind === 'obstacle').length, 0, under.notes.join('\n'));
+    assert.ok(under.final.duck.x > 1.3, `the duck got to x=${under.final.duck.x}`);
+    assert.equal(under.logs[0], '5', 'a mission sees the furniture\'s floor parts in field.obstacles');
+    assert.deepEqual(under.field.furniture, ROOM.furniture, 'the record keeps the furniture as given, for the viewer');
+
+    const blocked: FieldSpec = { ...ROOM, furniture: [{ kind: 'fridge', x: 0.6, y: 0, heading: 180, name: 'the fridge' }] };
+    const hit = await runMission('await duck.walkTo(1.2, 0);', { field: blocked, limitS: 12 });
+    assert.match(hit.events.map(e => e.detail).join('\n'), /walked into the fridge/);
 });

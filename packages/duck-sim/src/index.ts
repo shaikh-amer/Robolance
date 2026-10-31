@@ -3,6 +3,7 @@
 
 export * from './controller.js';
 export * from './field.js';
+export * from './furniture.js';
 export * from './world.js';
 export * from './mission.js';
 export * from './viewer.js';

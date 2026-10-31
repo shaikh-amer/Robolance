@@ -10,7 +10,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import * as vm from 'node:vm';
 import { loadAssets } from './node-assets.js';
 import { DuckFell, DuckWorld, RunOver, TimeUp, round } from './world.js';
-import { LAPTOP } from './field.js';
+import { LAPTOP, solidObstacles, type FieldSpec } from './field.js';
 import { ballToGoal, laptopScore, missionNotes, missionScore, type MissionOutcome, type WorkerInput, type WorkerReply } from './mission.js';
 
 const MAX_LOG_LINES = 200;
@@ -90,7 +90,7 @@ async function main(input: WorkerInput): Promise<void> {
             return act(() => world.kick(side));
         },
     });
-    const context = vm.createContext({ duck, field: structuredClone(input.field), log, console: Object.freeze({ log }) });
+    const context = vm.createContext({ duck, field: missionField(input.field), log, console: Object.freeze({ log }) });
 
     let finished: Promise<WorkerReply> | undefined;
     const finish = (thrown: unknown): Promise<WorkerReply> => (finished ??= report(thrown));
@@ -185,3 +185,12 @@ function show(v: unknown): string {
 }
 
 main(workerData as WorkerInput).catch(err => parentPort!.postMessage({ ok: false, error: describe(err) } satisfies WorkerReply));
+
+/** The field as a mission sees it: field.obstacles also holds the furniture's solid floor parts, so a route avoids them. */
+function missionField(f: FieldSpec): FieldSpec {
+    const copy = structuredClone(f);
+    if (f.furniture?.length) {
+        copy.obstacles = solidObstacles(f);
+    }
+    return copy;
+}

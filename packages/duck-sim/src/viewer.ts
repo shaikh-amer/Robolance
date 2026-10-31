@@ -13,3 +13,4 @@ export * from 'robolance-mujoco/viewer';
 export type { MissionOutcome, MissionReplay, MissionResult } from './mission.js';
 export type { DuckEvent, KickRecord, Pose } from './world.js';
 export { BALL_RADIUS, GOAL_HEIGHT, LAPTOP, NET_DEPTH, POST_RADIUS, type FieldSpec, type LaptopSpec, type Obstacle } from './field.js';
+export * from './furniture.js';
