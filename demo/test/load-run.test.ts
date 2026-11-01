@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { trimDuckRunForShare } from 'robolance-openlance-hardware/lib/browser/duck-share';
 import { encodeShare, trimRunForShare } from 'robolance-openlance-hardware/lib/browser/share-run';
-import { duckHeadline, headline, loadRecordText, loadShare, loadStoredShare, runFromRecordText, runFromShare, runSource } from '../src/load-run';
+import { duckHeadline, headline, sceneHeadline, loadRecordText, loadShare, loadStoredShare, runFromRecordText, runFromShare, runSource } from '../src/load-run';
 
 const record = {
     version: 1,
@@ -104,4 +104,20 @@ test('Microduck runs load from a file and from a share link, and get their own h
     const arduino = await loadShare(await encodeShare(trimRunForShare(runFromRecordText(JSON.stringify(record), 'run.json'))));
     assert.equal(arduino.kind, 'arduino', 'Arduino links still load as before');
     assert.equal(loadRecordText(JSON.stringify(record), 'run.json').kind, 'arduino');
+});
+
+test('a shared robot run (any MuJoCo robot) loads with its model', async () => {
+    const shared = {
+        v: 1, kind: 'scene', at: '2026-11-01T05:00:00.000Z', scene: 'unitree_g1/scene.xml', controller: '',
+        model: { version: 1, nq: 7, bodies: [], geoms: [], meshes: [] },
+        run: { outcome: 'done', simS: 2, frameHz: 1, nq: 7, frames: [[0, 0, 0.79, 1, 0, 0, 0], [0, 0, 0.79, 1, 0, 0, 0], [0, 0, 0.79, 1, 0, 0, 0]], metrics: {}, logs: [], check: { ok: true, actuators: [], sensors: [], issues: [] } },
+    };
+    const loaded = await loadShare(await encodeShare(shared));
+    assert.equal(loaded.kind, 'scene');
+    if (loaded.kind === 'scene') {
+        assert.equal(loaded.run.scene, 'unitree_g1/scene.xml');
+        assert.equal(loaded.model.nq, 7);
+        assert.match(sceneHeadline(loaded.run), /^Unitree G1 · 2\.0 s · ran to the end$/);
+    }
+    await assert.rejects(loadShare(await encodeShare({ ...shared, run: { ...shared.run, frames: [[1]] } })), /do not fit the robot/);
 });

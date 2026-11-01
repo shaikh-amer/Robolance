@@ -15,8 +15,9 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { DuckPanelBody } from 'robolance-openlance-hardware/lib/browser/DuckPanel';
 import { HardwarePanelBody } from 'robolance-openlance-hardware/lib/browser/HardwarePanel';
+import { ScenePanelBody } from 'robolance-openlance-hardware/lib/browser/ScenePanel';
 import type { HardwareProject } from 'robolance-openlance-hardware/lib/browser/hardware-project';
-import { duckHeadline, headline, loadRecordText, loadShare, loadStoredShare, runSource, type LoadedRun } from './load-run';
+import { duckHeadline, headline, sceneHeadline, loadRecordText, loadShare, loadStoredShare, runSource, type LoadedRun } from './load-run';
 
 
 type State =
@@ -94,7 +95,7 @@ function App(): React.ReactElement {
                 <span className="replay-title">Run replay</span>
                 {loaded && (
                     <span className="replay-headline">
-                        {loaded.kind === 'duck' ? duckHeadline(loaded.run) : headline(loaded.run)}
+                        {loaded.kind === 'duck' ? duckHeadline(loaded.run) : loaded.kind === 'scene' ? sceneHeadline(loaded.run) : headline(loaded.run)}
                         {loaded.run.at && <span className="replay-when"> · {new Date(loaded.run.at).toLocaleString()}</span>}
                     </span>
                 )}
@@ -108,7 +109,7 @@ function App(): React.ReactElement {
             {state.kind === 'error' && <p className="replay-note replay-error">{state.message}</p>}
             {(state.kind === 'empty' || state.kind === 'error') && (
                 <div className="replay-empty">
-                    <p>Open a run shared from OpenLance's Hardware tab (an Arduino robot or the Microduck), or drop a <code>.robolance/runs/&lt;time&gt;.json</code> file here.</p>
+                    <p>Open a run shared from OpenLance's Hardware tab (an Arduino robot, the Microduck, or any MuJoCo robot such as a Unitree G1), or drop a <code>.robolance/runs/&lt;time&gt;.json</code> file here.</p>
                     <p>A share link carries the whole run in its fragment: nothing is uploaded, and it works without an account.</p>
                     <p><a href="../runs/">See runs people made</a> · <a href="../">What is robolance?</a></p>
                 </div>
@@ -116,6 +117,16 @@ function App(): React.ReactElement {
             {project && (
                 <div className="replay-panel">
                     <HardwarePanelBody project={project} context={{ files: new Map(), theme: theme() }} shareBase={false} />
+                </div>
+            )}
+            {loaded?.kind === 'scene' && (
+                <div className="replay-panel">
+                    <ScenePanelBody
+                        runs={[loaded.run]}
+                        scenes={[loaded.run.scene]}
+                        context={{ files: new Map([[loaded.run.modelPath, JSON.stringify(loaded.model)]]), theme: theme() }}
+                        shareBase={false}
+                    />
                 </div>
             )}
             {loaded?.kind === 'duck' && (

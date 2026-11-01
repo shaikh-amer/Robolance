@@ -302,12 +302,14 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
 }
 
 /** Publishing runs to the public gallery (robolance.openlance.ai/runs/). */
-export interface GalleryActions {
+export interface GalleryActionsFor<T extends { path: string }> {
     /** Runs this project published, by run path. */
     published: Record<string, PublishedEntry>;
-    publish(run: DuckRun, options: PublishOptions): Promise<void>;
-    unpublish(run: DuckRun): Promise<void>;
+    publish(run: T, options: PublishOptions): Promise<void>;
+    unpublish(run: T): Promise<void>;
 }
+
+export type GalleryActions = GalleryActionsFor<DuckRun>;
 
 export interface PublishOptions {
     title: string;
@@ -374,8 +376,15 @@ export function galleryActions(context: PreviewTabContext): GalleryActions | und
 }
 
 /** Asks for a title, how the owner appears (or only for them) and whether to include the code, then publishes. */
-export function PublishForm({ run, gallery, onClose }: { run: DuckRun; gallery: GalleryActions; onClose(): void }): React.ReactElement {
-    const [title, setTitle] = React.useState(() => suggestedTitle(run));
+export function PublishForm<T extends { path: string } = DuckRun>({ run, gallery, onClose, suggestTitle, codeLabel = 'Include my mission code' }: {
+    run: T;
+    gallery: GalleryActionsFor<T>;
+    onClose(): void;
+    /** The title offered first (the duck's by default). */
+    suggestTitle?: (run: T) => string;
+    codeLabel?: string;
+}): React.ReactElement {
+    const [title, setTitle] = React.useState(() => (suggestTitle ? suggestTitle(run) : suggestedTitle(run as unknown as DuckRun)));
     const [show, setShow] = React.useState<PublishOptions['show']>('anonymous');
     const [includeCode, setIncludeCode] = React.useState(false);
     const privately = show === 'private';
@@ -407,13 +416,13 @@ export function PublishForm({ run, gallery, onClose }: { run: DuckRun; gallery: 
             </fieldset>
             <label className="robolance-publish-check">
                 <input type="checkbox" role="switch" checked={includeCode} onChange={e => setIncludeCode(e.target.checked)} />
-                <span>Include my mission code</span>
+                <span>{codeLabel}</span>
             </label>
             <p className="robolance-publish-note">
                 {privately
                     ? 'Saved for you only: it is not in the gallery, and only someone with its link can open it.'
                     : <>Anyone can watch this run on <a href={GALLERY_PAGE_URL} target="_blank" rel="noreferrer">robolance.openlance.ai/runs</a>
-                        {includeCode ? ', with its mission code and log' : ''}. You can take it off any time.</>}
+                        {includeCode ? ', with its code and log' : ''}. You can take it off any time.</>}
             </p>
             {state.kind === 'failed' && <p className="robolance-error" role="alert">{state.message}</p>}
             <div className="robolance-run-actions">
@@ -427,7 +436,7 @@ export function PublishForm({ run, gallery, onClose }: { run: DuckRun; gallery: 
 }
 
 /** A published run: where to see it and how to take it off. */
-export function PublishedRow({ run, entry, gallery }: { run: DuckRun; entry: PublishedEntry; gallery: GalleryActions }): React.ReactElement {
+export function PublishedRow<T extends { path: string } = DuckRun>({ run, entry, gallery }: { run: T; entry: PublishedEntry; gallery: GalleryActionsFor<T> }): React.ReactElement {
     const [state, setState] = React.useState<{ kind: 'idle' | 'working' } | { kind: 'failed'; message: string }>({ kind: 'idle' });
     const takeOff = async (): Promise<void> => {
         setState({ kind: 'working' });
