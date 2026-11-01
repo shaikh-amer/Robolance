@@ -10,13 +10,16 @@
 import { outcomeLabel, parseDuckRun, type DuckRun } from 'robolance-openlance-hardware/lib/browser/duck-project';
 import { isSharedDuckRun, sharedDuckRunToRun, validateSharedDuckRun } from 'robolance-openlance-hardware/lib/browser/duck-share';
 import { readHardwareProject, type RunEntry } from 'robolance-openlance-hardware/lib/browser/hardware-project';
+import type { SceneRunEntry } from 'robolance-openlance-hardware/lib/browser/scene-project';
+import { isSharedSceneRun, sceneRobotName, sharedSceneToEntry, validateSharedSceneRun } from 'robolance-openlance-hardware/lib/browser/scene-share';
+import type { ViewerModel } from 'robolance-duck-sim/viewer';
 import { decodeShare, parseShareHash, parseShortShare, sharedRunToEntry, validateSharedRun, type SharedRun } from 'robolance-openlance-hardware/lib/browser/share-run';
 
 /** Where a short link's run is read: OpenLance's public shared-runs endpoint. */
 export const SHARED_RUNS_API = 'https://api.openlance.ai/api/v1/public/shared-runs';
 
 /** A run the page can show: an Arduino run (circuit, arena) or a Microduck run (the pitch). */
-export type LoadedRun = { kind: 'arduino'; run: RunEntry } | { kind: 'duck'; run: DuckRun };
+export type LoadedRun = { kind: 'arduino'; run: RunEntry } | { kind: 'duck'; run: DuckRun } | { kind: 'scene'; run: SceneRunEntry; model: ViewerModel };
 
 export type RunSource =
     | { kind: 'share'; encoded: string }
@@ -74,6 +77,14 @@ export async function loadShare(encoded: string): Promise<LoadedRun> {
             throw new Error(`This link does not carry a run: ${problem}.`);
         }
         return { kind: 'duck', run: sharedDuckRunToRun(decoded) };
+    }
+    if (isSharedSceneRun(decoded)) {
+        const problem = validateSharedSceneRun(decoded);
+        if (problem) {
+            throw new Error(`This link does not carry a run: ${problem}.`);
+        }
+        const { entry, model } = sharedSceneToEntry(decoded);
+        return { kind: 'scene', run: entry, model };
     }
     return { kind: 'arduino', run: arduinoFromShare(decoded) };
 }
@@ -174,4 +185,11 @@ export function headline(run: RunEntry): string {
     }
     parts.push(arena.collisions === 1 ? '1 collision' : `${arena.collisions} collisions`);
     return parts.join(' · ');
+}
+
+/** One line about a robot run (any MuJoCo robot) for the page header. */
+export function sceneHeadline(run: SceneRunEntry): string {
+    const name = sceneRobotName(run.scene).replace(/\b\w/g, c => c.toUpperCase());
+    const how = run.run.outcome === 'done' ? 'ran to the end' : run.run.outcome === 'stopped' ? 'stopped by its controller' : run.run.outcome;
+    return `${name} · ${run.run.simS.toFixed(1)} s · ${how}`;
 }

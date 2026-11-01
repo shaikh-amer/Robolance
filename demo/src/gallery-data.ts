@@ -8,6 +8,7 @@
  */
 
 import type { DuckGallerySummary, DuckMission } from 'robolance-openlance-hardware/lib/browser/gallery';
+import type { SceneGallerySummary } from 'robolance-openlance-hardware/lib/browser/scene-share';
 import { REPLAY_PAGE_URL, SHORT_SHARE_PARAM } from 'robolance-openlance-hardware/lib/browser/share-run';
 
 export const GALLERY_API = 'https://api.openlance.ai/api/v1/public/gallery';
@@ -19,7 +20,8 @@ export interface GalleryCard {
     author?: string;
     /** The owner's photo, when they chose to show it (https). */
     avatar?: string;
-    summary?: DuckGallerySummary;
+    /** A Microduck run's pitch and walk, or a robot run's name and length (kind "scene"). */
+    summary?: DuckGallerySummary | SceneGallerySummary;
     score: number;
     featured?: boolean;
     publishedAt: string;
@@ -35,16 +37,28 @@ export interface GalleryPage {
 }
 
 export type GallerySort = 'new' | 'best';
-export type MissionFilter = DuckMission | 'all';
+export type MissionFilter = DuckMission | 'robots' | 'all';
 
 /** Where a card opens: its own link, or the short link of a published share. */
 export function cardHref(card: GalleryCard, replay: string = REPLAY_PAGE_URL): string {
     return card.href ?? `${replay}?${SHORT_SHARE_PARAM}=${encodeURIComponent(card.id)}`;
 }
 
-/** One page of published Microduck runs. Throws with a readable message. */
-export async function fetchGallery(sort: GallerySort, offset: number, fetchImpl: typeof fetch = fetch, api: string = GALLERY_API): Promise<GalleryPage> {
-    const query = new URLSearchParams({ kind: 'duck', sort, limit: String(PAGE_SIZE), offset: String(offset) });
+/** A Microduck run's card summary (the pitch and the walk), as opposed to a robot run's. */
+export function isDuckSummary(s: GalleryCard['summary']): s is DuckGallerySummary {
+    return !!s && (s as { kind?: string }).kind !== 'scene';
+}
+
+export function isSceneSummary(s: GalleryCard['summary']): s is SceneGallerySummary {
+    return !!s && (s as { kind?: string }).kind === 'scene';
+}
+
+/**
+ * One page of published runs of a kind: Microduck runs ("duck", the default)
+ * or runs of any MuJoCo robot ("scene"). Throws with a readable message.
+ */
+export async function fetchGallery(sort: GallerySort, offset: number, fetchImpl: typeof fetch = fetch, api: string = GALLERY_API, kind: 'duck' | 'scene' = 'duck'): Promise<GalleryPage> {
+    const query = new URLSearchParams({ kind, sort, limit: String(PAGE_SIZE), offset: String(offset) });
     let response: Response;
     try {
         response = await fetchImpl(`${api}?${query.toString()}`);
@@ -74,7 +88,25 @@ export function mergeFeatured(local: GalleryCard[], server: GalleryCard[]): Gall
 
 /** The cards for a mission filter (all, goal, obstacles, laptop). */
 export function filterCards(cards: GalleryCard[], mission: MissionFilter): GalleryCard[] {
-    return mission === 'all' ? cards : cards.filter(c => c.summary?.mission === mission);
+    if (mission === 'all') {
+        return cards;
+    }
+    if (mission === 'robots') {
+        return cards.filter(c => isSceneSummary(c.summary));
+    }
+    return cards.filter(c => isDuckSummary(c.summary) && c.summary.mission === mission);
+}
+
+/** Robot runs and Microduck runs as one list, newest (or best) first. */
+export function mergeKinds(a: GalleryCard[], b: GalleryCard[], sort: GallerySort): GalleryCard[] {
+    const seen = new Set<string>();
+    const all = [...a, ...b].filter(c => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+    return all.sort((x, y) => (sort === 'best' ? y.score - x.score : 0) || Date.parse(y.publishedAt) - Date.parse(x.publishedAt));
+}
+
+/** A robot run's outcome in words. */
+export function sceneOutcomeText(s: SceneGallerySummary): string {
+    return s.outcome === 'done' ? 'Ran to the end' : s.outcome === 'stopped' ? 'Stopped by its controller' : s.outcome === 'unstable' ? 'Blew up' : s.outcome;
 }
 
 export interface PitchDrawing {

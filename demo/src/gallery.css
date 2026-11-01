@@ -273,3 +273,14 @@
         border-radius: 0;
     }
 }
+
+/* A robot run without a picture: the robot's name where the pitch would be. */
+.gallery-robot-name {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: capitalize;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--muted, #9a9a9a);
+}

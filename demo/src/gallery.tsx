@@ -13,17 +13,21 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { OPENLANCE_URL as OPENLANCE, SiteHeader } from './brand';
 import featuredRuns from './featured.json';
-import { ago, cardHref, fetchGallery, filterCards, formatLength, mergeFeatured, PAGE_SIZE, pitchDrawing, safeAvatar, safeThumb, type GalleryCard, type GallerySort, type MissionFilter } from './gallery-data';
+import { ago, cardHref, fetchGallery, filterCards, formatLength, isDuckSummary, isSceneSummary, mergeFeatured, mergeKinds, sceneOutcomeText, PAGE_SIZE, pitchDrawing, safeAvatar, safeThumb, type GalleryCard, type GallerySort, type MissionFilter } from './gallery-data';
 import mark from './openlance-mark.svg';
 
 const FEATURED = featuredRuns as GalleryCard[];
-const MISSIONS: Array<[MissionFilter, string]> = [['all', 'All'], ['goal', 'Goal'], ['obstacles', 'Obstacles'], ['laptop', 'Laptop']];
+const MISSIONS: Array<[MissionFilter, string]> = [['all', 'All'], ['goal', 'Goal'], ['obstacles', 'Obstacles'], ['laptop', 'Laptop'], ['robots', 'Robots']];
 
 function Pitch({ card }: { card: GalleryCard }): React.ReactElement | null {
-    if (!card.summary?.field || !Array.isArray(card.summary.path)) {
+    const s = card.summary;
+    if (isSceneSummary(s)) {
+        return <div className="gallery-pitch gallery-pitch-empty gallery-robot-name">{s.robot}</div>;
+    }
+    if (!isDuckSummary(s) || !s.field || !Array.isArray(s.path)) {
         return <div className="gallery-pitch gallery-pitch-empty" />;
     }
-    const d = pitchDrawing(card.summary);
+    const d = pitchDrawing(s);
     return (
         <svg className="gallery-pitch" viewBox={`0 0 ${d.width} ${d.height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="The duck's walk from above">
             <rect x="0" y="0" width={d.width} height={d.height} className="gallery-turf" />
@@ -41,10 +45,12 @@ function Pitch({ card }: { card: GalleryCard }): React.ReactElement | null {
 
 function Card({ card }: { card: GalleryCard }): React.ReactElement {
     const s = card.summary;
-    const good = s ? s.outcome === 'goal' || s.outcome === 'closed' : card.score >= 80;
+    const duck = isDuckSummary(s) ? s : undefined;
+    const robot = isSceneSummary(s) ? s : undefined;
+    const good = duck ? duck.outcome === 'goal' || duck.outcome === 'closed' : robot ? robot.score >= 100 : card.score >= 80;
     const avatar = safeAvatar(card.avatar);
     const thumb = safeThumb(card.thumb);
-    const length = formatLength(s?.lengthS ?? s?.seconds);
+    const length = formatLength(duck ? duck.lengthS ?? duck.seconds : robot?.seconds);
     const author = card.author || 'Anonymous';
     return (
         <a className="gallery-card" href={cardHref(card)}>
@@ -66,8 +72,9 @@ function Card({ card }: { card: GalleryCard }): React.ReactElement {
                     <h3>{card.title}</h3>
                     <div className="gallery-card-by">{author}</div>
                     <div className="gallery-card-meta">
-                        {s && <span className={`gallery-outcome${good ? ' good' : ''}`}>{s.outcomeLabel}</span>}
-                        <span>score {card.score}</span>
+                        {duck && <span className={`gallery-outcome${good ? ' good' : ''}`}>{duck.outcomeLabel}</span>}
+                        {robot && <span className={`gallery-outcome${good ? ' good' : ''}`}>{sceneOutcomeText(robot)}</span>}
+                        {!robot && <span>score {card.score}</span>}
                         {!card.featured && card.publishedAt && <span>{ago(card.publishedAt)}</span>}
                     </div>
                 </div>
@@ -88,8 +95,10 @@ function App(): React.ReactElement {
         try {
             const page = await fetchGallery(sort, offset);
             if (offset === 0) {
-                setFeatured(mergeFeatured(FEATURED, page.featured));
-                setRuns(page.runs);
+                // Robot runs (any MuJoCo robot) are their own kind: the first page joins the list.
+                const robots = await fetchGallery(sort, 0, undefined, undefined, 'scene').catch(() => ({ featured: [], runs: [] }));
+                setFeatured(mergeFeatured(FEATURED, [...page.featured, ...robots.featured]));
+                setRuns(mergeKinds(page.runs, robots.runs, sort));
             } else {
                 setRuns(prev => [...prev, ...page.runs.filter(r => !prev.some(p => p.id === r.id))]);
             }

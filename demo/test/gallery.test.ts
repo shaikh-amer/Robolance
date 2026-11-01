@@ -5,7 +5,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseShareHash } from 'robolance-openlance-hardware/lib/browser/share-run';
 import featured from '../src/featured.json';
-import { ago, cardHref, fetchGallery, filterCards, formatLength, mergeFeatured, pitchDrawing, safeAvatar, safeThumb, type GalleryCard } from '../src/gallery-data';
+import type { DuckGallerySummary } from 'robolance-openlance-hardware/lib/browser/gallery';
+import { ago, cardHref, fetchGallery, filterCards, formatLength, mergeFeatured, mergeKinds, pitchDrawing, safeAvatar, safeThumb, type GalleryCard } from '../src/gallery-data';
+
+const duck = (c: GalleryCard): DuckGallerySummary | undefined => c.summary as DuckGallerySummary | undefined;
 import { loadShare } from '../src/load-run';
 
 const fakeFetch = (status: number, body: unknown): typeof fetch =>
@@ -37,9 +40,9 @@ test('featured runs come first, once; filters pick a mission', () => {
 });
 
 test('a card draws the pitch from above: goal on the right, y up, the laptop as a box', () => {
-    const laptopRun = (featured as GalleryCard[]).find(c => c.summary?.mission === 'laptop')!;
-    const d = pitchDrawing(laptopRun.summary!, 240);
-    const f = laptopRun.summary!.field;
+    const laptopRun = (featured as GalleryCard[]).find(c => duck(c)?.mission === 'laptop')!;
+    const d = pitchDrawing(duck(laptopRun)!, 240);
+    const f = duck(laptopRun)!.field;
     assert.equal(d.width, 240);
     assert.equal(d.height, Math.round(((f.bounds.yMax - f.bounds.yMin) / (f.bounds.xMax - f.bounds.xMin)) * 240));
     // x = 0.95 m on a pitch from -0.4 to 1.3 m.
@@ -52,7 +55,7 @@ test('a card draws the pitch from above: goal on the right, y up, the laptop as 
 
 test('the featured runs are real, good runs that replay from their own links', async () => {
     const cards = featured as GalleryCard[];
-    assert.deepEqual(cards.map(c => c.summary?.mission), ['goal', 'obstacles', 'laptop']);
+    assert.deepEqual(cards.map(c => duck(c)?.mission), ['goal', 'obstacles', 'laptop']);
     for (const card of cards) {
         assert.ok(card.score >= 80, `${card.title}: ${card.score}`);
         const encoded = parseShareHash(new URL(card.href!).hash);
@@ -106,6 +109,16 @@ test('a run\'s length reads like a video\'s', () => {
 test('every Featured run has its own thumbnail and length', () => {
     for (const card of featured as GalleryCard[]) {
         assert.equal(safeThumb(card.thumb), `thumbs/${card.id}.jpg`);
-        assert.ok((card.summary?.lengthS ?? 0) > 0);
+        assert.ok((duck(card)?.lengthS ?? 0) > 0);
     }
+});
+
+test('robot runs (any MuJoCo robot) join the list and have their own filter', () => {
+    const robot: GalleryCard = { id: 'r1', title: 'Unitree G1 waves', score: 100, publishedAt: '2026-11-01T05:00:00Z', summary: { kind: 'scene', robot: 'unitree g1', outcome: 'done', seconds: 8, score: 100 } };
+    const ducks = (featured as GalleryCard[]).map(c => ({ ...c, publishedAt: '2026-10-30T00:00:00Z' }));
+    const merged = mergeKinds(ducks, [robot], 'new');
+    assert.equal(merged[0].id, 'r1', 'newest first');
+    assert.deepEqual(filterCards(merged, 'robots').map(c => c.id), ['r1']);
+    assert.equal(filterCards(merged, 'goal').some(c => c.id === 'r1'), false, 'a robot run is in no Microduck mission');
+    assert.equal(mergeKinds(merged, [robot], 'new').length, merged.length, 'no repeats');
 });

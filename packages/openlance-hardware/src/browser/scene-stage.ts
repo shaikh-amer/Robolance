@@ -87,6 +87,21 @@ export class SceneStage extends StageBase {
         this.frameRobot();
     }
 
+    /** A picture of the robot as it stands now, from the front quarter, `width` x `height` (JPEG data URL). */
+    portrait(width: number, height: number): string {
+        this.robot.group.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(this.robot.group);
+        const c = box.isEmpty() ? this.target.clone() : box.getCenter(new THREE.Vector3());
+        const s = box.isEmpty() ? new THREE.Vector3(0.5, 0.5, 0.5) : box.getSize(new THREE.Vector3());
+        const d = Math.min(30, Math.max(0.1, s.x, s.y, s.z) * 1.7);
+        const az = (SCENE_VIEW.azimuth * Math.PI) / 180;
+        const el = (18 * Math.PI) / 180;
+        return this.snapshot({
+            position: [c.x + d * Math.cos(el) * Math.cos(az), c.y + d * Math.cos(el) * Math.sin(az), c.z + d * Math.sin(el)],
+            lookAt: [c.x, c.y, c.z],
+        }, width, height);
+    }
+
     /** Looks at the robot's middle from far enough to see all of it. */
     private frameRobot(): void {
         this.robot.group.updateMatrixWorld(true);

@@ -18,6 +18,13 @@ import {
 import { SceneView } from './SceneView';
 import type { PreviewTabContext } from './preview-tab';
 import { PlayerShell, Transport } from './player';
+import { PublishedRow, PublishForm, type GalleryActionsFor } from './DuckPanel';
+import { ShareLink } from './RunsView';
+import { REPLAY_PAGE_URL } from './share-run';
+import type { ViewerModel } from 'robolance-duck-sim/viewer';
+import { sceneGalleryActions } from './scene-gallery';
+import { shareSceneRunUrl, suggestedSceneTitle } from './scene-share';
+import { meshoptShrinker } from './scene-shrink';
 
 export type SceneViewName = 'robot' | 'runs';
 
@@ -34,9 +41,11 @@ export interface ScenePanelBodyProps {
     runs: SceneRunEntry[];
     scenes: string[];
     context: PreviewTabContext;
+    /** Where Share links open; false hides Share (the replay page itself). */
+    shareBase?: string | false;
 }
 
-export function ScenePanelBody({ runs, scenes, context }: ScenePanelBodyProps): React.ReactElement {
+export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelBodyProps): React.ReactElement {
     const [view, setView] = React.useState<SceneViewName>('robot');
     const [selected, setSelected] = React.useState(0);
     const [timeMs, setTimeMs] = React.useState(0);
@@ -85,6 +94,7 @@ export function ScenePanelBody({ runs, scenes, context }: ScenePanelBodyProps): 
         setPlaying(false);
     };
     const sceneFile = entry?.scene || scenes[0];
+    const gallery = React.useMemo(() => sceneGalleryActions(context, run => sceneModel(context.files, run)), [context]);
 
     if (!entry) {
         return (
@@ -173,7 +183,18 @@ export function ScenePanelBody({ runs, scenes, context }: ScenePanelBodyProps): 
                         <SceneReadout run={entry.run} timeMs={timeMs} />
                     </PlayerShell>
                 )}
-                {view === 'runs' && <SceneRunsView runs={runs} selected={selected} onSelect={select} onWatch={i => { select(i); setView('robot'); setPlaying(true); }} />}
+                {view === 'runs' && (
+                    <SceneRunsView
+                        runs={runs}
+                        selected={selected}
+                        onSelect={select}
+                        onWatch={i => { select(i); setView('robot'); setPlaying(true); }}
+                        modelOf={run => sceneModel(context.files, run)}
+                        shareBase={shareBase}
+                        storeShare={context.storeShare}
+                        gallery={gallery}
+                    />
+                )}
             </div>
 
             <div className="robolance-footer">
@@ -205,11 +226,20 @@ interface SceneRunsViewProps {
     selected: number;
     onSelect(index: number): void;
     onWatch(index: number): void;
+    /** The 3D model a run replays with: needed to share or publish it. */
+    modelOf?: (run: SceneRunEntry) => ViewerModel | undefined;
+    shareBase?: string | false;
+    storeShare?: PreviewTabContext['storeShare'];
+    gallery?: GalleryActionsFor<SceneRunEntry>;
 }
 
-export function SceneRunsView({ runs, selected, onSelect, onWatch }: SceneRunsViewProps): React.ReactElement {
+export function SceneRunsView({ runs, selected, onSelect, onWatch, modelOf, shareBase = REPLAY_PAGE_URL, storeShare, gallery }: SceneRunsViewProps): React.ReactElement {
     const entry = runs[selected];
     const r = entry?.run;
+    const [publishing, setPublishing] = React.useState(false);
+    React.useEffect(() => setPublishing(false), [entry?.path]);
+    const published = entry && gallery?.published[entry.path];
+    const model = entry && modelOf ? modelOf(entry) : undefined;
     return (
         <div className="robolance-runs">
             <ol className="robolance-runs-list" aria-label="Runs">
@@ -232,7 +262,15 @@ export function SceneRunsView({ runs, selected, onSelect, onWatch }: SceneRunsVi
                 <div className="robolance-run-detail">
                     <div className="robolance-run-actions">
                         <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
+                        {shareBase && model && <ShareLink id={entry.path} makeUrl={() => shareSceneRunUrl(entry, model, shareBase, storeShare, meshoptShrinker)} />}
+                        {gallery && model && !published && !publishing && (
+                            <button type="button" className="robolance-edit-btn" onClick={() => setPublishing(true)}>Publish</button>
+                        )}
                     </div>
+                    {gallery && published && <PublishedRow run={entry} entry={published} gallery={gallery} />}
+                    {gallery && !published && publishing && (
+                        <PublishForm run={entry} gallery={gallery} onClose={() => setPublishing(false)} suggestTitle={suggestedSceneTitle} codeLabel="Include my controller code" />
+                    )}
                     {r.message && r.outcome !== 'done' && <pre className={r.outcome === 'stopped' ? 'robolance-run-serial' : 'robolance-error'}>{r.message}</pre>}
                     {r.check.issues.length > 0 && (
                         <ul className="robolance-run-notes" aria-label="Checks">
