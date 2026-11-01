@@ -150,7 +150,7 @@ Repository: https://github.com/shaikh-amer/robolance (hackathon work only). Open
   - a Meta Model API key (Muse Spark, SAM 3.1, Muse Image);
   - a Baseten or Fireworks key (Muse Spark Open);
   - Modal under Compute providers.
-- [ ] End to end on the deployed IDE:
+- [ ] End to end on the deployed IDE (step by step: [testing-meta-and-partners.md](testing-meta-and-partners.md)):
   - [ ] score a goal;
   - [x] image generation (the picture appears in the chat card);
   - [ ] photo to obstacles (a SAM 3.1 call returns boxes);
