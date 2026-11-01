@@ -1,0 +1,40 @@
+name: Publish a package to npm
+
+# Run from the Actions tab (or by Claude): pick the workspace package to publish.
+# Needs the repository secret NPM_TOKEN (an npm "Automation" or granular
+# publish token for the robolance-* packages). The version is the one in the
+# package's package.json; publishing an existing version fails safely.
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Workspace package to publish
+        required: true
+        default: robolance-openlance-hardware
+        type: choice
+        options:
+          - robolance-openlance-hardware
+          - robolance-duck-sim
+          - robolance-hardware-tools
+          - robolance-hardware-sim
+          - robolance-mujoco
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm test -w ${{ inputs.package }} --if-present
+      - run: npm publish -w ${{ inputs.package }} --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
