@@ -5,8 +5,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { before, test } from 'node:test';
 import * as React from 'react';
+import * as THREE from 'three';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { runMission, type MissionResult } from 'robolance-duck-sim';
+import { DEFAULT_FIELD, runMission, type MissionResult } from 'robolance-duck-sim';
 import { bodyPoses } from 'robolance-duck-sim/viewer';
 import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
 import { DuckPanel, DuckReadout, DuckRunsView } from '../src/browser/DuckPanel';
@@ -167,4 +168,75 @@ test('Watch this run and Share this run sit in one row', () => {
     assert.match(css, /\.robolance-run-actions \{\s*display: flex;\s*flex-wrap: nowrap;/);
     // Status colours come from the IDE theme, not fixed hex values.
     assert.doesNotMatch(css, /^\s*(color|background|fill|stroke): (#[0-9a-f]{3,6}|rgba?\([^)]*\));/im);
+});
+
+test('a duck colour paints the shell and leaves the dark parts and trim alone', async () => {
+    const { RobotParts, isShell } = await import('../src/browser/robot-parts');
+    const parts = new RobotParts(duckModel);
+    const colours = () => {
+        const seen = new Map<unknown, string>();
+        parts.group.traverse(o => { const m = (o as { material?: { color?: { getHexString(): string } } }).material; if (m?.color) seen.set(m, m.color.getHexString()); });
+        return [...seen.values()];
+    };
+    const before = colours();
+    const shells = before.filter(h => isShell(new THREE.Color('#' + h)));
+    assert.ok(shells.length > 0 && shells.length < before.length, 'the duck has both shell and other parts');
+    parts.paint('#f5c400');
+    const painted = colours();
+    const yellow = new THREE.Color('#f5c400').getHexString();
+    assert.equal(painted.filter(h => h === yellow).length, shells.length, 'every shell part is painted');
+    assert.deepEqual(painted.filter(h => h !== yellow).sort(), before.filter(h => !isShell(new THREE.Color('#' + h))).sort(), 'other parts keep their colour');
+    parts.paint(undefined);
+    assert.deepEqual(colours().sort(), before.sort(), 'no colour gives the model colours back');
+    parts.paint('javascript:alert(1)');
+    assert.deepEqual(colours().sort(), before.sort(), 'a value that is not #rrggbb is ignored');
+    parts.dispose();
+});
+
+test('room.logos puts posters on the far wall, marks on the laptop and a sticker on the duck', async () => {
+    const { RobotParts } = await import('../src/browser/robot-parts');
+    const { stickerMaterial, posterMaterial, lidMaterial } = await import('../src/browser/brand-marks');
+    const { LaptopModel } = await import('../src/browser/laptop-model');
+    // Without a document the materials are plain but still materials: the viewers never crash headless.
+    for (const m of [stickerMaterial(), posterMaterial('meta'), posterMaterial('openlance'), lidMaterial()]) {
+        assert.ok(m instanceof THREE.Material);
+    }
+    const parts = new RobotParts(duckModel);
+    const discs = () => parts.group.children.filter(o => (o as THREE.Mesh).geometry instanceof THREE.CircleGeometry) as THREE.Mesh[];
+    assert.equal(discs().length, 0);
+    parts.sticker(stickerMaterial());
+    assert.equal(discs().length, 2, 'one sticker on each flank');
+    // Posed with the trunk: both discs sit the same distance from the trunk, on opposite sides.
+    const poses = parts.pose(new Array(duckModel.nq).fill(0));
+    assert.ok(poses);
+    const trunk = new THREE.Vector3(...poses![1].pos);
+    const dists = discs().map(d => d.position.distanceTo(trunk));
+    assert.ok(Math.abs(dists[0] - dists[1]) < 1e-6 && dists[0] > 0.05 && dists[0] < 0.06, `symmetric stickers, got ${dists}`);
+    const ys = discs().map(d => d.position.y - trunk.y);
+    assert.ok(ys[0] * ys[1] < 0, 'one on each side');
+    parts.sticker(undefined);
+    assert.equal(discs().length, 0);
+    parts.dispose();
+    const plain = new LaptopModel({ x: 0, y: 0, heading: 0 });
+    const branded = new LaptopModel({ x: 0, y: 0, heading: 0 }, { logos: true });
+    const meshes = (g: THREE.Object3D) => { let n = 0; g.traverse((o: THREE.Object3D) => { if ((o as THREE.Mesh).isMesh) { n++; } }); return n; };
+    assert.equal(meshes(branded.group), meshes(plain.group) + 1, 'the branded lid has one extra face: the marks on its outside');
+    plain.dispose(); branded.dispose();
+});
+
+test('room.logos hangs an OpenLance and a Meta poster on the far wall, facing into the room', async () => {
+    const { wallPosters } = await import('../src/browser/duck-stage');
+    const field = { ...DEFAULT_FIELD, bounds: { xMin: -0.5, xMax: 3, yMin: -1.5, yMax: 1.5 }, room: { floor: 'wood' as const, logos: true } };
+    const meshes = wallPosters(field as Parameters<typeof wallPosters>[0]);
+    assert.equal(meshes.length, 4, 'two frames and two prints');
+    const prints = meshes.filter(m => m.geometry instanceof THREE.PlaneGeometry);
+    assert.equal(prints.length, 2);
+    for (const print of prints) {
+        assert.ok(print.position.x > 2.9 && print.position.x < 3.05, 'on the wall at the far end of the room');
+        assert.ok(Math.abs(print.position.z - 1.45) < 0.01, 'hung at eye height');
+        const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(print.quaternion);
+        assert.ok(normal.x < -0.99, `the print faces into the room, not into the wall (normal ${normal.toArray().map(v => v.toFixed(2))})`);
+    }
+    const ys = prints.map(p => p.position.y).sort((a, b) => a - b);
+    assert.ok(ys[1] - ys[0] > 0.6, 'the two posters hang side by side, not on top of each other');
 });

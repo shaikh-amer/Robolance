@@ -25,7 +25,8 @@ export interface Obstacle {
 }
 
 export interface FieldSpec {
-    duck: { x: number; y: number; heading: number };
+    /** Where the duck starts; color ("#rrggbb") paints its shell in the viewers (physics is unchanged). */
+    duck: { x: number; y: number; heading: number; color?: string };
     ball: { x: number; y: number };
     /** The goal line is at x; the mouth spans y ± width/2. */
     goal: { x: number; y: number; width: number };
@@ -255,6 +256,9 @@ export function validateField(f: FieldSpec): string | undefined {
     }
     if (Math.hypot(f.ball.x - f.duck.x, f.ball.y - f.duck.y) < 0.15) {
         return 'the ball starts at least 15 cm from the duck';
+    }
+    if (f.duck.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(f.duck.color))) {
+        return 'duck.color is a colour like "#f5c400"';
     }
     return validateObstacles(f) ?? validateLaptop(f);
 }
