@@ -59,6 +59,8 @@ export class DuckStage extends StageBase {
     private palette: Palette = PALETTES.dark;
     /** The duck's heading in the frame shown last, not eased. */
     private heading = 0;
+    /** The viewer's shell colour, over the field's ("#rrggbb"), or undefined for the field's. */
+    private userColor?: string;
 
     constructor(host: HTMLElement, model: ViewerModel) {
         super(host, DEFAULT_VIEW, 'robolance-duck-canvas');
@@ -93,10 +95,17 @@ export class DuckStage extends StageBase {
         this.invalidate();
     }
 
+    /** Paints the duck's shell for this viewer ("#rrggbb"), or goes back to the field's colour. */
+    setColor(hex: string | undefined): void {
+        this.userColor = hex;
+        this.robot.paint(hex ?? this.field?.duck.color);
+        this.invalidate();
+    }
+
     setField(field: FieldSpec): void {
         const same = this.field && JSON.stringify(this.field) === JSON.stringify(field);
         this.field = field;
-        this.robot.paint(field.duck.color);
+        this.robot.paint(this.userColor ?? field.duck.color);
         if (!same) {
             this.buildPitch(field);
             this.clearLaptop();

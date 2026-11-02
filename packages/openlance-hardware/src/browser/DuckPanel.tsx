@@ -10,6 +10,8 @@
 import * as React from 'react';
 import type { MissionResult } from 'robolance-duck-sim/viewer';
 import { DuckScene } from './DuckScene';
+import { ColorSwatches } from './ColorSwatches';
+import { loadColor, saveColor } from './robot-color';
 import { duckThumbnail } from './duck-thumbnail';
 import { describeDuckRun, describeDuckSkills, duckRunMs, outcomeLabel, readDuckRuns, missionPath, type DuckRun } from './duck-project';
 import { formatRunTime } from './hardware-project';
@@ -50,6 +52,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
     /** The mode's name shown on the pitch for a moment after a switch. */
     const [cameraToast, setCameraToast] = React.useState(0);
     const [resetKey, setResetKey] = React.useState(0);
+    const [color, setColor] = React.useState<string | undefined>(() => loadColor());
     React.useEffect(() => {
         if (!cameraToast) {
             return;
@@ -118,6 +121,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
     const nextCamera = () => { setCamera(nextCameraMode); setCameraToast(t => t + 1); };
     const cameraTools = (
         <>
+            <ColorSwatches value={color} onChange={c => { setColor(c); saveColor(c); }} />
             <CameraButton mode={camera} onClick={nextCamera} />
             <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the pitch). Drag to orbit, right-drag or two fingers to pan, wheel to zoom" onClick={() => { setCamera('orbit'); setResetKey(k => k + 1); }}>
                 Reset view
@@ -164,7 +168,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
                         fullscreenTools={cameraTools}
                         label={`run #${runs.length - selected}`}
                     >
-                        <DuckScene result={r} timeMs={timeMs} theme={context.theme} camera={camera} resetKey={resetKey} />
+                        <DuckScene result={r} timeMs={timeMs} theme={context.theme} camera={camera} resetKey={resetKey} color={color} />
                         {cameraToast > 0 && <span className="robolance-camera-toast" role="status">{CAMERA_LABELS[camera]}</span>}
                         <DuckReadout result={r} timeMs={timeMs} />
                     </PlayerShell>
