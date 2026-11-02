@@ -28,7 +28,7 @@ test('the site installs as the ROBOLANCE app, without the browser bar', () => {
 test('the manifest icons exist at the sizes it declares, including a maskable one', () => {
     for (const icon of manifest.icons) {
         const [w, h] = icon.sizes.split('x').map(Number);
-        assert.deepEqual(pngSize(src('pwa/' + icon.src.replace('/icons/', ''))), [w, h], icon.src);
+        assert.deepEqual(pngSize(src('pwa/' + icon.src.replace('/icons/', '').replace(/\?.*$/, ''))), [w, h], icon.src);
     }
     assert.ok(manifest.icons.some((i: { sizes: string }) => i.sizes === '512x512'));
     assert.ok(manifest.icons.some((i: { purpose: string }) => i.purpose === 'maskable'));
