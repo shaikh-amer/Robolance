@@ -402,3 +402,16 @@ test('the duck walks under a table, and a fridge in its way is noted by name', a
     const hit = await runMission('await duck.walkTo(1.2, 0);', { field: blocked, limitS: 12 });
     assert.match(hit.events.map(e => e.detail).join('\n'), /walked into the fridge/);
 });
+
+test('the duck can be painted any colour; only "#rrggbb" is accepted', () => {
+    assert.equal(validateField({ ...DEFAULT_FIELD, duck: { ...DEFAULT_FIELD.duck, color: '#f5c400' } }), undefined);
+    for (const bad of ['yellow', '#fff', '#f5c40g', 'url(x)']) {
+        assert.match(validateField({ ...DEFAULT_FIELD, duck: { ...DEFAULT_FIELD.duck, color: bad } }) ?? '', /duck\.color/, bad);
+    }
+});
+
+test('room.logos is a flag the field accepts', () => {
+    const room = { floor: 'wood' as const, logos: true };
+    assert.equal(validateField({ ...DEFAULT_FIELD, room }), undefined);
+    assert.match(validateField({ ...DEFAULT_FIELD, room: { ...room, logos: 'yes' as unknown as boolean } }) ?? '', /room\.logos/);
+});

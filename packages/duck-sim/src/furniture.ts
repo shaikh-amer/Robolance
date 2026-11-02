@@ -22,6 +22,8 @@ export interface RoomSpec {
     walls?: boolean;
     /** The walls' paint, "#rrggbb". */
     wallColor?: string;
+    /** Meta and OpenLance on the walls (posters), the laptop's lid and screen, and the robot (a sticker). */
+    logos?: boolean;
 }
 
 export type FurnitureKind = 'table' | 'desk' | 'chair' | 'fridge' | 'shelf' | 'sofa' | 'box';
@@ -142,7 +144,7 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 export function validateFurniture(room: RoomSpec | undefined, list: Furniture[] | undefined): string | undefined {
     if (room !== undefined) {
         if (typeof room !== 'object' || room === null) {
-            return 'room is an object: { floor, walls, wallColor }';
+            return 'room is an object: { floor, walls, wallColor, logos }';
         }
         if (room.floor !== undefined && !FLOOR_KINDS.includes(room.floor)) {
             return `room.floor is one of ${FLOOR_KINDS.join(', ')}`;
@@ -152,6 +154,9 @@ export function validateFurniture(room: RoomSpec | undefined, list: Furniture[] 
         }
         if (room.wallColor !== undefined && !HEX.test(room.wallColor)) {
             return 'room.wallColor is "#rrggbb"';
+        }
+        if (room.logos !== undefined && typeof room.logos !== 'boolean') {
+            return 'room.logos is true or false';
         }
     }
     if (list === undefined) {
