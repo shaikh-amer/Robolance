@@ -60,8 +60,8 @@ export class DuckStage extends StageBase {
     private palette: Palette = PALETTES.dark;
     /** The duck's heading in the frame shown last, not eased. */
     private heading = 0;
-    /** The logo sticker's material, made once per stage. */
-    private stickerMat?: THREE.Material;
+    /** The shoulder stickers' materials (OpenLance left, Meta right), made once per stage. */
+    private stickerMats?: { left: THREE.Material; right: THREE.Material };
 
     constructor(host: HTMLElement, model: ViewerModel) {
         super(host, DEFAULT_VIEW, 'robolance-duck-canvas');
@@ -77,7 +77,8 @@ export class DuckStage extends StageBase {
         this.scene.add(this.ball);
         this.disposers.push(() => {
             this.robot.dispose();
-            disposeWithMaps(this.stickerMat);
+            disposeWithMaps(this.stickerMats?.left);
+            disposeWithMaps(this.stickerMats?.right);
             this.ball.geometry.dispose();
             ballMaterial.dispose();
             this.clearPitch();
@@ -102,7 +103,7 @@ export class DuckStage extends StageBase {
         this.field = field;
         this.robot.paint(field.duck.color);
         if (!same) {
-            this.robot.sticker(field.room?.logos ? (this.stickerMat ??= stickerMaterial()) : undefined);
+            this.robot.sticker(field.room?.logos ? (this.stickerMats ??= { left: stickerMaterial('openlance'), right: stickerMaterial('meta') }) : undefined);
             this.buildPitch(field);
             this.clearLaptop();
             if (field.laptop) {
