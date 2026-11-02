@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as THREE from 'three';
-import { FRAME_MARGIN, distanceToFit, orbitPosition, panDelta } from '../src/browser/frame-fit';
+import { FRAME_MARGIN, distanceToFit, orbitPosition, panDelta, zoomAnchorDrag } from '../src/browser/frame-fit';
 
 // The default pitch: duck at the origin, goal ~1 m away, seen from the broadcast angle.
 const points = [
@@ -69,4 +69,15 @@ test('panning moves the target so the ground under the pointer stays under it', 
     const visible = 2 * 2 * Math.tan((38 * Math.PI) / 360);
     assert.ok(Math.abs(r.length() - visible / 6) < 1e-9, 'pans by the screen fraction dragged');
     assert.ok(Math.abs(panDelta(angles, 4, 100, 0, 600, 38).length() - 2 * r.length()) < 1e-9, 'twice as far away pans twice as much');
+});
+
+test('zooming at a point drags the target towards it by the share the zoom pushes away', () => {
+    // Zoom in to half the distance at a point 100 px right, 40 px below the centre:
+    // the target moves half the offset towards the point (a drag of the opposite sign).
+    assert.deepEqual(zoomAnchorDrag(0.5, 100, 40), [-50, -20]);
+    // Zooming out past the point pulls the target away from it.
+    assert.deepEqual(zoomAnchorDrag(2, 100, 40), [100, 40]);
+    // No zoom, no drag; a pinch at the centre never pans.
+    assert.deepEqual(zoomAnchorDrag(1, 100, 40), [-0, -0]);
+    assert.deepEqual(zoomAnchorDrag(0.5, 0, 0), [-0, -0]);
 });
