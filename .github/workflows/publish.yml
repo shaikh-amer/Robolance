@@ -1,9 +1,12 @@
 name: Publish a package to npm
 
 # Run from the Actions tab (or by Claude): pick the workspace package to publish.
-# Needs the repository secret NPM_TOKEN (an npm "Automation" or granular
-# publish token for the robolance-* packages). The version is the one in the
-# package's package.json; publishing an existing version fails safely.
+# Publishes with npm trusted publishing (OIDC): no token, no one-time password.
+# Each robolance-* package on npmjs.com lists this repository and this workflow
+# file as its trusted publisher (package Settings > Trusted Publisher > GitHub
+# Actions: owner shaikh-amer, repository Robolance, workflow publish.yml). The
+# version is the one in the package's package.json; publishing an existing
+# version fails safely.
 on:
   workflow_dispatch:
     inputs:
@@ -21,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -31,10 +35,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or newer; Node 22 ships npm 10.
+      - run: npm install -g npm@latest
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - run: npm test -w ${{ inputs.package }} --if-present
       - run: npm publish -w ${{ inputs.package }} --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
