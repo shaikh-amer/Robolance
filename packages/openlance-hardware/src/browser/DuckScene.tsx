@@ -23,9 +23,11 @@ export interface DuckSceneProps {
     camera?: CameraMode;
     /** Bumped to put the camera back where it started. */
     resetKey?: number;
+    /** The viewer's shell colour ("#rrggbb"), over the field's. */
+    color?: string;
 }
 
-export function DuckScene({ result, timeMs, theme, follow = false, camera = 'orbit', resetKey = 0 }: DuckSceneProps): React.ReactElement {
+export function DuckScene({ result, timeMs, theme, follow = false, camera = 'orbit', resetKey = 0, color }: DuckSceneProps): React.ReactElement {
     const host = React.useRef<HTMLDivElement>(null);
     const stage = React.useRef<DuckStage>();
     const [failed, setFailed] = React.useState<string>();
@@ -50,6 +52,7 @@ export function DuckScene({ result, timeMs, theme, follow = false, camera = 'orb
     React.useEffect(() => stage.current?.setField(result.field), [result.field, failed]);
     React.useEffect(() => stage.current?.setFollow(follow), [follow, failed]);
     React.useEffect(() => stage.current?.setCameraMode(camera), [camera, failed]);
+    React.useEffect(() => stage.current?.setColor(color), [color, result.field, failed]);
     React.useEffect(() => {
         if (resetKey) {
             stage.current?.resetView();

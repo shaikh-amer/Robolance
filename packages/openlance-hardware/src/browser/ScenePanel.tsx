@@ -16,6 +16,8 @@ import {
     type SceneRunData, type SceneRunEntry,
 } from './scene-project';
 import { SceneView } from './SceneView';
+import { ColorSwatches } from './ColorSwatches';
+import { loadColor, saveColor } from './robot-color';
 import type { PreviewTabContext } from './preview-tab';
 import { PlayerShell, Transport } from './player';
 import { PublishedRow, PublishForm, type GalleryActionsFor } from './DuckPanel';
@@ -51,6 +53,7 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
     const [timeMs, setTimeMs] = React.useState(0);
     const [playing, setPlaying] = React.useState(false);
     const [follow, setFollow] = React.useState(false);
+    const [color, setColor] = React.useState<string | undefined>(() => loadColor());
     const [resetKey, setResetKey] = React.useState(0);
 
     const entry: SceneRunEntry | undefined = runs[Math.min(selected, Math.max(0, runs.length - 1))];
@@ -124,6 +127,7 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
     const seek = (ms: number) => { setPlaying(false); setTimeMs(ms); };
     const sceneTools = (
         <>
+            <ColorSwatches value={color} onChange={c => { setColor(c); saveColor(c); }} />
             <button
                 type="button"
                 className={`robolance-edit-btn${follow ? ' active' : ''}`}
@@ -178,7 +182,7 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
                         label={`run #${runs.length - selected}`}
                     >
                         {model
-                            ? <SceneView model={model} frame={sceneFrameAt(entry.run, timeMs)} theme={context.theme} follow={follow} resetKey={resetKey} />
+                            ? <SceneView model={model} frame={sceneFrameAt(entry.run, timeMs)} theme={context.theme} follow={follow} resetKey={resetKey} color={color} />
                             : <div className="robolance-empty"><p>This run's 3D model ({entry.modelPath}) is missing; run the scene again to record it.</p></div>}
                         <SceneReadout run={entry.run} timeMs={timeMs} />
                     </PlayerShell>

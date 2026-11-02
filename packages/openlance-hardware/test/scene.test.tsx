@@ -75,6 +75,7 @@ test('frames interpolate and metrics read back at a time', () => {
 test('the scene panel shows the robot view, the readout and the runs, and asks the agent when there are none', () => {
     const runs = readSceneRuns(files);
     const html = renderToStaticMarkup(<ScenePanelBody runs={runs} scenes={sceneFiles(files)} context={{ files, theme: 'dark', openFile: () => undefined }} />);
+    assert.match(html, /aria-label="Robot colour"/, 'the robot player offers the colour swatches');
     assert.match(html, /Robot/);
     assert.match(html, /Runs \(1\)/);
     assert.match(html, /robolance-duck-scene/);

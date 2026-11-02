@@ -70,6 +70,12 @@ export class SceneStage extends StageBase {
     }
 
     /** Poses the robot from a replay frame; the first frame also frames the camera to the robot's size. */
+    /** Paints the robot's light shell parts ("#rrggbb"), or restores the model's colours. */
+    setColor(hex: string | undefined): void {
+        this.robot.paint(hex);
+        this.invalidate();
+    }
+
     show(frame: ArrayLike<number> | undefined): void {
         const poses = this.robot.pose(frame);
         if (poses) {

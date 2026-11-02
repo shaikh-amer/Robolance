@@ -14,9 +14,11 @@ export interface SceneViewProps {
     follow?: boolean;
     /** Bumped to put the camera back where it started. */
     resetKey?: number;
+    /** The viewer's shell colour ("#rrggbb"), over the model's. */
+    color?: string;
 }
 
-export function SceneView({ model, frame, theme, follow = false, resetKey = 0 }: SceneViewProps): React.ReactElement {
+export function SceneView({ model, frame, theme, follow = false, resetKey = 0, color }: SceneViewProps): React.ReactElement {
     const host = React.useRef<HTMLDivElement>(null);
     const stage = React.useRef<SceneStage>();
     const [failed, setFailed] = React.useState<string>();
@@ -40,6 +42,7 @@ export function SceneView({ model, frame, theme, follow = false, resetKey = 0 }:
 
     React.useEffect(() => stage.current?.setTheme(theme), [theme, model, failed]);
     React.useEffect(() => stage.current?.setFollow(follow), [follow, model, failed]);
+    React.useEffect(() => stage.current?.setColor(color), [color, model, failed]);
     React.useEffect(() => {
         if (resetKey) {
             stage.current?.resetView();

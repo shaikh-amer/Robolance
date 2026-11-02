@@ -79,6 +79,7 @@ test('the Hardware tab shows the pitch for a duck project, and the agent prompt 
     assert.match(html, /Runs \(1\)/);
     assert.match(html, /robolance-duck-scene/);
     assert.match(html, /run #1/);
+    assert.match(html, /aria-label="Robot colour"/, 'the player offers the colour swatches');
     const empty = renderToStaticMarkup(<DuckPanel files={new Map([['mission.js', '']])} theme="light" askAgent={() => undefined} />);
     assert.match(empty, /Ask the agent to score a goal/);
 });
