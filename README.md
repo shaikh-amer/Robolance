@@ -59,7 +59,7 @@ Then, in an empty folder, ask the agent:
 
 Each `duck_run` takes a few seconds and returns the outcome, a score from 0 to 100 and notes on what went wrong, for example "the ball crossed the goal line 32 cm wide of the left post". Every run is saved in `.robolance/runs/`. The duck and robot tools work out of the box; `hardware_compile` also needs `arduino-cli` or `avr-gcc` (see [Run it](#run-it)).
 
-**3. The full IDE (10 minutes).** Sign in at [ide.openlance.ai](https://ide.openlance.ai) with your own account and add your own Meta key in Settings → Model keys. Keys stay on the server: they never go into the sandbox, the chat or logs. Then type "Make the duck score a goal." [docs/testing-meta-and-partners.md](docs/testing-meta-and-partners.md) lists every Meta feature to try, with what to type and what you should see.
+**3. The full IDE (10 minutes).** Sign in at [ide.openlance.ai](https://ide.openlance.ai) with your own account and add your own Meta key in Settings → Model keys. Keys stay on the server: they never go into the sandbox, the chat or logs. Then type "Make the duck score a goal." From section 1 on, [docs/testing-meta-and-partners.md](docs/testing-meta-and-partners.md) lists every Meta feature to try, with what to type and what you should see.
 
 **4. From source.** `npm install && npm run build && npm test` (details in [Run it](#run-it)).
 
