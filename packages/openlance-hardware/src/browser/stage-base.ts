@@ -4,13 +4,14 @@
 /**
  * What every 3D stage shares: a renderer with filmic tone mapping and a
  * studio environment map, a warm key light with soft shadows, a sky that
- * fades into the horizon, an orbit camera (drag, wheel or pinch,
- * double-click to reset) that can follow a point, and rendering on demand.
+ * fades into the horizon, an orbit camera (drag to orbit, right-drag or
+ * two fingers to pan, wheel or pinch to zoom, double-click to reset) that
+ * can follow a point, and rendering on demand.
  * The duck's pitch and any MJCF scene build on it.
  */
 
 import * as THREE from 'three';
-import { distanceToFit, fogRange, orbitPosition } from './frame-fit';
+import { distanceToFit, fogRange, orbitPosition, panDelta } from './frame-fit';
 import { skyCanvas } from './stage-textures';
 import { studioEnvironment } from './studio-environment';
 
@@ -111,6 +112,9 @@ export abstract class StageBase {
     /** Where the camera looks when following. */
     protected readonly followAt = new THREE.Vector3();
     protected follow = false;
+    /** Where the user has dragged the view to, relative to the target (orbit camera only). */
+    private readonly panOffset = new THREE.Vector3();
+    private readonly lookAt = new THREE.Vector3();
     /** The robot's heading (radians), eased so a walking gait does not shake the chase and eye cameras. */
     protected followHeading = 0;
     protected cameraMode: CameraMode = 'orbit';
@@ -187,6 +191,7 @@ export abstract class StageBase {
     resetView(): void {
         this.view = { ...this.defaultView };
         this.userZoomed = false;
+        this.panOffset.set(0, 0, 0);
         this.home();
         this.frameView();
         this.invalidate();
@@ -276,11 +281,11 @@ export abstract class StageBase {
             orbitPosition(this.target, wide, fitted * 1.3, this.camera.position);
             this.camera.lookAt(this.target);
         } else {
-            const target = this.follow ? this.followAt : this.target;
+            const target = this.lookAt.copy(this.follow ? this.followAt : this.target).add(this.panOffset);
             orbitPosition(target, this.view, this.view.distance, this.camera.position);
             this.camera.lookAt(target);
         }
-        this.followFog(mode === 'chase' || mode === 'eyes' ? 0 : this.camera.position.distanceTo(this.follow && mode === 'orbit' ? this.followAt : this.target));
+        this.followFog(mode === 'chase' || mode === 'eyes' ? 0 : this.camera.position.distanceTo(mode === 'orbit' ? this.lookAt : this.target));
         this.renderer.render(this.scene, this.camera);
     }
 
@@ -337,14 +342,26 @@ export abstract class StageBase {
     }
 
     /** Drag to orbit, wheel or pinch to zoom, double-click to reset. */
+    /** Drag to orbit; right button, middle button, shift-drag or two fingers to pan; wheel or pinch to zoom; double-click to reset. */
     private bindControls(): void {
         const el = this.renderer.domElement;
         const pointers = new Map<number, { x: number; y: number }>();
         let pinch = 0;
+        let panning = false;
+        const centroid = () => {
+            let x = 0, y = 0;
+            for (const p of pointers.values()) { x += p.x; y += p.y; }
+            return { x: x / pointers.size, y: y / pointers.size };
+        };
+        let centre = { x: 0, y: 0 };
         const down = (e: PointerEvent) => {
             el.setPointerCapture(e.pointerId);
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             pinch = pinchDistance(pointers);
+            centre = centroid();
+            if (pointers.size === 1) {
+                panning = e.button === 1 || e.button === 2 || e.shiftKey;
+            }
         };
         const move = (e: PointerEvent) => {
             const last = pointers.get(e.pointerId);
@@ -358,6 +375,13 @@ export abstract class StageBase {
                     this.zoom(pinch / now);
                 }
                 pinch = now;
+                const c = centroid();
+                this.pan(c.x - centre.x, c.y - centre.y);
+                centre = c;
+                return;
+            }
+            if (panning) {
+                this.pan(e.clientX - last.x, e.clientY - last.y);
                 return;
             }
             this.view.azimuth -= (e.clientX - last.x) * 0.4;
@@ -367,18 +391,25 @@ export abstract class StageBase {
         const up = (e: PointerEvent) => {
             pointers.delete(e.pointerId);
             pinch = pinchDistance(pointers);
+            if (pointers.size > 0) {
+                centre = centroid();
+            } else {
+                panning = false;
+            }
         };
         const wheel = (e: WheelEvent) => {
             e.preventDefault();
             this.zoom(Math.exp(e.deltaY * 0.001));
         };
         const reset = () => this.resetView();
+        const noMenu = (e: Event) => e.preventDefault();
         el.addEventListener('pointerdown', down);
         el.addEventListener('pointermove', move);
         el.addEventListener('pointerup', up);
         el.addEventListener('pointercancel', up);
         el.addEventListener('wheel', wheel, { passive: false });
         el.addEventListener('dblclick', reset);
+        el.addEventListener('contextmenu', noMenu);
         el.style.touchAction = 'none';
         this.disposers.push(() => {
             el.removeEventListener('pointerdown', down);
@@ -387,7 +418,18 @@ export abstract class StageBase {
             el.removeEventListener('pointercancel', up);
             el.removeEventListener('wheel', wheel);
             el.removeEventListener('dblclick', reset);
+            el.removeEventListener('contextmenu', noMenu);
         });
+    }
+
+    /** Moves the orbit camera's target by a drag of (dx, dy) pixels; the ground under the pointer stays under it. */
+    private pan(dx: number, dy: number): void {
+        if (this.cameraMode !== 'orbit' || (dx === 0 && dy === 0)) {
+            return;
+        }
+        const height = Math.max(1, this.renderer.domElement.clientHeight);
+        this.panOffset.add(panDelta(this.view, this.view.distance, dx, dy, height, CAMERA_FOV.orbit));
+        this.invalidate();
     }
 
     private zoom(factor: number): void {

@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as THREE from 'three';
-import { FRAME_MARGIN, distanceToFit, orbitPosition } from '../src/browser/frame-fit';
+import { FRAME_MARGIN, distanceToFit, orbitPosition, panDelta } from '../src/browser/frame-fit';
 
 // The default pitch: duck at the origin, goal ~1 m away, seen from the broadcast angle.
 const points = [
@@ -48,4 +48,25 @@ test('fogRange: the fog backs off with the camera, never comes closer', async ()
     // Zoomed in: it stays where it was.
     assert.deepEqual(fogRange(1, 3, 4, 14), { near: 4, far: 14 });
     assert.deepEqual(fogRange(Number.NaN, 3, 4, 14), { near: 4, far: 14 });
+});
+
+test('panning moves the target so the ground under the pointer stays under it', () => {
+    const cam = new THREE.PerspectiveCamera(38, 1, 0.01, 100);
+    cam.up.set(0, 0, 1);
+    orbitPosition(target, angles, 2, cam.position);
+    cam.lookAt(target);
+    cam.updateMatrixWorld();
+    const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
+    const forward = target.clone().sub(cam.position).setZ(0).normalize();
+    // Dragging right: the scene follows the pointer, so the target goes the other way, along the camera's right, in the ground plane.
+    const r = panDelta(angles, 2, 100, 0, 600, 38);
+    assert.ok(r.dot(right) < -0.01 && Math.abs(r.z) < 1e-9, `drag right moves the target against the camera's right, got ${r.toArray()}`);
+    assert.ok(Math.abs(r.dot(forward)) < 1e-6, 'a horizontal drag does not move the target forward');
+    // Dragging down brings the far ground closer: the target moves away from the camera.
+    const d = panDelta(angles, 2, 0, 100, 600, 38);
+    assert.ok(d.dot(forward) > 0.01 && Math.abs(d.dot(right)) < 1e-6, `drag down moves the target forward, got ${d.toArray()}`);
+    // A hundred pixels on a 600 px canvas is a sixth of the view: about that much of the visible height, scaled by the distance.
+    const visible = 2 * 2 * Math.tan((38 * Math.PI) / 360);
+    assert.ok(Math.abs(r.length() - visible / 6) < 1e-9, 'pans by the screen fraction dragged');
+    assert.ok(Math.abs(panDelta(angles, 4, 100, 0, 600, 38).length() - 2 * r.length()) < 1e-9, 'twice as far away pans twice as much');
 });
