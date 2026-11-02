@@ -27,7 +27,7 @@ export class FurnitureModel {
     private readonly disposables: Array<{ dispose(): void }> = [];
     private readonly laptops: LaptopModel[] = [];
 
-    constructor(readonly spec: Furniture, private readonly options: { logos?: boolean } = {}) {
+    constructor(readonly spec: Furniture) {
         const { width, depth, height } = furnitureSize(spec);
         const color = spec.color ?? COLORS[spec.kind];
         switch (spec.kind) {
@@ -207,7 +207,7 @@ export class FurnitureModel {
         const g = new THREE.Group();
         switch (item) {
             case 'laptop': {
-                const laptop = new LaptopModel({ x: 0, y: 0, heading: 0, openDeg: 105 }, { logos: this.options.logos });
+                const laptop = new LaptopModel({ x: 0, y: 0, heading: 0, openDeg: 105 });
                 this.laptops.push(laptop);
                 return laptop.group;
             }
@@ -217,7 +217,7 @@ export class FurnitureModel {
                 this.part(g, new THREE.BoxGeometry(0.18, 0.22, 0.012), black, 0, 0, 0.006);
                 this.part(g, new THREE.BoxGeometry(0.03, 0.05, 0.3), black, -0.03, 0, 0.16);
                 this.part(g, new THREE.BoxGeometry(0.025, 0.6, 0.36), black, 0, 0, 0.42);
-                const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.57, 0.33), screenMaterial(this.options.logos));
+                const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.57, 0.33), screenMaterial());
                 this.disposables.push(screen.geometry, screen.material as THREE.Material);
                 // Facing the front (+x): picture right along +y, picture up along +z.
                 screen.quaternion.setFromRotationMatrix(

@@ -7,7 +7,7 @@ import { before, test } from 'node:test';
 import * as React from 'react';
 import * as THREE from 'three';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { DEFAULT_FIELD, runMission, type MissionResult } from 'robolance-duck-sim';
+import { runMission, type MissionResult } from 'robolance-duck-sim';
 import { bodyPoses } from 'robolance-duck-sim/viewer';
 import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
 import { DuckPanel, DuckReadout, DuckRunsView } from '../src/browser/DuckPanel';
@@ -193,60 +193,3 @@ test('a duck colour paints the shell and leaves the dark parts and trim alone', 
     parts.dispose();
 });
 
-test('room.logos puts posters on the far wall, marks on the laptop and a sticker on each of the duck\'s shoulders', async () => {
-    const { RobotParts } = await import('../src/browser/robot-parts');
-    const { stickerMaterial, posterMaterial, lidMaterial } = await import('../src/browser/brand-marks');
-    const { LaptopModel } = await import('../src/browser/laptop-model');
-    // Without a document the materials are plain but still materials: the viewers never crash headless.
-    for (const m of [stickerMaterial('openlance'), stickerMaterial('meta'), posterMaterial('meta'), posterMaterial('openlance'), lidMaterial()]) {
-        assert.ok(m instanceof THREE.Material);
-    }
-    const parts = new RobotParts(duckModel);
-    const discs = () => parts.group.children.filter(o => (o as THREE.Mesh).geometry instanceof THREE.CircleGeometry) as THREE.Mesh[];
-    assert.equal(discs().length, 0);
-    const left = stickerMaterial('openlance');
-    const right = stickerMaterial('meta');
-    parts.sticker({ left, right });
-    assert.equal(discs().length, 2, 'one sticker on each shoulder');
-    // Posed with the trunk: both discs sit the same distance from the trunk, high on it, on opposite sides.
-    const poses = parts.pose(new Array(duckModel.nq).fill(0));
-    assert.ok(poses);
-    const trunk = new THREE.Vector3(...poses![1].pos);
-    const dists = discs().map(d => d.position.distanceTo(trunk));
-    assert.ok(Math.abs(dists[0] - dists[1]) < 1e-6 && dists[0] > 0.035 && dists[0] < 0.05, `symmetric stickers, got ${dists}`);
-    const ys = discs().map(d => d.position.y - trunk.y);
-    assert.ok(ys[0] * ys[1] < 0, 'one on each side');
-    for (const d of discs()) {
-        assert.ok(d.position.z - trunk.z > 0.02, 'up on the shoulder, not on the hips');
-    }
-    const leftDisc = discs().find(d => d.position.y - trunk.y > 0)!;
-    assert.equal(leftDisc.material, left, 'OpenLance on the left shoulder');
-    assert.equal(discs().find(d => d !== leftDisc)!.material, right, 'Meta on the right shoulder');
-    // Each disc is a single mark: the two sides use different materials.
-    assert.notEqual(left, right);
-    parts.sticker(undefined);
-    assert.equal(discs().length, 0);
-    parts.dispose();
-    const plain = new LaptopModel({ x: 0, y: 0, heading: 0 });
-    const branded = new LaptopModel({ x: 0, y: 0, heading: 0 }, { logos: true });
-    const meshes = (g: THREE.Object3D) => { let n = 0; g.traverse((o: THREE.Object3D) => { if ((o as THREE.Mesh).isMesh) { n++; } }); return n; };
-    assert.equal(meshes(branded.group), meshes(plain.group) + 1, 'the branded lid has one extra face: the marks on its outside');
-    plain.dispose(); branded.dispose();
-});
-
-test('room.logos hangs an OpenLance and a Meta poster on the far wall, facing into the room', async () => {
-    const { wallPosters } = await import('../src/browser/duck-stage');
-    const field = { ...DEFAULT_FIELD, bounds: { xMin: -0.5, xMax: 3, yMin: -1.5, yMax: 1.5 }, room: { floor: 'wood' as const, logos: true } };
-    const meshes = wallPosters(field as Parameters<typeof wallPosters>[0]);
-    assert.equal(meshes.length, 4, 'two frames and two prints');
-    const prints = meshes.filter(m => m.geometry instanceof THREE.PlaneGeometry);
-    assert.equal(prints.length, 2);
-    for (const print of prints) {
-        assert.ok(print.position.x > 2.9 && print.position.x < 3.05, 'on the wall at the far end of the room');
-        assert.ok(Math.abs(print.position.z - 1.45) < 0.01, 'hung at eye height');
-        const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(print.quaternion);
-        assert.ok(normal.x < -0.99, `the print faces into the room, not into the wall (normal ${normal.toArray().map(v => v.toFixed(2))})`);
-    }
-    const ys = prints.map(p => p.position.y).sort((a, b) => a - b);
-    assert.ok(ys[1] - ys[0] > 0.6, 'the two posters hang side by side, not on top of each other');
-});

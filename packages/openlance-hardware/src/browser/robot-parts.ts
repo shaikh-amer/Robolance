@@ -63,9 +63,6 @@ export class RobotParts {
         for (const { mesh, geom } of this.parts) {
             place(mesh, geomPose(poses[geom.body], geom));
         }
-        if (this.stickers.length > 0 && poses[1]) {
-            this.poseStickers(poses[1]);
-        }
         return poses;
     }
 
@@ -86,49 +83,7 @@ export class RobotParts {
         });
     }
 
-    private stickers: Array<{ mesh: THREE.Mesh; offset: THREE.Vector3; turn: THREE.Quaternion }> = [];
-    private readonly trunkQuat = new THREE.Quaternion();
-    private readonly trunkPos = new THREE.Vector3();
-
-    /**
-     * One round sticker on each shoulder of the robot's trunk (body 1), just
-     * under the head: `left` on its left flank (+y), `right` on its right, or
-     * none. The discs sit in the trunk's frame and follow it in pose().
-     */
-    sticker(materials?: { left: THREE.Material; right: THREE.Material }): void {
-        for (const s of this.stickers) {
-            this.group.remove(s.mesh);
-            s.mesh.geometry.dispose();
-        }
-        this.stickers = [];
-        if (!materials || this.model.bodies.length < 2) {
-            return;
-        }
-        const r = 0.011;
-        for (const [side, material] of [[1, materials.left], [-1, materials.right]] as Array<[number, THREE.Material]>) {
-            const mesh = new THREE.Mesh(new THREE.CircleGeometry(r, 32), material);
-            mesh.castShadow = false;
-            // On the shell's upper flank towards the neck, facing out along ±y; picture up along +z.
-            const offset = new THREE.Vector3(0.004, side * 0.0325, 0.028);
-            const turn = new THREE.Quaternion().setFromRotationMatrix(
-                new THREE.Matrix4().makeBasis(new THREE.Vector3(-side, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, side, 0)),
-            );
-            this.group.add(mesh);
-            this.stickers.push({ mesh, offset, turn });
-        }
-    }
-
-    private poseStickers(trunk: BodyPose): void {
-        this.trunkQuat.set(trunk.quat[1], trunk.quat[2], trunk.quat[3], trunk.quat[0]);
-        this.trunkPos.set(trunk.pos[0], trunk.pos[1], trunk.pos[2]);
-        for (const s of this.stickers) {
-            s.mesh.position.copy(s.offset).applyQuaternion(this.trunkQuat).add(this.trunkPos);
-            s.mesh.quaternion.copy(this.trunkQuat).multiply(s.turn);
-        }
-    }
-
     dispose(): void {
-        this.sticker(undefined);
         this.geometries.forEach(g => g.dispose());
         this.materials.forEach(m => m.dispose());
     }
