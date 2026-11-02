@@ -15,6 +15,21 @@ import { creasedNormals } from './crease';
 export interface RobotPartsOptions {
     /** Which geoms to draw (default all). Ground planes are usually drawn by the stage. */
     include?: (geom: ViewerGeom) => boolean;
+    /** Parts the viewer can swing on a hinge of its own (the duck's beak), by name. */
+    hinges?: Record<string, PartHinge>;
+}
+
+/**
+ * A hinge the viewer adds to a body: the named meshes of `body` turn
+ * together by an angle about `axis` through `pivot`, both in the body's
+ * frame. It is a drawing device, not physics: the replay's poses are
+ * unchanged and the rest of the body stays where the record puts it.
+ */
+export interface PartHinge {
+    body: number;
+    meshes: string[];
+    pivot: [number, number, number];
+    axis: [number, number, number];
 }
 
 export class RobotParts {
@@ -24,6 +39,8 @@ export class RobotParts {
     private readonly materials = new Map<string, THREE.MeshPhysicalMaterial>();
     /** Each material's model colour, kept so paint() can be undone. */
     private readonly baseColors = new Map<THREE.MeshPhysicalMaterial, THREE.Color>();
+    private readonly hinges = new Map<string, { hinge: PartHinge; angle: number; geoms: Set<ViewerGeom> }>();
+    private readonly hingeOf = new Map<ViewerGeom, string>();
 
     constructor(readonly model: ViewerModel, options: RobotPartsOptions = {}) {
         const meshGeometries = model.meshes.map(mesh => {
@@ -36,9 +53,18 @@ export class RobotParts {
             this.geometries.push(g);
             return g;
         });
+        for (const [name, hinge] of Object.entries(options.hinges ?? {})) {
+            this.hinges.set(name, { hinge, angle: 0, geoms: new Set() });
+        }
         for (const geom of model.geoms) {
             if (options.include && !options.include(geom)) {
                 continue;
+            }
+            for (const [name, h] of this.hinges) {
+                if (geom.body === h.hinge.body && geom.mesh >= 0 && h.hinge.meshes.includes(model.meshes[geom.mesh].name)) {
+                    h.geoms.add(geom);
+                    this.hingeOf.set(geom, name);
+                }
             }
             const geometry = geom.mesh >= 0 ? meshGeometries[geom.mesh] : this.primitive(geom);
             if (!geometry) {
@@ -61,9 +87,28 @@ export class RobotParts {
         this.group.visible = true;
         const poses = bodyPoses(this.model, frame);
         for (const { mesh, geom } of this.parts) {
-            place(mesh, geomPose(poses[geom.body], geom));
+            const name = this.hingeOf.get(geom);
+            const h = name ? this.hinges.get(name) : undefined;
+            if (h && h.angle !== 0) {
+                placeHinged(mesh, poses[geom.body], geom, h.hinge, h.angle);
+            } else {
+                place(mesh, geomPose(poses[geom.body], geom));
+            }
         }
         return poses;
+    }
+
+    /** Swings a viewer hinge (see RobotPartsOptions.hinges) to `angle` radians; shown by the next pose(). */
+    setHinge(name: string, angle: number): void {
+        const h = this.hinges.get(name);
+        if (h) {
+            h.angle = angle;
+        }
+    }
+
+    /** The geoms a viewer hinge moves (for tests and tools). */
+    hingedGeoms(name: string): ViewerGeom[] {
+        return [...(this.hinges.get(name)?.geoms ?? [])];
     }
 
     /**
@@ -141,6 +186,24 @@ export class RobotParts {
         this.geometries.push(g);
         return g;
     }
+}
+
+const H = { r: new THREE.Quaternion(), bq: new THREE.Quaternion(), gq: new THREE.Quaternion(), axis: new THREE.Vector3(), p: new THREE.Vector3(), pivot: new THREE.Vector3() };
+
+/**
+ * Places a geom of `body` turned by `angle` about the hinge, in the body's
+ * frame: the geom's offset from the pivot is rotated, then the whole thing
+ * is carried by the body's pose.
+ */
+export function placeHinged(object: THREE.Object3D, body: BodyPose, geom: ViewerGeom, hinge: PartHinge, angle: number): void {
+    H.axis.set(hinge.axis[0], hinge.axis[1], hinge.axis[2]).normalize();
+    H.r.setFromAxisAngle(H.axis, angle);
+    H.pivot.set(hinge.pivot[0], hinge.pivot[1], hinge.pivot[2]);
+    H.p.set(geom.pos[0], geom.pos[1], geom.pos[2]).sub(H.pivot).applyQuaternion(H.r).add(H.pivot);
+    H.gq.set(geom.quat[1], geom.quat[2], geom.quat[3], geom.quat[0]);
+    H.bq.set(body.quat[1], body.quat[2], body.quat[3], body.quat[0]);
+    object.position.set(body.pos[0], body.pos[1], body.pos[2]).add(H.p.applyQuaternion(H.bq));
+    object.quaternion.copy(H.bq).multiply(H.r).multiply(H.gq);
 }
 
 export function place(object: THREE.Object3D, pose: BodyPose): void {

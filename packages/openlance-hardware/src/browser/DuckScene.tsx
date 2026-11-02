@@ -9,6 +9,7 @@
 import * as React from 'react';
 import type { MissionResult } from 'robolance-duck-sim/viewer';
 import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
+import { beakOpening } from './duck-beak';
 import { frameAt, pathUntil } from './duck-project';
 import { DuckStage } from './duck-stage';
 import type { CameraMode } from './stage-base';
@@ -59,6 +60,7 @@ export function DuckScene({ result, timeMs, theme, follow = false, camera = 'orb
         }
     }, [resetKey]);
     React.useEffect(() => {
+        stage.current?.setBeak(beakOpening(result, timeMs / 1000));
         stage.current?.show(frameAt(result, timeMs), pathUntil(result, timeMs));
     }, [result, timeMs, failed]);
 
