@@ -10,7 +10,6 @@
 
 import * as THREE from 'three';
 import { BALL_RADIUS, GOAL_HEIGHT, LAPTOP, NET_DEPTH, POST_RADIUS, furnitureSize, type FieldSpec, type Obstacle, type ViewerModel } from 'robolance-duck-sim/viewer';
-import { posterMaterial, stickerMaterial } from './brand-marks';
 import { FurnitureModel } from './furniture-models';
 import { LaptopModel } from './laptop-model';
 import { carpetFloor, concreteFloor, tileFloor, wallPaint, woodFloor, type Surface } from './room-textures';
@@ -60,8 +59,6 @@ export class DuckStage extends StageBase {
     private palette: Palette = PALETTES.dark;
     /** The duck's heading in the frame shown last, not eased. */
     private heading = 0;
-    /** The shoulder stickers' materials (OpenLance left, Meta right), made once per stage. */
-    private stickerMats?: { left: THREE.Material; right: THREE.Material };
 
     constructor(host: HTMLElement, model: ViewerModel) {
         super(host, DEFAULT_VIEW, 'robolance-duck-canvas');
@@ -77,8 +74,6 @@ export class DuckStage extends StageBase {
         this.scene.add(this.ball);
         this.disposers.push(() => {
             this.robot.dispose();
-            disposeWithMaps(this.stickerMats?.left);
-            disposeWithMaps(this.stickerMats?.right);
             this.ball.geometry.dispose();
             ballMaterial.dispose();
             this.clearPitch();
@@ -103,16 +98,15 @@ export class DuckStage extends StageBase {
         this.field = field;
         this.robot.paint(field.duck.color);
         if (!same) {
-            this.robot.sticker(field.room?.logos ? (this.stickerMats ??= { left: stickerMaterial('openlance'), right: stickerMaterial('meta') }) : undefined);
             this.buildPitch(field);
             this.clearLaptop();
             if (field.laptop) {
-                this.laptop = new LaptopModel(field.laptop, { logos: field.room?.logos });
+                this.laptop = new LaptopModel(field.laptop);
                 this.scene.add(this.laptop.group);
             }
             this.clearFurniture();
             for (const piece of field.furniture ?? []) {
-                const model = new FurnitureModel(piece, { logos: field.room?.logos });
+                const model = new FurnitureModel(piece);
                 this.furniture.push(model);
                 this.scene.add(model.group);
             }
@@ -238,11 +232,6 @@ export class DuckStage extends StageBase {
         if (f.room && f.room.walls !== false) {
             for (const wall of roomWalls(f)) {
                 this.pitch.add(wall);
-            }
-            if (f.room.logos) {
-                for (const poster of wallPosters(f)) {
-                    this.pitch.add(poster);
-                }
             }
         }
 
@@ -523,44 +512,4 @@ function roomWalls(f: FieldSpec): THREE.Mesh[] {
     wall(w, cx, b.yMax + 0.05, -Math.PI / 2);
     wall(w, cx, b.yMin - 0.05, Math.PI / 2);
     return out;
-}
-
-/**
- * Two framed posters on the far wall (behind the goal, where the broadcast
- * camera looks): OpenLance on the left, Meta on the right, hung at eye height.
- */
-export function wallPosters(f: FieldSpec): THREE.Mesh[] {
-    const b = f.bounds;
-    const cy = (b.yMin + b.yMax) / 2;
-    const w = 0.45;
-    const h = 0.6;
-    const out: THREE.Mesh[] = [];
-    const posters: Array<['openlance' | 'meta', number]> = [['openlance', cy + 0.45], ['meta', cy - 0.45]];
-    for (const [brand, y] of posters) {
-        const frame = new THREE.Mesh(
-            new THREE.BoxGeometry(0.02, w + 0.06, h + 0.06),
-            new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.5 }),
-        );
-        frame.position.set(b.xMax + 0.05 - 0.012, y, 1.45);
-        frame.castShadow = true;
-        const print = new THREE.Mesh(new THREE.PlaneGeometry(w, h), posterMaterial(brand));
-        // Facing -x (into the room): picture right along -y, picture up along +z.
-        print.quaternion.setFromRotationMatrix(
-            new THREE.Matrix4().makeBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0)),
-        );
-        print.position.set(b.xMax + 0.05 - 0.023, y, 1.45);
-        out.push(frame, print);
-    }
-    return out;
-}
-
-/** Disposes a material and the textures it draws with. */
-function disposeWithMaps(material?: THREE.Material): void {
-    if (!material) {
-        return;
-    }
-    const m = material as THREE.MeshStandardMaterial;
-    m.map?.dispose();
-    m.emissiveMap?.dispose();
-    m.dispose();
 }

@@ -157,10 +157,9 @@ Obstacles from a photo (a room, a desk): run openlance_segmentImage on the photo
 box", "chair"), then duck_obstacles_from_photo with the JSON it saved and the floor area the photo shows in pitch
 metres; pass the obstacles it returns in field.obstacles and the furniture in field.furniture.
 
-A room: field.room ({ floor: "wood" | "tile" | "carpet" | "concrete", walls: true, wallColor: "#rrggbb", logos: true }) and
-field.furniture (a fridge, a table with a laptop on it, a sofa...) at real size; widen the bounds to the room's size (e.g. 4 x 3.4 m)
-and keep the goal inside. room.logos hangs Meta and OpenLance posters on the wall and puts the marks on the laptop and the duck.
-field.duck.color ("#rrggbb") paints the duck's shell, e.g. a yellow duck; its physics are unchanged.
+A room: field.room ({ floor: "wood" | "tile" | "carpet" | "concrete", walls: true, wallColor: "#rrggbb" }) and field.furniture
+(a fridge, a table with a laptop on it, a sofa...) at real size; widen the bounds to the room's size (e.g. 4 x 3.4 m) and keep
+the goal inside. field.duck.color ("#rrggbb") paints the duck's shell, e.g. a yellow duck; its physics are unchanged.
 
 A policy the project trained (an ONNX file exported from microduck_rl: 61 values in, 14 out) runs in the simulator by
 passing "skills" to duck_run, e.g. {"walk": "policies/walk/policy.onnx", "getUp": "policies/standup/policy.onnx"}:

@@ -9,18 +9,13 @@
 
 import * as THREE from 'three';
 import { LAPTOP, type LaptopSpec } from 'robolance-duck-sim/viewer';
-import { drawScreenBrands, lidMaterial } from './brand-marks';
 
 export class LaptopModel {
     readonly group = new THREE.Group();
     private readonly hinge = new THREE.Group();
     private readonly disposables: Array<{ dispose(): void }> = [];
 
-    /**
-     * `logos`: the Meta and OpenLance marks on the lid's outside (the back
-     * of an open laptop, the top of a shut one) and in the screen's chrome.
-     */
-    constructor(spec: LaptopSpec, options: { logos?: boolean } = {}) {
+    constructor(spec: LaptopSpec) {
         const L = LAPTOP;
         const aluminium = new THREE.MeshStandardMaterial({ color: 0xb4b8be, metalness: 0.55, roughness: 0.38 });
         const keys = new THREE.MeshStandardMaterial({ color: 0x1f2125, roughness: 0.7 });
@@ -39,19 +34,8 @@ export class LaptopModel {
         const lid = this.box(L.lidLength, L.width, L.lidThickness, aluminium);
         lid.position.set(L.lidLength / 2, 0, L.lidThickness / 2);
         // The picture's width runs along the hinge, its height up the lid.
-        const screen = new THREE.Mesh(new THREE.PlaneGeometry(L.width * 0.92, L.lidLength * 0.9), screenMaterial(options.logos));
+        const screen = new THREE.Mesh(new THREE.PlaneGeometry(L.width * 0.92, L.lidLength * 0.9), screenMaterial());
         this.disposables.push(screen.geometry, screen.material as THREE.Material, ...texturesOf(screen.material as THREE.Material));
-        if (options.logos) {
-            // The lid's outside: on top when the lid is shut, facing away from the keyboard when open.
-            const back = new THREE.Mesh(new THREE.PlaneGeometry(L.width * 0.94, L.lidLength * 0.92), lidMaterial());
-            this.disposables.push(back.geometry, back.material as THREE.Material, ...texturesOf(back.material as THREE.Material));
-            back.position.set(L.lidLength / 2, 0, L.lidThickness + 0.0004);
-            // Picture right along -y (seen from behind), picture up along +x (towards the free edge), facing +z.
-            back.quaternion.setFromRotationMatrix(
-                new THREE.Matrix4().makeBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1)),
-            );
-            this.hinge.add(back);
-        }
         // On the lid's underside, which lies on the keyboard when shut and faces it when
         // open: picture right along +y, picture up towards the lid's free edge (+x).
         screen.position.set(L.lidLength / 2, 0, -0.0004);
@@ -86,8 +70,8 @@ export class LaptopModel {
     }
 }
 
-/** The screen: a dark editor with a file tree, code and a chat, glowing a little; `logos` adds the Meta and OpenLance marks. */
-export function screenMaterial(logos = false): THREE.Material {
+/** The screen: a dark editor with a file tree, code and a chat, glowing a little. */
+export function screenMaterial(): THREE.Material {
     if (typeof document === 'undefined') {
         return new THREE.MeshBasicMaterial({ color: 0x10131a });
     }
@@ -125,9 +109,6 @@ export function screenMaterial(logos = false): THREE.Material {
         for (let row = 0; row < 7; row++) {
             ctx.fillStyle = row % 2 ? '#1f6feb' : '#30363d';
             ctx.fillRect(482, 50 + row * 48, 140, 34);
-        }
-        if (logos) {
-            drawScreenBrands(ctx, 640, 420);
         }
     }
     const texture = new THREE.CanvasTexture(canvas);

@@ -15,14 +15,13 @@ const require = createRequire(import.meta.url);
 const example = name => readFileSync(require.resolve(`robolance-duck-sim/examples/${name}.js`), 'utf8');
 const goal = example('score-a-goal');
 
-// A living room 3.5 x 3 m: wood floor, warm walls, Meta and OpenLance posters on the far wall
-// and on the laptop (room.logos), real-size furniture, and a yellow duck.
+// A living room 3.5 x 3 m: wood floor, warm walls, real-size furniture, and a yellow duck.
 const LIVING_ROOM = {
     duck: { x: 0, y: 0, heading: 0, color: '#f5c400' },
     ball: { x: 2.1, y: 0.2 },
     goal: { x: 2.6, y: 0, width: 0.6 },
     bounds: { xMin: -0.5, xMax: 3, yMin: -1.5, yMax: 1.5 },
-    room: { floor: 'wood', wallColor: '#e9dcc3', logos: true },
+    room: { floor: 'wood', wallColor: '#e9dcc3' },
     furniture: [
         { kind: 'sofa', x: 0.3, y: 1.05, heading: -90, width: 1.5, color: '#2f5d8a', name: 'the sofa' },
         { kind: 'desk', x: 1.2, y: -1.15, heading: 90, color: '#8b5a2b', items: ['laptop', 'lamp', 'plant'], name: 'the desk' },
