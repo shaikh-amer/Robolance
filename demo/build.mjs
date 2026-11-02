@@ -34,6 +34,13 @@ cpSync('src/replay.html', 'site/replay/index.html');
 cpSync('src/gallery.html', 'site/runs/index.html');
 cpSync('src/thumbs', 'site/runs/thumbs', { recursive: true });
 cpSync('src/site.css', 'site/site.css');
+// Installable as the ROBOLANCE app: manifest, icons and service worker at the site root.
+mkdirSync('site/icons', { recursive: true });
+for (const icon of ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png']) {
+    cpSync(`src/pwa/${icon}`, `site/icons/${icon}`);
+}
+cpSync('src/pwa/manifest.webmanifest', 'site/manifest.webmanifest');
+cpSync('src/pwa/sw.js', 'site/sw.js');
 // The home page is plain HTML; its header gets the same OpenLance mark the bundles carry.
 const mark = readFileSync('src/openlance-mark.svg', 'utf8').trim();
 writeFileSync('site/index.html', readFileSync('src/index.html', 'utf8').replace('<!--OPENLANCE_MARK-->', mark));
