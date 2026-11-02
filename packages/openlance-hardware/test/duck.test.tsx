@@ -171,6 +171,17 @@ test('Watch this run and Share this run sit in one row', () => {
     assert.doesNotMatch(css, /^\s*(color|background|fill|stroke): (#[0-9a-f]{3,6}|rgba?\([^)]*\));/im);
 });
 
+test('the shell test reads display colours: the G1 body counts, the duck servos do not', async () => {
+    const { isShell } = await import('../src/browser/robot-parts');
+    const display = (r: number, g: number, b: number) => new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);
+    assert.equal(isShell(display(0.7, 0.7, 0.7)), true, 'Unitree G1 "metal" body');
+    assert.equal(isShell(display(0.85, 0.85, 0.84)), true, 'Microduck shell');
+    assert.equal(isShell(display(0.675, 0.639, 0.604)), false, 'Microduck servos and legs');
+    assert.equal(isShell(display(0.647, 0.647, 0.647)), false, 'mid grey');
+    assert.equal(isShell(display(0.2, 0.2, 0.2)), false, 'G1 "black"');
+    assert.equal(isShell(display(0.957, 0.686, 0.137)), false, 'yellow trim');
+});
+
 test('a duck colour paints the shell and leaves the dark parts and trim alone', async () => {
     const { RobotParts, isShell } = await import('../src/browser/robot-parts');
     const parts = new RobotParts(duckModel);

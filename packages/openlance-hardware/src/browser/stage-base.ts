@@ -11,7 +11,7 @@
  */
 
 import * as THREE from 'three';
-import { distanceToFit, fogRange, orbitPosition, panDelta } from './frame-fit';
+import { distanceToFit, fogRange, orbitPosition, panDelta, zoomAnchorDrag } from './frame-fit';
 import { skyCanvas } from './stage-textures';
 import { studioEnvironment } from './studio-environment';
 
@@ -348,6 +348,9 @@ export abstract class StageBase {
         const pointers = new Map<number, { x: number; y: number }>();
         let pinch = 0;
         let panning = false;
+        // Once two fingers were down, the last finger to lift must not swing
+        // the view: the gesture is over until every finger is up.
+        let multi = false;
         const centroid = () => {
             let x = 0, y = 0;
             for (const p of pointers.values()) { x += p.x; y += p.y; }
@@ -361,6 +364,8 @@ export abstract class StageBase {
             centre = centroid();
             if (pointers.size === 1) {
                 panning = e.button === 1 || e.button === 2 || e.shiftKey;
+            } else {
+                multi = true;
             }
         };
         const move = (e: PointerEvent) => {
@@ -370,14 +375,17 @@ export abstract class StageBase {
             }
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (pointers.size >= 2) {
+                const c = centroid();
                 const now = pinchDistance(pointers);
                 if (pinch > 0 && now > 0) {
-                    this.zoom(pinch / now);
+                    this.zoomAt(pinch / now, c.x, c.y);
                 }
                 pinch = now;
-                const c = centroid();
                 this.pan(c.x - centre.x, c.y - centre.y);
                 centre = c;
+                return;
+            }
+            if (multi) {
                 return;
             }
             if (panning) {
@@ -395,11 +403,12 @@ export abstract class StageBase {
                 centre = centroid();
             } else {
                 panning = false;
+                multi = false;
             }
         };
         const wheel = (e: WheelEvent) => {
             e.preventDefault();
-            this.zoom(Math.exp(e.deltaY * 0.001));
+            this.zoomAt(Math.exp(e.deltaY * 0.001), e.clientX, e.clientY);
         };
         const reset = () => this.resetView();
         const noMenu = (e: Event) => e.preventDefault();
@@ -430,6 +439,19 @@ export abstract class StageBase {
         const height = Math.max(1, this.renderer.domElement.clientHeight);
         this.panOffset.add(panDelta(this.view, this.view.distance, dx, dy, height, CAMERA_FOV.orbit));
         this.invalidate();
+    }
+
+    /** Scales the camera distance by `factor` (< 1 zooms in), keeping the ground under the pinch or the wheel pointer in place. */
+    private zoomAt(factor: number, clientX: number, clientY: number): void {
+        const before = this.view.distance;
+        this.zoom(factor);
+        if (this.cameraMode !== 'orbit' || this.view.distance === before) {
+            return;
+        }
+        const r = this.renderer.domElement.getBoundingClientRect();
+        const [dx, dy] = zoomAnchorDrag(this.view.distance / before, clientX - (r.left + r.width / 2), clientY - (r.top + r.height / 2));
+        // The pan converts pixels at the new distance; the anchor point was measured at the old one.
+        this.pan(dx * before / this.view.distance, dy * before / this.view.distance);
     }
 
     private zoom(factor: number): void {

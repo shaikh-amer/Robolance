@@ -212,9 +212,15 @@ export function place(object: THREE.Object3D, pose: BodyPose): void {
     object.quaternion.set(pose.quat[1], pose.quat[2], pose.quat[3], pose.quat[0]);
 }
 
-/** A light, unsaturated part (the shell plastic): bright and close to grey. */
+/**
+ * A light, unsaturated part (the shell plastic): bright and close to grey,
+ * judged on the display colour MuJoCo wrote (three.js keeps `c` in linear
+ * light). The Unitree G1's "metal" body (0.7 grey) counts; the Microduck's
+ * servos and legs (0.67/0.64/0.60 beige) and mid greys keep their colour.
+ */
 export function isShell(c: THREE.Color): boolean {
-    const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-    const spread = Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
-    return lum >= 0.45 && spread <= 0.15;
+    const d = c.clone().convertLinearToSRGB();
+    const lum = 0.2126 * d.r + 0.7152 * d.g + 0.0722 * d.b;
+    const spread = Math.max(d.r, d.g, d.b) - Math.min(d.r, d.g, d.b);
+    return lum >= 0.68 && spread <= 0.15;
 }

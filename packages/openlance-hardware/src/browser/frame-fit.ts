@@ -95,3 +95,14 @@ export function fogRange(distance: number, home: number, near: number, far: numb
     const back = Number.isFinite(distance) && Number.isFinite(home) ? Math.max(0, distance - home) : 0;
     return { near: near + back, far: far + back };
 }
+
+/**
+ * The drag, in pixels, that keeps the point `dx`,`dy` pixels from the
+ * canvas centre under the pointer while the camera distance is scaled by
+ * `factor` (a pinch or a wheel zoom at that point): the target moves towards
+ * the pointer by the share of the offset the zoom would otherwise push away.
+ */
+export function zoomAnchorDrag(factor: number, dx: number, dy: number): [number, number] {
+    const k = 1 - factor;
+    return [-dx * k, -dy * k];
+}
