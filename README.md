@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://cerebralvalley.ai"><img alt="Cerebral Valley" src="https://img.shields.io/badge/Organized%20by-Cerebral%20Valley-111111?style=for-the-badge&labelColor=555555"></a>
-  <a href="https://ai.meta.com"><img alt="Meta" src="https://img.shields.io/badge/-Meta-0467DF?style=for-the-badge&logo=meta&logoColor=white"></a>
+  <a href="https://ai.meta.com"><img alt="Meta" src="https://img.shields.io/badge/Models%20by-Meta-111111?style=for-the-badge&labelColor=555555"></a>
   <a href="https://www.baseten.co"><img alt="Baseten" src="https://img.shields.io/badge/-Baseten-1E1E1E?style=for-the-badge"></a>
   <a href="https://fireworks.ai"><img alt="Fireworks AI" src="https://img.shields.io/badge/-Fireworks%20AI-6720FF?style=for-the-badge"></a>
   <a href="https://modal.com"><img alt="Modal" src="https://img.shields.io/badge/-Modal-3FAE3C?style=for-the-badge"></a>
