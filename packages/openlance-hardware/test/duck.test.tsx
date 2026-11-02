@@ -193,27 +193,37 @@ test('a duck colour paints the shell and leaves the dark parts and trim alone', 
     parts.dispose();
 });
 
-test('room.logos puts posters on the far wall, marks on the laptop and a sticker on the duck', async () => {
+test('room.logos puts posters on the far wall, marks on the laptop and a sticker on each of the duck\'s shoulders', async () => {
     const { RobotParts } = await import('../src/browser/robot-parts');
     const { stickerMaterial, posterMaterial, lidMaterial } = await import('../src/browser/brand-marks');
     const { LaptopModel } = await import('../src/browser/laptop-model');
     // Without a document the materials are plain but still materials: the viewers never crash headless.
-    for (const m of [stickerMaterial(), posterMaterial('meta'), posterMaterial('openlance'), lidMaterial()]) {
+    for (const m of [stickerMaterial('openlance'), stickerMaterial('meta'), posterMaterial('meta'), posterMaterial('openlance'), lidMaterial()]) {
         assert.ok(m instanceof THREE.Material);
     }
     const parts = new RobotParts(duckModel);
     const discs = () => parts.group.children.filter(o => (o as THREE.Mesh).geometry instanceof THREE.CircleGeometry) as THREE.Mesh[];
     assert.equal(discs().length, 0);
-    parts.sticker(stickerMaterial());
-    assert.equal(discs().length, 2, 'one sticker on each flank');
-    // Posed with the trunk: both discs sit the same distance from the trunk, on opposite sides.
+    const left = stickerMaterial('openlance');
+    const right = stickerMaterial('meta');
+    parts.sticker({ left, right });
+    assert.equal(discs().length, 2, 'one sticker on each shoulder');
+    // Posed with the trunk: both discs sit the same distance from the trunk, high on it, on opposite sides.
     const poses = parts.pose(new Array(duckModel.nq).fill(0));
     assert.ok(poses);
     const trunk = new THREE.Vector3(...poses![1].pos);
     const dists = discs().map(d => d.position.distanceTo(trunk));
-    assert.ok(Math.abs(dists[0] - dists[1]) < 1e-6 && dists[0] > 0.05 && dists[0] < 0.06, `symmetric stickers, got ${dists}`);
+    assert.ok(Math.abs(dists[0] - dists[1]) < 1e-6 && dists[0] > 0.035 && dists[0] < 0.05, `symmetric stickers, got ${dists}`);
     const ys = discs().map(d => d.position.y - trunk.y);
     assert.ok(ys[0] * ys[1] < 0, 'one on each side');
+    for (const d of discs()) {
+        assert.ok(d.position.z - trunk.z > 0.02, 'up on the shoulder, not on the hips');
+    }
+    const leftDisc = discs().find(d => d.position.y - trunk.y > 0)!;
+    assert.equal(leftDisc.material, left, 'OpenLance on the left shoulder');
+    assert.equal(discs().find(d => d !== leftDisc)!.material, right, 'Meta on the right shoulder');
+    // Each disc is a single mark: the two sides use different materials.
+    assert.notEqual(left, right);
     parts.sticker(undefined);
     assert.equal(discs().length, 0);
     parts.dispose();

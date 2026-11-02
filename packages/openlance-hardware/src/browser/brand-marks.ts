@@ -3,7 +3,7 @@
 
 /**
  * The Meta and OpenLance marks drawn on canvases, for the room's posters,
- * a laptop's lid and screen and the robot's sticker. Nothing here loads an
+ * a laptop's lid and screen and the robot's shoulder stickers. Nothing here loads an
  * image: the OpenLance mark is its SVG outline, the Meta mark a drawn loop
  * with the word under it, so the viewers work offline and in tests (where
  * there is no document, callers get plain materials).
@@ -128,10 +128,10 @@ export function drawScreenBrands(ctx: CanvasRenderingContext2D, width: number, h
 }
 
 /**
- * A round sticker: a white disc with the OpenLance mark above the Meta loop,
- * for the robot's side.
+ * A round sticker with one mark, for a robot's flank: OpenLance in black
+ * or the Meta loop in blue on a white disc.
  */
-export function stickerMaterial(): THREE.Material {
+export function stickerMaterial(brand: BrandName): THREE.Material {
     const canvas = canvasOf(256, 256);
     if (!canvas) {
         return new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, transparent: true });
@@ -145,8 +145,11 @@ export function stickerMaterial(): THREE.Material {
     ctx.strokeStyle = '#d9d9d4';
     ctx.lineWidth = 4;
     ctx.stroke();
-    drawBrandMark(ctx, 'openlance', 58, 36, 140, 92, '#0a0a0a');
-    drawBrandMark(ctx, 'meta', 58, 136, 140, 80, '#0866ff');
+    if (brand === 'openlance') {
+        drawBrandMark(ctx, 'openlance', 48, 62, 160, 132, '#0a0a0a');
+    } else {
+        drawBrandMark(ctx, 'meta', 40, 74, 176, 108, '#0866ff');
+    }
     const texture = textureOf(canvas);
     return new THREE.MeshStandardMaterial({ map: texture, transparent: true, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2 });
 }

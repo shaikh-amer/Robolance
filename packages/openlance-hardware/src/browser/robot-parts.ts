@@ -91,24 +91,25 @@ export class RobotParts {
     private readonly trunkPos = new THREE.Vector3();
 
     /**
-     * A round sticker on each flank of the robot's trunk (body 1), or none.
-     * The discs sit in the trunk's frame and follow it in pose().
+     * One round sticker on each shoulder of the robot's trunk (body 1), just
+     * under the head: `left` on its left flank (+y), `right` on its right, or
+     * none. The discs sit in the trunk's frame and follow it in pose().
      */
-    sticker(material?: THREE.Material): void {
+    sticker(materials?: { left: THREE.Material; right: THREE.Material }): void {
         for (const s of this.stickers) {
             this.group.remove(s.mesh);
             s.mesh.geometry.dispose();
         }
         this.stickers = [];
-        if (!material || this.model.bodies.length < 2) {
+        if (!materials || this.model.bodies.length < 2) {
             return;
         }
-        const r = 0.02;
-        for (const side of [1, -1]) {
+        const r = 0.011;
+        for (const [side, material] of [[1, materials.left], [-1, materials.right]] as Array<[number, THREE.Material]>) {
             const mesh = new THREE.Mesh(new THREE.CircleGeometry(r, 32), material);
             mesh.castShadow = false;
-            // Just outside the shell on the trunk's flank, facing out along ±y; picture up along +z.
-            const offset = new THREE.Vector3(0.0, side * 0.052, 0.012);
+            // On the shell's upper flank towards the neck, facing out along ±y; picture up along +z.
+            const offset = new THREE.Vector3(0.004, side * 0.0325, 0.028);
             const turn = new THREE.Quaternion().setFromRotationMatrix(
                 new THREE.Matrix4().makeBasis(new THREE.Vector3(-side, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, side, 0)),
             );
