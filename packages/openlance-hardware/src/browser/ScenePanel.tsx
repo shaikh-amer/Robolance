@@ -133,7 +133,7 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
             >
                 Follow
             </button>
-            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the view)" onClick={() => setResetKey(k => k + 1)}>
+            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the view). Drag to orbit, right-drag or two fingers to pan, wheel to zoom" onClick={() => setResetKey(k => k + 1)}>
                 Reset view
             </button>
         </>

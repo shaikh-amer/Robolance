@@ -31,6 +31,25 @@ export function orbitPosition(target: THREE.Vector3, angles: OrbitAngles, distan
 }
 
 /**
+ * How far the camera's target moves when the user drags the scene by
+ * (dxPx, dyPx) pixels on a canvas `heightPx` tall: the ground under the
+ * pointer stays under it. Dragging right moves the target against the
+ * camera's right; dragging down brings the far ground closer. In the ground
+ * plane (z up), scaled by the distance so near and far views pan alike.
+ */
+export function panDelta(angles: OrbitAngles, distance: number, dxPx: number, dyPx: number, heightPx: number, fovDeg: number, out = new THREE.Vector3()): THREE.Vector3 {
+    const az = (angles.azimuth * Math.PI) / 180;
+    const el = Math.max(5, Math.min(85, angles.elevation)) * (Math.PI / 180);
+    const perPx = (2 * distance * Math.tan((fovDeg * Math.PI) / 360)) / Math.max(1, heightPx);
+    // Screen right is the camera's right; screen up runs along the ground away from the camera, foreshortened by the elevation.
+    const rightX = Math.sin(az), rightY = -Math.cos(az);
+    const fwdX = Math.cos(az), fwdY = Math.sin(az);
+    const side = -dxPx * perPx;
+    const ahead = (dyPx * perPx) / Math.sin(el);
+    return out.set(rightX * side + fwdX * ahead, rightY * side + fwdY * ahead, 0);
+}
+
+/**
  * The smallest distance (0.2-30 m) at which a camera with this vertical
  * field of view and aspect, orbiting `target` at these angles, keeps every
  * point inside `margin` of the frame.
