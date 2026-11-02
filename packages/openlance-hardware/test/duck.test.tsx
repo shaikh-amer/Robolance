@@ -194,3 +194,40 @@ test('a duck colour paints the shell and leaves the dark parts and trim alone', 
     parts.dispose();
 });
 
+test('the beak chirps at a kick and quacks three times after a goal or a shut laptop', async () => {
+    const { beakOpening } = await import('../src/browser/duck-beak');
+    const goal = { kicks: [{ atS: 5 }], scoredAtS: 8, closedAtS: null } as unknown as Parameters<typeof beakOpening>[0];
+    assert.equal(beakOpening(goal, 2), 0, 'shut while nothing happens');
+    assert.ok(beakOpening(goal, 5.15) > 0.5 && beakOpening(goal, 5.15) < 0.7, 'a short chirp at the kick');
+    assert.equal(beakOpening(goal, 5.5), 0, 'the chirp is over');
+    assert.equal(beakOpening(goal, 8.05), 0, 'a beat before the celebration');
+    const peaks = [8.4, 8.9, 9.4].map(t => beakOpening(goal, t));
+    assert.ok(peaks.every(p => p > 0.95), `three wide quacks, got ${peaks}`);
+    assert.ok(beakOpening(goal, 8.65) < 0.1, 'shut between quacks');
+    assert.equal(beakOpening(goal, 9.8), 0, 'quiet again');
+    const laptop = { kicks: [], scoredAtS: null, closedAtS: 6 } as unknown as Parameters<typeof beakOpening>[0];
+    assert.ok(beakOpening(laptop, 6.4) > 0.95, 'the shut laptop is celebrated too');
+});
+
+test('a viewer hinge swings only its own parts about the pivot', async () => {
+    const { RobotParts } = await import('../src/browser/robot-parts');
+    const { BEAK_HINGE, BEAK_OPEN_RAD } = await import('../src/browser/duck-beak');
+    const parts = new RobotParts(duckModel, { hinges: { beak: BEAK_HINGE } });
+    const beak = parts.hingedGeoms('beak');
+    assert.equal(beak.length, 2, 'the jaw and its soft pad');
+    const frame = new Array(duckModel.nq).fill(0);
+    parts.pose(frame);
+    const where = () => parts.group.children.map(o => o.position.clone());
+    const shut = where();
+    parts.setHinge('beak', BEAK_OPEN_RAD);
+    parts.pose(frame);
+    const open = where();
+    const moved = shut.map((p, i) => p.distanceTo(open[i]) > 1e-6);
+    assert.equal(moved.filter(Boolean).length, 2, 'exactly the two beak parts move');
+    const jawIndex = parts.group.children.findIndex((_, i) => moved[i]);
+    assert.ok(shut[jawIndex].distanceTo(open[jawIndex]) < 0.03, 'a swing of a few millimetres, not a jump');
+    parts.setHinge('beak', 0);
+    parts.pose(frame);
+    assert.ok(where().every((p, i) => p.distanceTo(shut[i]) < 1e-9), 'shut again puts everything back');
+    parts.dispose();
+});

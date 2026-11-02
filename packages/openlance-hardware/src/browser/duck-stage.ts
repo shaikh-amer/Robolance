@@ -10,6 +10,7 @@
 
 import * as THREE from 'three';
 import { BALL_RADIUS, GOAL_HEIGHT, LAPTOP, NET_DEPTH, POST_RADIUS, furnitureSize, type FieldSpec, type Obstacle, type ViewerModel } from 'robolance-duck-sim/viewer';
+import { BEAK_HINGE, BEAK_OPEN_RAD } from './duck-beak';
 import { FurnitureModel } from './furniture-models';
 import { LaptopModel } from './laptop-model';
 import { carpetFloor, concreteFloor, tileFloor, wallPaint, woodFloor, type Surface } from './room-textures';
@@ -64,7 +65,7 @@ export class DuckStage extends StageBase {
 
     constructor(host: HTMLElement, model: ViewerModel) {
         super(host, DEFAULT_VIEW, 'robolance-duck-canvas');
-        this.robot = new RobotParts(model);
+        this.robot = new RobotParts(model, { hinges: { beak: BEAK_HINGE } });
         this.scene.add(this.pitch, this.robot.group);
         this.ballIndex = model.bodies.findIndex(b => b.name === 'football');
         this.lidIndex = model.nq;
@@ -126,6 +127,11 @@ export class DuckStage extends StageBase {
     }
 
     /** Poses the duck and the ball from a replay frame and draws the path walked so far. */
+    /** How open the beak is drawn (0 shut, 1 wide); see duck-beak.ts. Shown by the next show(). */
+    setBeak(opening: number): void {
+        this.robot.setHinge('beak', Math.max(0, Math.min(1, opening)) * BEAK_OPEN_RAD);
+    }
+
     show(frame: ArrayLike<number> | undefined, path: Array<[number, number]>): void {
         // A record without replay frames has nothing to pose: hide the duck and ball rather than pile them at the origin.
         const poses = this.robot.pose(frame);
