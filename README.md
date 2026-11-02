@@ -28,6 +28,41 @@ robolance is an [OpenLance](https://openlance.ai) feature built in the open for 
 
 The same loop works for robots that walk. [Microduck](https://github.com/pollen-robotics/microduck), Pollen Robotics' 25 cm open-source duck robot, runs in a MuJoCo physics simulator with its own trained skills. The agent writes a mission ("score a goal", "close the developer's laptop"), runs it, reads why a kick missed or the lid stayed open, and runs again. It can turn a photo of a room into obstacles with Meta's SAM 3.1, make pictures from plain words with Muse Image right in the chat, and train new skills on the user's own GPU provider. Any other robot comes in as a MuJoCo model the agent checks and drives with a controller script.
 
+## For judges
+
+No login or password is shared anywhere, and none is needed. Pick the depth you want:
+
+**1. No account and no key (1 minute).** These pages replay real runs in 3D, in the browser:
+
+- [robolance.openlance.ai](https://robolance.openlance.ai/): what robolance does
+- [robolance.openlance.ai/runs/](https://robolance.openlance.ai/runs/): the runs gallery (duck goals, the laptop mission, Unitree G1)
+- [robolance.openlance.ai/replay/](https://robolance.openlance.ai/replay/): opens any shared run link
+
+**2. Your own agent and your own key (5 minutes).** The robolance tools need no API key; your agent's key is the only one. The tools are published on npm as `robolance-hardware-tools` and run on your computer over MCP (Node.js 20 or newer).
+
+With Meta's **Muse Code**: sign in with `/login` (or set an API key with `muse auth set`), run `npm install -g robolance-hardware-tools`, and add this to `~/.config/muse/settings.json` (merge it into any settings already there):
+
+```json
+{
+  "schema_version": 1,
+  "mcp_servers": {
+    "robolance-hardware": { "transport": "stdio", "command": "robolance-tools", "args": [], "enabled": true }
+  }
+}
+```
+
+With **any other MCP client**, point it at `npx -y robolance-hardware-tools`. For example, in Claude Code: `claude mcp add robolance -- npx -y robolance-hardware-tools`.
+
+Then, in an empty folder, ask the agent:
+
+> Read duck_api, then write a mission that makes the duck score a goal. Run it with duck_run, read the notes, and keep fixing the mission until it scores.
+
+Each `duck_run` takes a few seconds and returns the outcome, a score from 0 to 100 and notes on what went wrong, for example "the ball crossed the goal line 32 cm wide of the left post". Every run is saved in `.robolance/runs/`. The duck and robot tools work out of the box; `hardware_compile` also needs `arduino-cli` or `avr-gcc` (see [Run it](#run-it)).
+
+**3. The full IDE (10 minutes).** Sign in at [ide.openlance.ai](https://ide.openlance.ai) with your own account and add your own Meta key in Settings → Model keys. Keys stay on the server: they never go into the sandbox, the chat or logs. Then type "Make the duck score a goal." From section 1 on, [docs/testing-meta-and-partners.md](docs/testing-meta-and-partners.md) lists every Meta feature to try, with what to type and what you should see.
+
+**4. From source.** `npm install && npm run build && npm test` (details in [Run it](#run-it)).
+
 ## What is pre-existing and what is new
 
 - **Pre-existing**: OpenLance, the web IDE and agent harness this plugs into (separate repository, not part of the hackathon submission). Open-source libraries: [avr8js](https://github.com/wokwi/avr8js) (ATmega328p emulation, MIT), [@wokwi/elements](https://github.com/wokwi/wokwi-elements) (part graphics, MIT), avr-gcc and [ArduinoCore-avr](https://github.com/arduino/ArduinoCore-avr), the [Model Context Protocol SDK](https://github.com/modelcontextprotocol/typescript-sdk), [MuJoCo](https://github.com/google-deepmind/mujoco) (physics, Apache-2.0), [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT), and Pollen Robotics' Microduck robot model and trained skills (walk, stand, kicks; Apache-2.0; see `packages/duck-sim/THIRD_PARTY_NOTICES.md`).
