@@ -4,7 +4,8 @@
 /** The state behind ViewerRail: the explode amount, the open menu and the picked part. */
 
 import * as React from 'react';
-import type { PartEntry, PartHit } from './robot-parts';
+import { describeBody, type PartEntry, type PartHit } from './robot-parts';
+import type { ViewerModel } from 'robolance-duck-sim/viewer';
 import type { RailMenu } from './ViewerRail';
 
 export interface ViewerRailState {
@@ -20,7 +21,7 @@ export interface ViewerRailState {
     clear(): void;
 }
 
-export function useViewerRail(entries: PartEntry[], modelKey: unknown): ViewerRailState {
+export function useViewerRail(entries: PartEntry[], modelKey: unknown, model?: ViewerModel): ViewerRailState {
     const [explode, setExplode] = React.useState(0);
     const [open, setOpen] = React.useState<RailMenu>();
     const [picked, setPicked] = React.useState<PartHit>();
@@ -29,8 +30,8 @@ export function useViewerRail(entries: PartEntry[], modelKey: unknown): ViewerRa
     const onPick = React.useCallback((hit: PartHit | undefined) => setPicked(hit), []);
     const pickBody = React.useCallback((body: number | undefined) => {
         const e = body === undefined ? undefined : entries.find(x => x.body === body);
-        setPicked(e ? { body: e.body, bodyName: e.name, parts: e.parts } : undefined);
-    }, [entries]);
+        setPicked(e ? (model ? describeBody(model, e.body) : { body: e.body, bodyName: e.name, parts: e.parts }) : undefined);
+    }, [entries, model]);
     const clear = React.useCallback(() => setPicked(undefined), []);
     return { explode, setExplode, open, setOpen, picked, onPick, pickBody, clear };
 }

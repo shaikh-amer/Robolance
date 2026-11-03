@@ -10,7 +10,7 @@
 
 import * as THREE from 'three';
 import type { ViewerModel } from 'robolance-duck-sim/viewer';
-import { RobotParts } from './robot-parts';
+import { EXPLODE_SPREAD, RobotParts } from './robot-parts';
 import { StageBase, isSmallDevice, type SkyPalette, type StageView } from './stage-base';
 import { paintTurf, seededRandom } from './stage-textures';
 
@@ -49,6 +49,8 @@ export class SceneStage extends StageBase {
     private readonly tint?: [number, number, number];
     /** How far above the followed body the robot's middle sits: the orbit centre is lifted by this every frame. */
     private lift = 0;
+    /** The robot's middle height when framed: an exploded robot grows upward from the floor by about this much. */
+    private centreZ = 0;
     private lastFrame?: ArrayLike<number>;
 
     constructor(host: HTMLElement, readonly model: ViewerModel) {
@@ -94,7 +96,8 @@ export class SceneStage extends StageBase {
         const poses = this.robot.pose(frame);
         if (poses) {
             const p = poses[this.focus].pos;
-            this.followAt.set(p[0], p[1], Math.max(0.05, p[2]) + this.lift);
+            // Exploded, the stack grows upward from the feet: keep the orbit centre in its middle.
+            this.followAt.set(p[0], p[1], Math.max(0.05, p[2]) + this.lift + this.robot.exploded * EXPLODE_SPREAD * this.centreZ * 0.5);
             this.setFollowHeading(yawOf(poses[this.focus].quat));
             if (!this.framed) {
                 this.framed = true;
@@ -137,6 +140,7 @@ export class SceneStage extends StageBase {
         // Orbit about the robot's middle, not its pelvis: lift the followed point by the same amount, on every frame.
         this.lift = center.z - this.followAt.z;
         this.followAt.z = center.z;
+        this.centreZ = center.z;
         this.shotScale = Math.max(1, extent / 0.35);
         this.defaultView.distance = Math.min(30, extent * 2.4);
         this.view.distance = this.defaultView.distance;
