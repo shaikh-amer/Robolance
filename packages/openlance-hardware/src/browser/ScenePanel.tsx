@@ -66,7 +66,7 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
     // Parsed once per model file, not per frame: a model with meshes can be a few hundred KB.
     const model = React.useMemo(() => (entry ? sceneModel(context.files, entry) : undefined), [entry?.modelPath, modelText]);
     const partEntries = React.useMemo(() => (model ? partEntriesOf(model) : []), [model]);
-    const rail = useViewerRail(partEntries, model);
+    const rail = useViewerRail(partEntries, model, model);
 
     const newestPath = runs[0]?.path;
     React.useEffect(() => {

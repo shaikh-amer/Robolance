@@ -7,24 +7,26 @@ import * as React from 'react';
 import * as THREE from 'three';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
-import { EXPLODE_SPREAD, RobotParts, bodyLabel, explodeOffsets } from '../src/browser/robot-parts';
+import { EXPLODE_SPREAD, RobotParts, bodyLabel, describeBody, describeJoint, describeMaterial, describeRole, explodeOffsets } from '../src/browser/robot-parts';
 import { PartCard, ViewerRail } from '../src/browser/ViewerRail';
 import { partEntriesOf } from '../src/browser/viewer-rail-state';
 
 const restFrame = () => { const f = new Float64Array(duckModel.nq); f[3] = 1; f[2] = 0.3; return f; };
 
-test('explode offsets push every body away from the robot\'s middle, and the world never moves', () => {
+test('explode offsets fan bodies out sideways and lift them from the lowest one; nothing sinks and the world never moves', () => {
     const poses = [
         { pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] },
-        { pos: [1, 0, 1] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] },
-        { pos: [3, 0, 1] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] },
+        { pos: [1, 0, 0.1] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] },
+        { pos: [3, 0, 1.1] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] },
     ];
     const o = explodeOffsets(poses, 1);
     assert.deepEqual(o[0], [0, 0, 0]);
     // middle is x = 2: body 1 goes left, body 2 goes right, by their own distance.
+    // body 1 is the lowest, so it stays at its height; body 2 rises by its height above it.
     assert.deepEqual(o[1], [-1, 0, 0]);
-    assert.deepEqual(o[2], [1, 0, 0]);
-    assert.deepEqual(explodeOffsets(poses, 0.5)[2], [0.5, 0, 0]);
+    assert.deepEqual(o[2], [1, 0, 1]);
+    assert.deepEqual(explodeOffsets(poses, 0.5)[2], [0.5, 0, 0.5]);
+    assert.ok(explodeOffsets(poses, 1).every(v => v[2] >= 0), 'no body moves down');
 });
 
 test('an exploded duck has its parts further from the middle; assembled again they are back', () => {
@@ -40,6 +42,12 @@ test('an exploded duck has its parts further from the middle; assembled again th
     robot.pose(restFrame());
     const exploded = spread();
     assert.ok(exploded > assembled * 1.5, `exploded ${exploded} vs assembled ${assembled}`);
+    // The lowest part is no lower than when assembled: the feet stay on the floor.
+    const lowest = () => { robot.group.updateMatrixWorld(true); return new THREE.Box3().setFromObject(robot.group).min.z; };
+    const explodedLow = lowest();
+    robot.setExplode(0); robot.pose(restFrame());
+    assert.ok(explodedLow >= lowest() - 1e-6, `exploded min z ${explodedLow} vs assembled ${lowest()}`);
+    robot.setExplode(1); robot.pose(restFrame());
     assert.equal(robot.exploded, 1);
     robot.setExplode(0);
     robot.pose(restFrame());
@@ -88,7 +96,25 @@ test('the parts list names every body with visual parts, floor excluded, and the
     const parts = renderToStaticMarkup(<ViewerRail explode={0} onExplode={() => undefined} parts={entries} picked={{ body: entries[0].body, bodyName: entries[0].name, parts: 1 }} onPickBody={() => undefined} open="parts" onOpen={() => undefined} />);
     assert.match(parts, /role="listbox"/);
     assert.match(parts, /aria-selected="true"/);
-    const card = renderToStaticMarkup(<PartCard hit={{ body: 3, bodyName: 'head', parentName: 'trunk', meshName: 'head_shell', parts: 2 }} onClear={() => undefined} />);
-    assert.match(card, /head/);
-    assert.match(card, /2 parts · joined to trunk · head_shell/);
+    // Collapsed: the name tile and the chevron only, no details.
+    const card = renderToStaticMarkup(<PartCard hit={{ body: 3, bodyName: 'head', parentName: 'trunk', meshName: 'head_shell', parts: 2, joint: 'Hinge about z', material: 'Light shell plastic (#d9d9d6)', role: 'The head' }} onClear={() => undefined} />);
+    assert.match(card, /robolance-part-name">head</);
+    assert.match(card, /aria-expanded="false"/);
+    assert.doesNotMatch(card, /Hinge about z|Light shell|trunk/);
+});
+
+test('a body is described by its joint, its material and its name', () => {
+    assert.equal(describeJoint({ name: 'x', parent: 1, pos: [0, 0, 0], quat: [1, 0, 0, 0], joint: { type: 'hinge', qpos: 7, axis: [0, 0, 1], pos: [0, 0, 0] } }), 'Hinge about z');
+    assert.equal(describeJoint({ name: 'x', parent: 1, pos: [0, 0, 0], quat: [1, 0, 0, 0], joint: { type: 'hinge', qpos: 7, axis: [0, -1, 0], pos: [0, 0, 0] } }), 'Hinge about -y');
+    assert.match(describeJoint({ name: 'x', parent: 0, pos: [0, 0, 0], quat: [1, 0, 0, 0], joint: { type: 'free', qpos: 0 } }), /Free-floating/);
+    assert.match(describeJoint({ name: 'x', parent: 1, pos: [0, 0, 0], quat: [1, 0, 0, 0], joint: null }), /Fixed/);
+    assert.match(describeMaterial({ body: 1, mesh: -1, pos: [0, 0, 0], quat: [1, 0, 0, 0], rgba: [0.85, 0.85, 0.84, 1] }), /^Light shell plastic .*#d9d9d6/);
+    assert.match(describeMaterial({ body: 1, mesh: -1, pos: [0, 0, 0], quat: [1, 0, 0, 0], rgba: [0.2, 0.2, 0.2, 1] }), /^Dark plastic/);
+    assert.match(describeMaterial({ body: 1, mesh: -1, pos: [0, 0, 0], quat: [1, 0, 0, 0], rgba: [1, 0.4, 0.1, 1] }), /^Coloured plastic/);
+    assert.match(describeMaterial({ body: 1, mesh: -1, pos: [0, 0, 0], quat: [1, 0, 0, 0], rgba: [0.7, 0.7, 0.7, 1], surface: { specular: 0.5, shininess: 0.9, reflectance: 0.8 } }), /^Metal, glossy/);
+    assert.match(describeRole('left hip yaw link')!, /hip.*turns left and right/);
+    assert.match(describeRole('left knee link')!, /knee/);
+    assert.equal(describeRole('body 7'), undefined);
+    const d = describeBody(duckModel, 1);
+    assert.ok(d.joint && d.material && d.meshes && d.meshes.length === d.parts, JSON.stringify(d));
 });

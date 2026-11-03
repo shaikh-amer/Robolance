@@ -94,17 +94,37 @@ export function ViewerRail({ explode, onExplode, parts, picked, onPickBody, open
     );
 }
 
-/** The card naming the picked part, at the top left of the picture. */
+/**
+ * The card for the picked part, top left: collapsed it is a name tile with a
+ * chevron; expanded it says what the part is, how it moves, what it is made
+ * of and what it does.
+ */
 export function PartCard({ hit, onClear }: { hit: PartHit; onClear(): void }): React.ReactElement {
+    const [open, setOpen] = React.useState(false);
+    const rows: Array<[string, string | undefined]> = [
+        ['Does', hit.role],
+        ['Moves', hit.joint],
+        ['Made of', hit.material],
+        ['Joined to', hit.parentName],
+        ['Parts', hit.meshes && hit.meshes.length > 0 ? `${hit.meshes.length}: ${hit.meshes.join(', ')}` : `${hit.parts}`],
+    ];
     return (
-        <div className="robolance-part-card" role="status">
-            <div className="robolance-part-name">{hit.bodyName}</div>
-            <div className="robolance-part-meta">
-                {hit.parts === 1 ? '1 part' : `${hit.parts} parts`}
-                {hit.parentName ? ` · joined to ${hit.parentName}` : ''}
-                {hit.meshName ? ` · ${hit.meshName}` : ''}
-            </div>
+        <div className={`robolance-part-card${open ? ' open' : ''}`} role="status">
+            <button type="button" className="robolance-part-head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+                <span className="robolance-part-chevron" aria-hidden="true">›</span>
+                <span className="robolance-part-name">{hit.bodyName}</span>
+            </button>
             <button type="button" className="robolance-part-clear" onClick={onClear} aria-label="Clear the selection">×</button>
+            {open && (
+                <dl className="robolance-part-details">
+                    {rows.filter(([, v]) => v).map(([k, v]) => (
+                        <React.Fragment key={k}>
+                            <dt>{k}</dt>
+                            <dd>{v}</dd>
+                        </React.Fragment>
+                    ))}
+                </dl>
+            )}
         </div>
     );
 }

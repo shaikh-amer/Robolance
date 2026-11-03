@@ -98,7 +98,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
     }, [playing, run, duration]);
 
     const duckParts = React.useMemo(() => partEntriesOf(duckModel), []);
-    const rail = useViewerRail(duckParts, run?.result);
+    const rail = useViewerRail(duckParts, run?.result, duckModel);
 
     const select = (i: number) => {
         setSelected(i);

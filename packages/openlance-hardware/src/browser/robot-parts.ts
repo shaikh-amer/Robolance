@@ -40,6 +40,14 @@ export interface PartHit {
     meshName?: string;
     /** How many visual parts the body has. */
     parts: number;
+    /** How the body moves: "Hinge about z, -2.6 to 2.6 rad", "Free-floating base"... */
+    joint?: string;
+    /** What it looks to be made of, from its colour and surface. */
+    material?: string;
+    /** What the part does, from its name. */
+    role?: string;
+    /** The names of its parts. */
+    meshes?: string[];
 }
 
 /** A body of the robot with visual parts, for a parts list. */
@@ -164,16 +172,7 @@ export class RobotParts {
     }
 
     private hitFor(body: number, geom: ViewerGeom): PartHit {
-        const b = this.model.bodies[body];
-        const parent = b && b.parent > 0 ? this.model.bodies[b.parent] : undefined;
-        const mesh = geom.mesh >= 0 ? this.model.meshes[geom.mesh] : undefined;
-        return {
-            body,
-            bodyName: bodyLabel(this.model, body),
-            parentName: parent ? bodyLabel(this.model, b.parent) : undefined,
-            meshName: mesh?.name,
-            parts: this.parts.filter(p => p.geom.body === body).length,
-        };
+        return describeBody(this.model, body, geom);
     }
 
     /** Lights up every part of `body` (an emissive glow), or none. */
@@ -315,6 +314,123 @@ export function placeHinged(object: THREE.Object3D, body: BodyPose, geom: Viewer
     object.quaternion.copy(H.bq).multiply(H.r).multiply(H.gq);
 }
 
+/** Everything the part card says about a body: name, parent, how it moves, what it is made of, what it does. */
+export function describeBody(model: ViewerModel, body: number, first?: ViewerGeom): PartHit {
+    const b = model.bodies[body];
+    const geoms = model.geoms.filter(g => g.body === body && g.shape?.type !== 'plane');
+    const geom = first ?? geoms[0];
+    const parent = b && b.parent > 0 ? model.bodies[b.parent] : undefined;
+    const mesh = geom && geom.mesh >= 0 ? model.meshes[geom.mesh] : undefined;
+    const name = bodyLabel(model, body);
+    return {
+        body,
+        bodyName: name,
+        parentName: parent ? bodyLabel(model, b.parent) : undefined,
+        meshName: mesh?.name,
+        parts: geoms.length,
+        joint: b ? describeJoint(b) : undefined,
+        material: geom ? describeMaterial(geom) : undefined,
+        role: describeRole(name, b?.joint ?? undefined),
+        meshes: geoms.map(g => (g.mesh >= 0 ? model.meshes[g.mesh]?.name : g.shape?.type) ?? 'part').filter((n): n is string => Boolean(n)),
+    };
+}
+
+const AXES: Array<[string, [number, number, number]]> = [['x', [1, 0, 0]], ['y', [0, 1, 0]], ['z', [0, 0, 1]]];
+
+function axisName(a: [number, number, number] | number[]): string {
+    for (const [n, v] of AXES) {
+        const dot = a[0] * v[0] + a[1] * v[1] + a[2] * v[2];
+        if (Math.abs(dot) > 0.99) {
+            return (dot < 0 ? '-' : '') + n;
+        }
+    }
+    return `(${a.map(v => v.toFixed(2)).join(', ')})`;
+}
+
+/** "Hinge about z", "Slides along x", "Ball joint", "Free-floating base", or "Fixed to <parent>". */
+export function describeJoint(b: ViewerModel['bodies'][number]): string {
+    const js = b.joints ?? (b.joint ? [b.joint] : []);
+    if (js.length === 0) {
+        return b.parent > 0 ? 'Fixed, no joint of its own' : 'Fixed';
+    }
+    const one = (j: NonNullable<typeof b.joint>): string => {
+        switch (j.type) {
+            case 'free': return 'Free-floating base: moves and turns in every direction';
+            case 'ball': return 'Ball joint: turns in every direction';
+            case 'hinge': return `Hinge about ${axisName(j.axis)}`;
+            case 'slide': return `Slides along ${axisName(j.axis)}`;
+        }
+    };
+    return js.length === 1 ? one(js[0]) : `${js.length} joints: ${js.map(one).join('; ')}`;
+}
+
+/** What a part looks to be made of, from its colour and MuJoCo surface. */
+export function describeMaterial(g: ViewerGeom): string {
+    const [r, gg, bb, a] = g.rgba;
+    const lum = 0.2126 * r + 0.7152 * gg + 0.0722 * bb;
+    const spread = Math.max(r, gg, bb) - Math.min(r, gg, bb);
+    const s = g.surface;
+    const hex = '#' + [r, gg, bb].map(v => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0')).join('');
+    let kind: string;
+    if (s && s.reflectance > 0.3) {
+        kind = 'Metal';
+    } else if (spread > 0.25) {
+        kind = 'Coloured plastic';
+    } else if (lum >= 0.6) {
+        kind = 'Light shell plastic';
+    } else if (lum <= 0.3) {
+        kind = 'Dark plastic or rubber';
+    } else {
+        kind = 'Grey plastic';
+    }
+    const finish = s ? (s.shininess > 0.6 ? ', glossy' : s.shininess < 0.3 ? ', matte' : '') : '';
+    const see = a < 1 ? `, ${Math.round(a * 100)}% opaque` : '';
+    return `${kind}${finish}${see} (${hex})`;
+}
+
+const ROLES: Array<[RegExp, string]> = [
+    [/pelvis|base/, 'The root of the robot: everything else hangs off it'],
+    [/torso|trunk|waist/, 'Carries the arms and head; its joint lets the upper body turn and lean'],
+    [/head/, 'The head, with the robot\'s cameras and sensors'],
+    [/shoulder/, 'Moves the whole arm at the shoulder'],
+    [/elbow/, 'Bends the arm at the elbow'],
+    [/wrist/, 'Turns and tilts the hand'],
+    [/hand|palm|finger|gripper/, 'The hand: grips and touches'],
+    [/hip/, 'Moves the whole leg at the hip'],
+    [/knee/, 'Bends the leg at the knee'],
+    [/ankle/, 'Tilts the foot to keep balance'],
+    [/foot|toe|sole/, 'The foot: carries the weight and grips the floor'],
+    [/thigh|upper leg|upper_leg/, 'The upper leg'],
+    [/shin|calf|lower leg|lower_leg/, 'The lower leg'],
+    [/neck/, 'Turns and tilts the head'],
+    [/wheel/, 'A wheel: rolls the robot along'],
+    [/beak|jaw/, 'The beak: opens and closes'],
+    [/wing|arm/, 'The arm'],
+];
+
+const MOTIONS: Array<[RegExp, string]> = [
+    [/pitch/, 'swings forward and back'],
+    [/roll/, 'tilts side to side'],
+    [/yaw/, 'turns left and right'],
+];
+
+/** What the part does, from its name and joint; undefined when the name says nothing. */
+export function describeRole(name: string, joint?: { type: string }): string | undefined {
+    const n = name.toLowerCase();
+    const role = ROLES.find(([re]) => re.test(n))?.[1];
+    const motion = MOTIONS.find(([re]) => re.test(n))?.[1];
+    if (role && motion) {
+        return `${role}; this link ${motion}`;
+    }
+    if (role) {
+        return role;
+    }
+    if (motion) {
+        return `This link ${motion}`;
+    }
+    return joint?.type === 'free' ? 'The root of the robot: everything else hangs off it' : undefined;
+}
+
 /** A readable name for a body: its model name, or "body N" when the model left it unnamed. */
 export function bodyLabel(model: ViewerModel, body: number): string {
     const name = model.bodies[body]?.name?.trim();
@@ -322,19 +438,22 @@ export function bodyLabel(model: ViewerModel, body: number): string {
 }
 
 /**
- * Where each body slides to in an exploded view: away from the robot's
- * middle (the mean of its bodies) by `spread` times its own distance from
- * it, so limbs fan out and the middle stays put. Index 0 (the world) never moves.
+ * Where each body slides to in an exploded view: sideways away from the
+ * robot's middle (the mean of its bodies) by `spread` times its own distance
+ * from it, and upward by `spread` times its height above the lowest body, so
+ * limbs fan out, the feet stay on the floor and nothing sinks below it.
+ * Index 0 (the world) never moves.
  */
 export function explodeOffsets(poses: BodyPose[], spread: number): Array<[number, number, number]> {
-    let cx = 0, cy = 0, cz = 0, n = 0;
+    let cx = 0, cy = 0, n = 0, minZ = Infinity;
     for (let i = 1; i < poses.length; i++) {
-        cx += poses[i].pos[0]; cy += poses[i].pos[1]; cz += poses[i].pos[2]; n++;
+        cx += poses[i].pos[0]; cy += poses[i].pos[1]; n++;
+        minZ = Math.min(minZ, poses[i].pos[2]);
     }
     if (n > 0) {
-        cx /= n; cy /= n; cz /= n;
+        cx /= n; cy /= n;
     }
-    return poses.map((p, i) => i === 0 ? [0, 0, 0] : [(p.pos[0] - cx) * spread, (p.pos[1] - cy) * spread, (p.pos[2] - cz) * spread]);
+    return poses.map((p, i) => i === 0 ? [0, 0, 0] : [(p.pos[0] - cx) * spread, (p.pos[1] - cy) * spread, (p.pos[2] - minZ) * spread]);
 }
 
 export function place(object: THREE.Object3D, pose: BodyPose): void {
