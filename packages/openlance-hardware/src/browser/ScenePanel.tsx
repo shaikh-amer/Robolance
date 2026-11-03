@@ -289,15 +289,18 @@ export function SceneRunsView({ runs, selected, onSelect, onWatch, modelOf, shar
                             {Object.entries(r.metrics).map(([name, series]) => <MetricChart key={name} name={name} series={series} durationS={r.simS} />)}
                         </div>
                     )}
-                    <pre className="robolance-run-serial" aria-label="Controller log">
-                        {r.logs.length > 0 ? r.logs.join('\n') : '(the controller logged nothing)'}
-                    </pre>
-                    {entry.controller && (
-                        <details className="robolance-duck-mission">
-                            <summary>The controller this run used</summary>
-                            <pre>{entry.controller}</pre>
-                        </details>
-                    )}
+                    <details className="robolance-run-tech">
+                        <summary>Technical details</summary>
+                        <pre className="robolance-run-serial" aria-label="Controller log">
+                            {r.logs.length > 0 ? r.logs.join('\n') : '(the controller logged nothing)'}
+                        </pre>
+                        {entry.controller && (
+                            <details className="robolance-duck-mission">
+                                <summary>The controller this run used</summary>
+                                <pre>{entry.controller}</pre>
+                            </details>
+                        )}
+                    </details>
                 </div>
             )}
         </div>

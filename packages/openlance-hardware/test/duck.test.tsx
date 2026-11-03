@@ -11,7 +11,7 @@ import { runMission, type MissionResult } from 'robolance-duck-sim';
 import { bodyPoses } from 'robolance-duck-sim/viewer';
 import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
 import { DuckPanel, DuckReadout, DuckRunsView } from '../src/browser/DuckPanel';
-import { describeDuckRun, describeDuckSkills, frameAt, isDuckProject, parseDuckRun, pathUntil, readDuckRuns } from '../src/browser/duck-project';
+import { describeDuckRun, describeDuckSkills, duckRunDetail, duckRunHeadline, frameAt, isDuckProject, parseDuckRun, pathUntil, readDuckRuns } from '../src/browser/duck-project';
 import { isSharedDuckRun, packFrames, shareDuckRunUrl, sharedDuckRunToRun, trimDuckRunForShare, unpackFrames, validateSharedDuckRun } from '../src/browser/duck-share';
 import { HardwarePanel } from '../src/browser/HardwarePanel';
 import { decodeShare, parseShareHash } from '../src/browser/share-run';
@@ -159,6 +159,25 @@ test('the duck runs view offers a share link unless sharing is off', () => {
     assert.match(on, /Share this run/);
     const off = renderToStaticMarkup(<DuckRunsView runs={runs} selected={0} onSelect={() => undefined} onWatch={() => undefined} shareBase={false} />);
     assert.doesNotMatch(off, /Share this run/);
+});
+
+test('each run is a card that says how it went in plain words, with its own Share button', () => {
+    const runs = readDuckRuns(files);
+    assert.match(duckRunHeadline(runs[0]), /^Goal in [\d.]+ s$/);
+    assert.match(duckRunDetail(runs[0]), /^1 kick · [\d.]+ s run$/);
+    const html = renderToStaticMarkup(<DuckRunsView runs={runs} selected={0} onSelect={() => undefined} onWatch={() => undefined} />);
+    assert.match(html, /class="robolance-run-headline">Goal in [\d.]+ s</);
+    assert.match(html, /aria-label="Share run 1"[^>]*>Share<\/button>/);
+    const off = renderToStaticMarkup(<DuckRunsView runs={runs} selected={0} onSelect={() => undefined} onWatch={() => undefined} shareBase={false} />);
+    assert.doesNotMatch(off, /robolance-run-share/);
+});
+
+test('mission logs and code fold under Technical details; what happened stays in view', () => {
+    const runs = readDuckRuns(files);
+    const html = renderToStaticMarkup(<DuckRunsView runs={runs} selected={0} onSelect={() => undefined} onWatch={() => undefined} />);
+    const tech = html.indexOf('<details class="robolance-run-tech"><summary>Technical details</summary>');
+    assert.ok(tech > 0, 'technical details present and closed');
+    assert.ok(html.indexOf('aria-label="Mission log"') > tech, 'the mission log is inside it');
 });
 
 test('Watch this run and Share this run sit in one row', () => {

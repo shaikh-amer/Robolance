@@ -13,7 +13,7 @@ import { DuckScene } from './DuckScene';
 import { ColorSwatches } from './ColorSwatches';
 import { loadColor, saveColor } from './robot-color';
 import { duckThumbnail } from './duck-thumbnail';
-import { describeDuckRun, describeDuckSkills, duckRunMs, outcomeLabel, readDuckRuns, missionPath, type DuckRun } from './duck-project';
+import { describeDuckRun, duckRunDetail, duckRunHeadline, describeDuckSkills, duckRunMs, outcomeLabel, readDuckRuns, missionPath, type DuckRun } from './duck-project';
 import { formatRunTime } from './hardware-project';
 import { advanceReplay } from './replay';
 import { shareDuckRunUrl, trimDuckRunForShare } from './duck-share';
@@ -254,6 +254,8 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
     const [publishing, setPublishing] = React.useState(false);
     React.useEffect(() => setPublishing(false), [run?.path]);
     const published = run && gallery?.published[run.path];
+    // A card's Share button selects that run and shares it from the detail row.
+    const [shareTrigger, setShareTrigger] = React.useState(0);
     return (
         <div className="robolance-runs">
             {runs.length > 1 && (
@@ -265,18 +267,31 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
             )}
             <ol className="robolance-runs-list" aria-label="Runs">
                 {runs.map((r, i) => (
-                    <li key={r.path}>
+                    <li key={r.path} className="robolance-run-card">
                         <button
                             type="button"
                             className={`robolance-run${i === selected ? ' selected' : ''}`}
                             onClick={() => onSelect(i)}
                             aria-current={i === selected ? 'true' : undefined}
+                            title={describeDuckRun(r)}
                         >
-                            <span className="robolance-run-index">#{runs.length - i}</span>
-                            <span className="robolance-run-time">{formatRunTime({ at: r.at, stamp: r.stamp })}</span>
-                            <span className="robolance-run-summary">{describeDuckRun(r)}</span>
                             <Score value={r.result.score} />
+                            <span className="robolance-run-text">
+                                <span className="robolance-run-headline">{duckRunHeadline(r)}</span>
+                                <span className="robolance-run-sub">Run {runs.length - i} · {formatRunTime({ at: r.at, stamp: r.stamp })} · {duckRunDetail(r)}</span>
+                            </span>
                         </button>
+                        {shareBase && (
+                            <button
+                                type="button"
+                                className="robolance-run-share"
+                                aria-label={`Share run ${runs.length - i}`}
+                                title="Copy a link that replays this run"
+                                onClick={() => { onSelect(i); setShareTrigger(n => n + 1); }}
+                            >
+                                Share
+                            </button>
+                        )}
                     </li>
                 ))}
             </ol>
@@ -284,29 +299,32 @@ export function DuckRunsView({ runs, selected, onSelect, onWatch, shareBase = RE
                 <div className="robolance-run-detail">
                     <div className="robolance-run-actions">
                         <button type="button" className="robolance-edit-btn" onClick={() => onWatch(selected)}>Watch this run</button>
-                        {shareBase && <ShareLink id={run.path} makeUrl={() => shareDuckRunUrl(run, shareBase, storeShare)} />}
+                        {shareBase && <ShareLink id={run.path} trigger={shareTrigger} makeUrl={() => shareDuckRunUrl(run, shareBase, storeShare)} />}
                         {gallery && !published && !publishing && (
                             <button type="button" className="robolance-edit-btn" onClick={() => setPublishing(true)}>Publish</button>
                         )}
                     </div>
                     {gallery && published && <PublishedRow run={run} entry={published} gallery={gallery} />}
                     {gallery && !published && publishing && <PublishForm run={run} gallery={gallery} onClose={() => setPublishing(false)} />}
-                    {describeDuckSkills(run) && <p className="robolance-duck-skills">Trained policies from the project: {describeDuckSkills(run)}</p>}
                     {run.result.error && <pre className="robolance-error">{run.result.error}</pre>}
                     {run.result.notes.length > 0 && (
-                        <ul className="robolance-run-notes">
+                        <ul className="robolance-run-notes robolance-run-story" aria-label="What happened">
                             {run.result.notes.map((note, i) => <li key={i}>{note}</li>)}
                         </ul>
                     )}
-                    <pre className="robolance-run-serial" aria-label="Mission log">
-                        {run.result.logs.length > 0 ? run.result.logs.join('\n') : '(the mission logged nothing)'}
-                    </pre>
-                    {run.mission && (
-                        <details className="robolance-duck-mission">
-                            <summary>The mission this run used</summary>
-                            <pre>{run.mission}</pre>
-                        </details>
-                    )}
+                    <details className="robolance-run-tech">
+                        <summary>Technical details</summary>
+                        {describeDuckSkills(run) && <p className="robolance-duck-skills">Trained policies from the project: {describeDuckSkills(run)}</p>}
+                        <pre className="robolance-run-serial" aria-label="Mission log">
+                            {run.result.logs.length > 0 ? run.result.logs.join('\n') : '(the mission logged nothing)'}
+                        </pre>
+                        {run.mission && (
+                            <details className="robolance-duck-mission">
+                                <summary>The mission this run used</summary>
+                                <pre>{run.mission}</pre>
+                            </details>
+                        )}
+                    </details>
                 </div>
             )}
         </div>

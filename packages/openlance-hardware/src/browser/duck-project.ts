@@ -140,6 +140,31 @@ export function describeDuckRun(run: DuckRun): string {
     return `${r.simS.toFixed(1)} s · score ${r.score} · ${goal} · ${kicks} kick${kicks === 1 ? '' : 's'}`;
 }
 
+/** How a run went, in a few plain words for its card: "Goal in 12.7 s", "Laptop closed in 6.2 s", "No goal". */
+export function duckRunHeadline(run: DuckRun): string {
+    const r = run.result;
+    if (r.field.laptop && typeof r.closedAtS === 'number') {
+        return `Laptop closed in ${r.closedAtS.toFixed(1)} s`;
+    }
+    if (!r.field.laptop && r.scoredAtS !== null) {
+        return `Goal in ${r.scoredAtS.toFixed(1)} s`;
+    }
+    const label = outcomeLabel(r);
+    return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** The card's second line: kicks (soccer) and how long the run lasted. */
+export function duckRunDetail(run: DuckRun): string {
+    const r = run.result;
+    const parts: string[] = [];
+    if (!r.field.laptop) {
+        const kicks = r.kicks.length;
+        parts.push(`${kicks} kick${kicks === 1 ? '' : 's'}`);
+    }
+    parts.push(`${r.simS.toFixed(1)} s run`);
+    return parts.join(' · ');
+}
+
 /** "walk: policies/walk/policy.onnx · getUp: …", or '' when the run used only the built-in skills. */
 export function describeDuckSkills(run: DuckRun): string {
     return Object.entries(run.skills ?? {})
