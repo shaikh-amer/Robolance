@@ -76,6 +76,8 @@ test('the scene panel shows the robot view, the readout and the runs, and asks t
     const runs = readSceneRuns(files);
     const html = renderToStaticMarkup(<ScenePanelBody runs={runs} scenes={sceneFiles(files)} context={{ files, theme: 'dark', openFile: () => undefined }} />);
     assert.match(html, /aria-label="Robot colour"/, 'the robot player offers the colour swatches');
+    assert.match(html, /Camera: Broadcast\. Click for Third person\./, 'the same camera presets as the duck pitch, not a Follow toggle');
+    assert.doesNotMatch(html, />Follow</);
     assert.match(html, /Robot/);
     assert.match(html, /Runs \(1\)/);
     assert.match(html, /robolance-duck-scene/);
@@ -97,6 +99,13 @@ test('metric charts and values read well', () => {
     assert.equal(formatValue(0.000012), '1.20e-5');
     assert.equal(formatValue(12.3456), '12.35');
     assert.equal(formatValue(0.12345), '0.123');
+});
+
+test('a pose quaternion gives the robot\'s heading about z', async () => {
+    const { yawOf } = await import('../src/browser/scene-stage');
+    assert.ok(Math.abs(yawOf([1, 0, 0, 0])) < 1e-9);
+    assert.ok(Math.abs(yawOf([Math.SQRT1_2, 0, 0, Math.SQRT1_2]) - Math.PI / 2) < 1e-9, '90° about z');
+    assert.ok(Math.abs(yawOf([0, 0, 0, 1]) - Math.PI) < 1e-9, '180° about z');
 });
 
 test('the studio floor takes the model\'s ground colour and keeps its grid readable', () => {

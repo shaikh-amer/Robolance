@@ -20,7 +20,8 @@ import { ColorSwatches } from './ColorSwatches';
 import { loadColor, saveColor } from './robot-color';
 import type { PreviewTabContext } from './preview-tab';
 import { PlayerShell, Transport } from './player';
-import { PublishedRow, PublishForm, type GalleryActionsFor } from './DuckPanel';
+import { CameraButton, PublishedRow, PublishForm, type GalleryActionsFor } from './DuckPanel';
+import { CAMERA_LABELS, nextCameraMode, type CameraMode } from './stage-base';
 import { ShareLink } from './RunsView';
 import { REPLAY_PAGE_URL } from './share-run';
 import type { ViewerModel } from 'robolance-duck-sim/viewer';
@@ -52,7 +53,8 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
     const [selected, setSelected] = React.useState(0);
     const [timeMs, setTimeMs] = React.useState(0);
     const [playing, setPlaying] = React.useState(false);
-    const [follow, setFollow] = React.useState(false);
+    const [camera, setCamera] = React.useState<CameraMode>('orbit');
+    const [cameraToast, setCameraToast] = React.useState(0);
     const [color, setColor] = React.useState<string | undefined>(() => loadColor());
     const [resetKey, setResetKey] = React.useState(0);
 
@@ -125,19 +127,12 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
 
     const toggle = () => { if (timeMs >= duration) { setTimeMs(0); } setPlaying(p => !p); };
     const seek = (ms: number) => { setPlaying(false); setTimeMs(ms); };
+    const nextCamera = () => { setCamera(nextCameraMode); setCameraToast(t => t + 1); };
     const sceneTools = (
         <>
             <ColorSwatches value={color} onChange={c => { setColor(c); saveColor(c); }} />
-            <button
-                type="button"
-                className={`robolance-edit-btn${follow ? ' active' : ''}`}
-                aria-pressed={follow}
-                title="Keep the camera on the robot"
-                onClick={() => setFollow(f => !f)}
-            >
-                Follow
-            </button>
-            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the view). Drag to orbit, right-drag or two fingers to pan, wheel to zoom" onClick={() => setResetKey(k => k + 1)}>
+            <CameraButton mode={camera} onClick={nextCamera} />
+            <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the view). Drag to orbit around the robot, right-drag or two fingers to pan, wheel to zoom" onClick={() => { setCamera('orbit'); setResetKey(k => k + 1); }}>
                 Reset view
             </button>
         </>
@@ -178,12 +173,14 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
                         durationMs={duration}
                         onToggle={toggle}
                         onSeek={seek}
+                        onCamera={nextCamera}
                         fullscreenTools={sceneTools}
                         label={`run #${runs.length - selected}`}
                     >
                         {model
-                            ? <SceneView model={model} frame={sceneFrameAt(entry.run, timeMs)} theme={context.theme} follow={follow} resetKey={resetKey} color={color} />
+                            ? <SceneView model={model} frame={sceneFrameAt(entry.run, timeMs)} theme={context.theme} camera={camera} resetKey={resetKey} color={color} />
                             : <div className="robolance-empty"><p>This run's 3D model ({entry.modelPath}) is missing; run the scene again to record it.</p></div>}
+                        {cameraToast > 0 && <span className="robolance-camera-toast" role="status">{CAMERA_LABELS[camera]}</span>}
                         <SceneReadout run={entry.run} timeMs={timeMs} />
                     </PlayerShell>
                 )}

@@ -6,19 +6,21 @@
 import * as React from 'react';
 import type { ViewerModel } from 'robolance-duck-sim/viewer';
 import { SceneStage } from './scene-stage';
+import type { CameraMode } from './stage-base';
 
 export interface SceneViewProps {
     model: ViewerModel;
     frame: number[] | undefined;
     theme: 'light' | 'dark';
-    follow?: boolean;
+    /** Broadcast (orbit), third person, first person or wide angle. */
+    camera?: CameraMode;
     /** Bumped to put the camera back where it started. */
     resetKey?: number;
     /** The viewer's shell colour ("#rrggbb"), over the model's. */
     color?: string;
 }
 
-export function SceneView({ model, frame, theme, follow = false, resetKey = 0, color }: SceneViewProps): React.ReactElement {
+export function SceneView({ model, frame, theme, camera = 'orbit', resetKey = 0, color }: SceneViewProps): React.ReactElement {
     const host = React.useRef<HTMLDivElement>(null);
     const stage = React.useRef<SceneStage>();
     const [failed, setFailed] = React.useState<string>();
@@ -41,7 +43,7 @@ export function SceneView({ model, frame, theme, follow = false, resetKey = 0, c
     }, [model]);
 
     React.useEffect(() => stage.current?.setTheme(theme), [theme, model, failed]);
-    React.useEffect(() => stage.current?.setFollow(follow), [follow, model, failed]);
+    React.useEffect(() => stage.current?.setCameraMode(camera), [camera, model, failed]);
     React.useEffect(() => stage.current?.setColor(color), [color, model, failed]);
     React.useEffect(() => {
         if (resetKey) {

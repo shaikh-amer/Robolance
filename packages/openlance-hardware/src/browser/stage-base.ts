@@ -53,18 +53,18 @@ export interface RobotShot {
 }
 
 /** Behind and above the robot, looking a little ahead of it. */
-export function chaseShot(x: number, y: number, heading: number, back = 0.7, height = 0.36): RobotShot {
+export function chaseShot(x: number, y: number, heading: number, back = 0.7, height = 0.36, scale = 1): RobotShot {
     const fx = Math.cos(heading);
     const fy = Math.sin(heading);
-    return { position: [x - fx * back, y - fy * back, height], lookAt: [x + fx * 0.35, y + fy * 0.35, 0.06] };
+    return { position: [x - fx * back * scale, y - fy * back * scale, height * scale], lookAt: [x + fx * 0.35 * scale, y + fy * 0.35 * scale, 0.06 * scale] };
 }
 
 /** Just in front of the robot's face, looking down the way it walks. */
-export function eyesShot(x: number, y: number, heading: number, eye = 0.09, height = 0.2): RobotShot {
+export function eyesShot(x: number, y: number, heading: number, eye = 0.09, height = 0.2, scale = 1): RobotShot {
     const fx = Math.cos(heading);
     const fy = Math.sin(heading);
     // Tilted down a little, so the ball at the robot's feet is in view.
-    return { position: [x + fx * eye, y + fy * eye, height], lookAt: [x + fx * 0.9, y + fy * 0.9, 0] };
+    return { position: [x + fx * eye * scale, y + fy * eye * scale, height * scale], lookAt: [x + fx * 0.9 * scale, y + fy * 0.9 * scale, 0] };
 }
 
 /**
@@ -112,6 +112,8 @@ export abstract class StageBase {
     /** Where the camera looks when following. */
     protected readonly followAt = new THREE.Vector3();
     protected follow = false;
+    /** The chase and first-person shots are sized for the Microduck; a bigger robot scales them up. */
+    protected shotScale = 1;
     /** Where the user has dragged the view to, relative to the target (orbit camera only). */
     private readonly panOffset = new THREE.Vector3();
     private readonly lookAt = new THREE.Vector3();
@@ -270,16 +272,19 @@ export abstract class StageBase {
             this.camera.updateProjectionMatrix();
         }
         if (mode === 'chase' || mode === 'eyes') {
-            const shot = (mode === 'chase' ? chaseShot : eyesShot)(this.followAt.x, this.followAt.y, this.followHeading);
+            const shot = mode === 'chase'
+                ? chaseShot(this.followAt.x, this.followAt.y, this.followHeading, undefined, undefined, this.shotScale)
+                : eyesShot(this.followAt.x, this.followAt.y, this.followHeading, undefined, undefined, this.shotScale);
             this.camera.position.set(...shot.position);
             this.camera.lookAt(...shot.lookAt);
         } else if (mode === 'wide') {
             const wide: StageView = { azimuth: this.defaultView.azimuth, elevation: 62, distance: this.view.distance };
             const points = this.framePoints();
+            const centre = this.follow ? this.followAt : this.target;
             const fitted = points.length > 0 ? distanceToFit(points, this.target, wide, CAMERA_FOV.wide, this.camera.aspect) : this.defaultView.distance;
             // Some room around the field, so the whole pitch reads as a place.
-            orbitPosition(this.target, wide, fitted * 1.3, this.camera.position);
-            this.camera.lookAt(this.target);
+            orbitPosition(centre, wide, fitted * 1.3, this.camera.position);
+            this.camera.lookAt(centre);
         } else {
             const target = this.lookAt.copy(this.follow ? this.followAt : this.target).add(this.panOffset);
             orbitPosition(target, this.view, this.view.distance, this.camera.position);
