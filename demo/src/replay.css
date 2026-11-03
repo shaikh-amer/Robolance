@@ -23,3 +23,17 @@ body { font-size: 13px; line-height: 1.4; }
 .replay-panel { flex: 1 1 auto; min-height: 0; display: flex; }
 .replay-panel .robolance-panel { flex: 1 1 auto; }
 @media (max-width: 520px) { .replay-header { padding: 8px 16px; gap: 8px; } .replay-title { display: none; } .replay-headline { flex-basis: 100%; } }
+
+/* The page's main action once a run is open. */
+.replay-share {
+    font: inherit;
+    font-weight: 600;
+    background: var(--ol-primary);
+    border-color: var(--ol-primary);
+    color: var(--ol-primary-fg);
+}
+
+.replay-share:hover {
+    background: var(--ol-primary);
+    opacity: 0.88;
+}

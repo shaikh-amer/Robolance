@@ -20,6 +20,40 @@ import type { HardwareProject } from 'robolance-openlance-hardware/lib/browser/h
 import { duckHeadline, headline, sceneHeadline, loadRecordText, loadShare, loadStoredShare, runSource, type LoadedRun } from './load-run';
 
 
+/**
+ * Shares the run this page shows: the page's own address replays it. Phones
+ * get the system share sheet; elsewhere the link is copied.
+ */
+function ShareRunButton(): React.ReactElement {
+    const [state, setState] = React.useState<'idle' | 'copied' | 'failed'>('idle');
+    const timer = React.useRef<ReturnType<typeof setTimeout>>();
+    React.useEffect(() => () => clearTimeout(timer.current), []);
+    const share = async (): Promise<void> => {
+        const url = window.location.href;
+        let next: 'copied' | 'failed' = 'copied';
+        try {
+            if (typeof navigator.share === 'function' && window.matchMedia?.('(pointer: coarse)').matches) {
+                await navigator.share({ title: document.title, url });
+                return;
+            }
+            await navigator.clipboard.writeText(url);
+        } catch (err) {
+            if ((err as { name?: string } | undefined)?.name === 'AbortError') {
+                return;
+            }
+            next = 'failed';
+        }
+        setState(next);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => setState('idle'), 3000);
+    };
+    return (
+        <button type="button" className="replay-open replay-share" onClick={() => { void share(); }}>
+            {state === 'copied' ? 'Link copied' : state === 'failed' ? 'Copy the address bar to share' : 'Share this run'}
+        </button>
+    );
+}
+
 type State =
     | { kind: 'loading' }
     | { kind: 'empty' }
@@ -99,6 +133,7 @@ function App(): React.ReactElement {
                         {loaded.run.at && <span className="replay-when"> · {new Date(loaded.run.at).toLocaleString()}</span>}
                     </span>
                 )}
+                {loaded && runSource(window.location).kind !== 'none' && <ShareRunButton />}
                 <a className="replay-open" href="../runs/">More runs</a>
                 <label className="replay-open">
                     Open a run file
