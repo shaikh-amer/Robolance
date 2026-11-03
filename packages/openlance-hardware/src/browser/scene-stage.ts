@@ -55,6 +55,8 @@ export class SceneStage extends StageBase {
         this.tint = plane ? [plane.rgba[0], plane.rgba[1], plane.rgba[2]] : undefined;
         const free = model.bodies.findIndex(b => b.joint?.type === 'free');
         this.focus = free > 0 ? free : Math.min(1, model.bodies.length - 1);
+        // The camera orbits, pans and zooms around the robot wherever it walks, not around where it started.
+        this.follow = true;
         this.scene.add(this.floor, this.robot.group);
         this.disposers.push(() => {
             this.robot.dispose();
@@ -81,6 +83,7 @@ export class SceneStage extends StageBase {
         if (poses) {
             const p = poses[this.focus].pos;
             this.followAt.set(p[0], p[1], Math.max(0.05, p[2]));
+            this.setFollowHeading(yawOf(poses[this.focus].quat));
             if (!this.framed) {
                 this.framed = true;
                 this.frameRobot();
@@ -119,6 +122,9 @@ export class SceneStage extends StageBase {
         const size = box.getSize(new THREE.Vector3());
         const extent = Math.max(0.1, size.x, size.y, size.z);
         this.target.copy(center);
+        // Orbit about the robot's middle, not its pelvis: lift the followed point by the same amount.
+        this.followAt.z = center.z;
+        this.shotScale = Math.max(1, extent / 0.35);
         this.defaultView.distance = Math.min(30, extent * 2.4);
         this.view.distance = this.defaultView.distance;
         this.fitShadow(center.x, center.y, extent * 1.5 + 0.3, Math.max(2.6, extent * 3));
@@ -146,6 +152,12 @@ export class SceneStage extends StageBase {
         floor.receiveShadow = true;
         this.floor.add(floor);
     }
+}
+
+/** The heading (radians about z) of a MuJoCo pose quaternion (w first). */
+export function yawOf(q: ArrayLike<number>): number {
+    const [w, x, y, z] = [q[0], q[1], q[2], q[3]];
+    return Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
 }
 
 /**

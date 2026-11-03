@@ -35,6 +35,12 @@ test('third person sits behind the robot and turns with it; first person looks t
     assert.ok(eyes.position[1] > 2 && eyes.position[1] < 2.2, 'just in front of the face');
     assert.ok(eyes.lookAt[1] > eyes.position[1], 'forward');
     assert.ok(eyes.lookAt[2] < eyes.position[2], 'tilted down to the ball');
+    // A robot five times the duck's size gets a shot five times as far back and as high.
+    const big = chaseShot(1, 2, Math.PI / 2, undefined, undefined, 5);
+    near(2 - big.position[1], 5 * (2 - chase.position[1]));
+    near(big.position[2], 5 * chase.position[2]);
+    const bigEyes = eyesShot(1, 2, Math.PI / 2, undefined, undefined, 5);
+    near(bigEyes.position[2], 5 * eyes.position[2]);
 });
 
 test('the heading is the trunk\'s x axis on the ground, and eases the short way round', () => {
