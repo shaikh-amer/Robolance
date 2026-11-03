@@ -32,8 +32,32 @@ export interface PartHinge {
     axis: [number, number, number];
 }
 
+/** What a tap on the robot hit: the body (a limb, the head...) and the mesh under the pointer. */
+export interface PartHit {
+    body: number;
+    bodyName: string;
+    parentName?: string;
+    meshName?: string;
+    /** How many visual parts the body has. */
+    parts: number;
+}
+
+/** A body of the robot with visual parts, for a parts list. */
+export interface PartEntry {
+    body: number;
+    name: string;
+    parts: number;
+}
+
+/** How far apart the parts fly at explode = 1: each body moves this fraction of its distance from the robot's middle again. */
+export const EXPLODE_SPREAD = 1.2;
+
 export class RobotParts {
     readonly group = new THREE.Group();
+    /** 0 assembled, 1 fully exploded: bodies slide away from the robot's middle. */
+    private explode = 0;
+    private highlighted?: number;
+    private readonly highlightMaterials = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
     private readonly parts: Array<{ mesh: THREE.Mesh; geom: ViewerGeom }> = [];
     private readonly geometries: THREE.BufferGeometry[] = [];
     private readonly materials = new Map<string, THREE.MeshPhysicalMaterial>();
@@ -86,6 +110,7 @@ export class RobotParts {
         }
         this.group.visible = true;
         const poses = bodyPoses(this.model, frame);
+        const offsets = this.explode > 0 ? explodeOffsets(poses, this.explode * EXPLODE_SPREAD) : undefined;
         for (const { mesh, geom } of this.parts) {
             const name = this.hingeOf.get(geom);
             const h = name ? this.hinges.get(name) : undefined;
@@ -94,8 +119,91 @@ export class RobotParts {
             } else {
                 place(mesh, geomPose(poses[geom.body], geom));
             }
+            if (offsets) {
+                const o = offsets[geom.body];
+                mesh.position.x += o[0];
+                mesh.position.y += o[1];
+                mesh.position.z += o[2];
+            }
         }
         return poses;
+    }
+
+    /** Sets how far the parts are flown apart (0 assembled, 1 exploded); shown by the next pose(). */
+    setExplode(t: number): void {
+        this.explode = Math.max(0, Math.min(1, t));
+    }
+
+    get exploded(): number {
+        return this.explode;
+    }
+
+    /** The bodies with visual parts, in model order, for a parts list. */
+    partEntries(): PartEntry[] {
+        const counts = new Map<number, number>();
+        for (const { geom } of this.parts) {
+            counts.set(geom.body, (counts.get(geom.body) ?? 0) + 1);
+        }
+        return [...counts.entries()].sort((a, b) => a[0] - b[0]).map(([body, parts]) => ({ body, name: bodyLabel(this.model, body), parts }));
+    }
+
+    /** What `raycaster` hits first on the robot, or undefined. */
+    pick(raycaster: THREE.Raycaster): PartHit | undefined {
+        const hit = raycaster.intersectObjects(this.group.children, false)[0];
+        if (!hit) {
+            return undefined;
+        }
+        const part = this.parts.find(p => p.mesh === hit.object);
+        return part ? this.hitFor(part.geom.body, part.geom) : undefined;
+    }
+
+    /** The hit a parts list would make for `body`, or undefined when it has no visual parts. */
+    hitForBody(body: number): PartHit | undefined {
+        const part = this.parts.find(p => p.geom.body === body);
+        return part ? this.hitFor(body, part.geom) : undefined;
+    }
+
+    private hitFor(body: number, geom: ViewerGeom): PartHit {
+        const b = this.model.bodies[body];
+        const parent = b && b.parent > 0 ? this.model.bodies[b.parent] : undefined;
+        const mesh = geom.mesh >= 0 ? this.model.meshes[geom.mesh] : undefined;
+        return {
+            body,
+            bodyName: bodyLabel(this.model, body),
+            parentName: parent ? bodyLabel(this.model, b.parent) : undefined,
+            meshName: mesh?.name,
+            parts: this.parts.filter(p => p.geom.body === body).length,
+        };
+    }
+
+    /** Lights up every part of `body` (an emissive glow), or none. */
+    highlight(body: number | undefined): void {
+        if (this.highlighted === body) {
+            return;
+        }
+        for (const [mesh, base] of this.highlightMaterials) {
+            mesh.material = base;
+        }
+        this.highlightMaterials.clear();
+        this.highlighted = body;
+        if (body === undefined) {
+            return;
+        }
+        for (const { mesh, geom } of this.parts) {
+            if (geom.body !== body) {
+                continue;
+            }
+            const base = mesh.material;
+            const glow = (base as THREE.MeshPhysicalMaterial).clone();
+            glow.emissive = new THREE.Color(0x3b82f6);
+            glow.emissiveIntensity = 0.55;
+            this.highlightMaterials.set(mesh, base);
+            mesh.material = glow;
+        }
+    }
+
+    get highlightedBody(): number | undefined {
+        return this.highlighted;
     }
 
     /** Swings a viewer hinge (see RobotPartsOptions.hinges) to `angle` radians; shown by the next pose(). */
@@ -129,6 +237,7 @@ export class RobotParts {
     }
 
     dispose(): void {
+        this.highlight(undefined);
         this.geometries.forEach(g => g.dispose());
         this.materials.forEach(m => m.dispose());
     }
@@ -204,6 +313,28 @@ export function placeHinged(object: THREE.Object3D, body: BodyPose, geom: Viewer
     H.bq.set(body.quat[1], body.quat[2], body.quat[3], body.quat[0]);
     object.position.set(body.pos[0], body.pos[1], body.pos[2]).add(H.p.applyQuaternion(H.bq));
     object.quaternion.copy(H.bq).multiply(H.r).multiply(H.gq);
+}
+
+/** A readable name for a body: its model name, or "body N" when the model left it unnamed. */
+export function bodyLabel(model: ViewerModel, body: number): string {
+    const name = model.bodies[body]?.name?.trim();
+    return name ? name.replace(/_/g, ' ') : `body ${body}`;
+}
+
+/**
+ * Where each body slides to in an exploded view: away from the robot's
+ * middle (the mean of its bodies) by `spread` times its own distance from
+ * it, so limbs fan out and the middle stays put. Index 0 (the world) never moves.
+ */
+export function explodeOffsets(poses: BodyPose[], spread: number): Array<[number, number, number]> {
+    let cx = 0, cy = 0, cz = 0, n = 0;
+    for (let i = 1; i < poses.length; i++) {
+        cx += poses[i].pos[0]; cy += poses[i].pos[1]; cz += poses[i].pos[2]; n++;
+    }
+    if (n > 0) {
+        cx /= n; cy /= n; cz /= n;
+    }
+    return poses.map((p, i) => i === 0 ? [0, 0, 0] : [(p.pos[0] - cx) * spread, (p.pos[1] - cy) * spread, (p.pos[2] - cz) * spread]);
 }
 
 export function place(object: THREE.Object3D, pose: BodyPose): void {

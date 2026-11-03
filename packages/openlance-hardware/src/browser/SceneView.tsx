@@ -4,6 +4,7 @@
 /** Any MJCF robot in 3D as a React component: mounts a SceneStage and feeds it the frame for the replay time. */
 
 import * as React from 'react';
+import type { PartHit } from './robot-parts';
 import type { ViewerModel } from 'robolance-duck-sim/viewer';
 import { SceneStage } from './scene-stage';
 import type { CameraMode } from './stage-base';
@@ -18,9 +19,15 @@ export interface SceneViewProps {
     resetKey?: number;
     /** The viewer's shell colour ("#rrggbb"), over the model's. */
     color?: string;
+    /** 0 assembled, 1 exploded. */
+    explode?: number;
+    /** The body lit up (from the parts list), or undefined. */
+    highlightBody?: number;
+    /** What a tap on the robot picked, or undefined for a tap on nothing. */
+    onPick?(hit: PartHit | undefined): void;
 }
 
-export function SceneView({ model, frame, theme, camera = 'orbit', resetKey = 0, color }: SceneViewProps): React.ReactElement {
+export function SceneView({ model, frame, theme, camera = 'orbit', resetKey = 0, color, explode = 0, highlightBody, onPick }: SceneViewProps): React.ReactElement {
     const host = React.useRef<HTMLDivElement>(null);
     const stage = React.useRef<SceneStage>();
     const [failed, setFailed] = React.useState<string>();
@@ -45,6 +52,9 @@ export function SceneView({ model, frame, theme, camera = 'orbit', resetKey = 0,
     React.useEffect(() => stage.current?.setTheme(theme), [theme, model, failed]);
     React.useEffect(() => stage.current?.setCameraMode(camera), [camera, model, failed]);
     React.useEffect(() => stage.current?.setColor(color), [color, model, failed]);
+    React.useEffect(() => stage.current?.setExplode(explode), [explode, model, failed]);
+    React.useEffect(() => stage.current?.highlightBody(highlightBody), [highlightBody, model, failed]);
+    React.useEffect(() => stage.current?.setPickListener(onPick), [onPick, model, failed]);
     React.useEffect(() => {
         if (resetKey) {
             stage.current?.resetView();

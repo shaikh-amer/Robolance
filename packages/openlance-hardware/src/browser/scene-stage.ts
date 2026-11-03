@@ -49,6 +49,7 @@ export class SceneStage extends StageBase {
     private readonly tint?: [number, number, number];
     /** How far above the followed body the robot's middle sits: the orbit centre is lifted by this every frame. */
     private lift = 0;
+    private lastFrame?: ArrayLike<number>;
 
     constructor(host: HTMLElement, readonly model: ViewerModel) {
         super(host, { ...SCENE_VIEW }, 'robolance-duck-canvas');
@@ -80,7 +81,16 @@ export class SceneStage extends StageBase {
         this.invalidate();
     }
 
+    protected pickTarget(): RobotParts {
+        return this.robot;
+    }
+
+    protected repose(): void {
+        this.show(this.lastFrame);
+    }
+
     show(frame: ArrayLike<number> | undefined): void {
+        this.lastFrame = frame;
         const poses = this.robot.pose(frame);
         if (poses) {
             const p = poses[this.focus].pos;

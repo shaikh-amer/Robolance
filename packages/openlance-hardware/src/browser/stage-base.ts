@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { distanceToFit, fogRange, orbitPosition, panDelta, zoomAnchorDrag } from './frame-fit';
 import { skyCanvas } from './stage-textures';
+import type { PartHit, RobotParts } from './robot-parts';
 import { studioEnvironment } from './studio-environment';
 
 export interface StageView {
@@ -114,6 +115,8 @@ export abstract class StageBase {
     protected follow = false;
     /** The chase and first-person shots are sized for the Microduck; a bigger robot scales them up. */
     protected shotScale = 1;
+    private pickListener?: (hit: PartHit | undefined) => void;
+    private readonly raycaster = new THREE.Raycaster();
     /** Where the user has dragged the view to, relative to the target (orbit camera only). */
     private readonly panOffset = new THREE.Vector3();
     private readonly lookAt = new THREE.Vector3();
@@ -209,6 +212,48 @@ export abstract class StageBase {
 
     /** Puts `target` back where the stage starts looking. */
     protected abstract home(): void;
+
+    /** The robot a tap can pick a part of, when the stage has one. */
+    protected pickTarget(): RobotParts | undefined {
+        return undefined;
+    }
+
+    /** Poses the robot again on the frame shown last (after an explode change). */
+    protected repose(): void {
+        this.invalidate();
+    }
+
+    /** Called with what a tap picked (a part of the robot, or nothing). */
+    setPickListener(listener: ((hit: PartHit | undefined) => void) | undefined): void {
+        this.pickListener = listener;
+    }
+
+    /** Flies the robot's parts apart (0 assembled, 1 exploded). */
+    setExplode(t: number): void {
+        this.pickTarget()?.setExplode(t);
+        this.repose();
+    }
+
+    /** Lights up a body of the robot (from a parts list), or none. */
+    highlightBody(body: number | undefined): void {
+        this.pickTarget()?.highlight(body);
+        this.invalidate();
+    }
+
+    /** A tap at canvas pixel (x, y): picks the part under it, lights it up and tells the listener. */
+    protected tapped(x: number, y: number): void {
+        const robot = this.pickTarget();
+        if (!robot) {
+            return;
+        }
+        const r = this.renderer.domElement.getBoundingClientRect();
+        const ndc = new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+        this.raycaster.setFromCamera(ndc, this.camera);
+        const hit = robot.pick(this.raycaster);
+        robot.highlight(hit?.body);
+        this.pickListener?.(hit);
+        this.invalidate();
+    }
 
     /**
      * What the default view must keep in frame (the robot's start, the ball,
@@ -362,9 +407,12 @@ export abstract class StageBase {
             return { x: x / pointers.size, y: y / pointers.size };
         };
         let centre = { x: 0, y: 0 };
+        // A tap: one pointer, down and up within 6 px and 400 ms.
+        let tap: { x: number; y: number; at: number } | undefined;
         const down = (e: PointerEvent) => {
             el.setPointerCapture(e.pointerId);
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            tap = pointers.size === 1 && e.button === 0 ? { x: e.clientX, y: e.clientY, at: performance.now() } : undefined;
             pinch = pinchDistance(pointers);
             centre = centroid();
             if (pointers.size === 1) {
@@ -407,6 +455,11 @@ export abstract class StageBase {
             if (pointers.size > 0) {
                 centre = centroid();
             } else {
+                const t = tap;
+                tap = undefined;
+                if (t && !multi && e.type === 'pointerup' && Math.hypot(e.clientX - t.x, e.clientY - t.y) <= 6 && performance.now() - t.at <= 400) {
+                    this.tapped(e.clientX, e.clientY);
+                }
                 panning = false;
                 multi = false;
             }

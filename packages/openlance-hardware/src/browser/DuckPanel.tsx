@@ -22,6 +22,9 @@ import { Score, ScoreCurve, ShareLink } from './RunsView';
 import { encodeShare, REPLAY_PAGE_URL, SHORT_SHARE_PARAM } from './share-run';
 import type { GalleryShow, GalleryVisibility, PreviewTabContext, StoreShare } from './preview-tab';
 import { CAMERA_LABELS, nextCameraMode, type CameraMode } from './stage-base';
+import { PartCard, ViewerRail } from './ViewerRail';
+import { partEntriesOf, useViewerRail } from './viewer-rail-state';
+import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
 import { PlayerShell, Transport } from './player';
 
 export type DuckView = 'pitch' | 'runs';
@@ -93,6 +96,9 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
         // timeMs is read once per start; the frame loop carries it forward.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [playing, run, duration]);
+
+    const duckParts = React.useMemo(() => partEntriesOf(duckModel), []);
+    const rail = useViewerRail(duckParts, run?.result);
 
     const select = (i: number) => {
         setSelected(i);
@@ -166,10 +172,12 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
                         onSeek={seek}
                         onCamera={nextCamera}
                         fullscreenTools={cameraTools}
+                        rail={<ViewerRail explode={rail.explode} onExplode={rail.setExplode} parts={duckParts} picked={rail.picked} onPickBody={rail.pickBody} open={rail.open} onOpen={rail.setOpen} />}
                         label={`run #${runs.length - selected}`}
                     >
-                        <DuckScene result={r} timeMs={timeMs} theme={context.theme} camera={camera} resetKey={resetKey} color={color} />
+                        <DuckScene result={r} timeMs={timeMs} theme={context.theme} camera={camera} resetKey={resetKey} color={color} explode={rail.explode} highlightBody={rail.picked?.body} onPick={rail.onPick} />
                         {cameraToast > 0 && <span className="robolance-camera-toast" role="status">{CAMERA_LABELS[camera]}</span>}
+                        {rail.picked && <PartCard hit={rail.picked} onClear={rail.clear} />}
                         <DuckReadout result={r} timeMs={timeMs} />
                     </PlayerShell>
                 )}
