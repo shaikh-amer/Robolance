@@ -124,7 +124,7 @@ export function DuckPanelBody({ runs, missionPath: mission, context, shareBase =
             <ColorSwatches value={color} onChange={c => { setColor(c); saveColor(c); }} />
             <CameraButton mode={camera} onClick={nextCamera} />
             <button type="button" className="robolance-edit-btn" title="Back to the starting camera (or double-click the pitch). Drag to orbit, right-drag or two fingers to pan, wheel to zoom" onClick={() => { setCamera('orbit'); setResetKey(k => k + 1); }}>
-                Reset view
+                Reset
             </button>
         </>
     );

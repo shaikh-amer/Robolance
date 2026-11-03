@@ -821,6 +821,24 @@
     gap: 5px;
 }
 
+/* The tool row never widens the page: it clips, and on a phone the camera
+   button is its icon alone (the toast and the tooltip name the view). */
+.robolance-toolbar {
+    min-width: 0;
+    overflow: hidden;
+}
+
+@media (max-width: 520px) {
+    .robolance-camera-btn .robolance-camera-name {
+        display: none;
+    }
+
+    .robolance-camera-btn {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+}
+
 /* The view's name on the pitch for a moment after a switch. */
 .robolance-duck-wrap {
     position: relative;
