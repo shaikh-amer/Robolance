@@ -22,6 +22,8 @@ import type { PreviewTabContext } from './preview-tab';
 import { PlayerShell, Transport } from './player';
 import { CameraButton, PublishedRow, PublishForm, type GalleryActionsFor } from './DuckPanel';
 import { CAMERA_LABELS, nextCameraMode, type CameraMode } from './stage-base';
+import { PartCard, ViewerRail } from './ViewerRail';
+import { partEntriesOf, useViewerRail } from './viewer-rail-state';
 import { ShareLink } from './RunsView';
 import { REPLAY_PAGE_URL } from './share-run';
 import type { ViewerModel } from 'robolance-duck-sim/viewer';
@@ -63,6 +65,8 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
     const modelText = entry ? context.files.get(entry.modelPath) : undefined;
     // Parsed once per model file, not per frame: a model with meshes can be a few hundred KB.
     const model = React.useMemo(() => (entry ? sceneModel(context.files, entry) : undefined), [entry?.modelPath, modelText]);
+    const partEntries = React.useMemo(() => (model ? partEntriesOf(model) : []), [model]);
+    const rail = useViewerRail(partEntries, model);
 
     const newestPath = runs[0]?.path;
     React.useEffect(() => {
@@ -175,12 +179,14 @@ export function ScenePanelBody({ runs, scenes, context, shareBase }: ScenePanelB
                         onSeek={seek}
                         onCamera={nextCamera}
                         fullscreenTools={sceneTools}
+                        rail={model && <ViewerRail explode={rail.explode} onExplode={rail.setExplode} parts={partEntries} picked={rail.picked} onPickBody={rail.pickBody} open={rail.open} onOpen={rail.setOpen} />}
                         label={`run #${runs.length - selected}`}
                     >
                         {model
-                            ? <SceneView model={model} frame={sceneFrameAt(entry.run, timeMs)} theme={context.theme} camera={camera} resetKey={resetKey} color={color} />
+                            ? <SceneView model={model} frame={sceneFrameAt(entry.run, timeMs)} theme={context.theme} camera={camera} resetKey={resetKey} color={color} explode={rail.explode} highlightBody={rail.picked?.body} onPick={rail.onPick} />
                             : <div className="robolance-empty"><p>This run's 3D model ({entry.modelPath}) is missing; run the scene again to record it.</p></div>}
                         {cameraToast > 0 && <span className="robolance-camera-toast" role="status">{CAMERA_LABELS[camera]}</span>}
+                        {rail.picked && <PartCard hit={rail.picked} onClear={rail.clear} />}
                         <SceneReadout run={entry.run} timeMs={timeMs} />
                     </PlayerShell>
                 )}

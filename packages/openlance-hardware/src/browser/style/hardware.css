@@ -828,6 +828,13 @@
     overflow: hidden;
 }
 
+/* The view's name after a switch shows only where the camera button has no room for it. */
+@media (min-width: 521px) {
+    .robolance-camera-toast {
+        display: none;
+    }
+}
+
 @media (max-width: 520px) {
     .robolance-camera-btn .robolance-camera-name {
         display: none;
@@ -1158,4 +1165,181 @@
 /* Random: a rainbow until a colour is picked, then that colour. */
 .robolance-swatch-random:not(.active) {
     background: conic-gradient(#f43f5e, #f59e0b, #22c55e, #3b82f6, #a855f7, #f43f5e);
+}
+
+/* The tool column under the fullscreen button: exploded view and parts. */
+.robolance-rail {
+    position: absolute;
+    top: 58px;
+    right: 20px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.robolance-player.is-fullscreen .robolance-rail {
+    top: 64px;
+    right: 16px;
+}
+
+.robolance-player.is-fullscreen.controls-hidden .robolance-rail {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.robolance-rail .robolance-fs-btn.active {
+    box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.75);
+}
+
+/* A menu beside the column, in the buttons' own glass. */
+.robolance-rail-menu {
+    position: absolute;
+    top: 0;
+    right: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 10px;
+    color: white;
+    background: color-mix(in srgb, black 55%, transparent);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(6px);
+    font-size: 11px;
+}
+
+.robolance-rail-cap {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    opacity: 0.85;
+}
+
+.robolance-rail-slider {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 18px;
+    height: 150px;
+    margin: 0;
+    accent-color: white;
+    cursor: pointer;
+}
+
+.robolance-rail-reset,
+.robolance-part-clear {
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    padding: 3px 10px;
+    color: white;
+    background: transparent;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.robolance-rail-reset:hover,
+.robolance-part-clear:hover,
+.robolance-rail-item:hover {
+    background: color-mix(in srgb, white 12%, transparent);
+}
+
+.robolance-rail-parts {
+    align-items: stretch;
+    width: 164px;
+    max-height: min(320px, 60vh);
+}
+
+.robolance-rail-head {
+    font-size: 10px;
+    font-weight: 600;
+    opacity: 0.85;
+    padding: 0 4px 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.robolance-rail-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    scrollbar-width: thin;
+}
+
+.robolance-rail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    background: transparent;
+    font: inherit;
+    font-size: 11px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.robolance-rail-item small {
+    opacity: 0.6;
+}
+
+.robolance-rail-item.active {
+    background: color-mix(in srgb, #3b82f6 45%, transparent);
+}
+
+/* The picked part's card, top left, under the camera toast when both show. */
+.robolance-part-card {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 10px;
+    align-items: center;
+    max-width: min(260px, 70%);
+    padding: 7px 10px;
+    border-radius: 10px;
+    color: white;
+    background: color-mix(in srgb, black 55%, transparent);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(6px);
+}
+
+.robolance-camera-toast ~ .robolance-part-card,
+.robolance-part-card ~ .robolance-camera-toast {
+    top: 44px;
+}
+
+.robolance-part-name {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.robolance-part-meta {
+    grid-column: 1;
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+.robolance-part-clear {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    line-height: 1;
+    font-size: 14px;
+}
+
+.robolance-player.is-fullscreen .robolance-part-card {
+    top: 64px;
+    left: 16px;
 }

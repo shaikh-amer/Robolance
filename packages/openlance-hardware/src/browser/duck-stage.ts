@@ -62,6 +62,7 @@ export class DuckStage extends StageBase {
     private heading = 0;
     /** The viewer's shell colour, over the field's ("#rrggbb"), or undefined for the field's. */
     private userColor?: string;
+    private last?: { frame: ArrayLike<number> | undefined; path: Array<[number, number]> };
 
     constructor(host: HTMLElement, model: ViewerModel) {
         super(host, DEFAULT_VIEW, 'robolance-duck-canvas');
@@ -132,7 +133,18 @@ export class DuckStage extends StageBase {
         this.robot.setHinge('beak', Math.max(0, Math.min(1, opening)) * BEAK_OPEN_RAD);
     }
 
+    protected pickTarget(): RobotParts {
+        return this.robot;
+    }
+
+    protected repose(): void {
+        if (this.last) {
+            this.show(this.last.frame, this.last.path);
+        }
+    }
+
     show(frame: ArrayLike<number> | undefined, path: Array<[number, number]>): void {
+        this.last = { frame, path };
         // A record without replay frames has nothing to pose: hide the duck and ball rather than pile them at the origin.
         const poses = this.robot.pose(frame);
         this.ball.visible = Boolean(poses);

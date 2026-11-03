@@ -197,6 +197,8 @@ export interface PlayerShellProps {
     onCamera?(): void;
     /** The camera button and the like, shown over the picture in fullscreen. */
     fullscreenTools?: React.ReactNode;
+    /** The column of tools under the fullscreen button (ViewerRail). */
+    rail?: React.ReactNode;
     label?: string;
     viewport?: string;
     className?: string;
@@ -208,7 +210,7 @@ export interface PlayerShellProps {
  * whole screen is the picture, with the tools on top and the transport at
  * the bottom, both fading away while the run plays.
  */
-export function PlayerShell({ playing, timeMs, durationMs, onToggle, onSeek, onCamera, fullscreenTools, label, viewport, className = '', children }: PlayerShellProps): React.ReactElement {
+export function PlayerShell({ playing, timeMs, durationMs, onToggle, onSeek, onCamera, fullscreenTools, rail, label, viewport, className = '', children }: PlayerShellProps): React.ReactElement {
     const ref = React.useRef<HTMLDivElement>(null);
     const { full, toggle: toggleFull, exit } = useFullscreen(ref);
     const { shown, poke, hide } = useAutoHide(full, playing);
@@ -251,7 +253,7 @@ export function PlayerShell({ playing, timeMs, durationMs, onToggle, onSeek, onC
     const onPointerUp = (e: React.PointerEvent) => {
         const d = down.current;
         down.current = undefined;
-        if (!full || !d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6 || (e.target as HTMLElement).closest('.robolance-fs-bar')) {
+        if (!full || !d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6 || (e.target as HTMLElement).closest('.robolance-fs-bar, .robolance-rail')) {
             return;
         }
         if (e.pointerType !== 'mouse' && shown && playing) {
@@ -278,6 +280,7 @@ export function PlayerShell({ playing, timeMs, durationMs, onToggle, onSeek, onC
                     <FullscreenIcon />
                 </button>
             )}
+            {rail}
             {full && (
                 <>
                     <div className="robolance-fs-bar robolance-fs-top">

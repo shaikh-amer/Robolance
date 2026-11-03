@@ -7,6 +7,7 @@
  */
 
 import * as React from 'react';
+import type { PartHit } from './robot-parts';
 import type { MissionResult } from 'robolance-duck-sim/viewer';
 import { duckModel } from 'robolance-duck-sim/viewer/duck-model';
 import { beakOpening } from './duck-beak';
@@ -26,9 +27,15 @@ export interface DuckSceneProps {
     resetKey?: number;
     /** The viewer's shell colour ("#rrggbb"), over the field's. */
     color?: string;
+    /** 0 assembled, 1 exploded. */
+    explode?: number;
+    /** The body lit up (from the parts list), or undefined. */
+    highlightBody?: number;
+    /** What a tap on the duck picked, or undefined for a tap on nothing. */
+    onPick?(hit: PartHit | undefined): void;
 }
 
-export function DuckScene({ result, timeMs, theme, follow = false, camera = 'orbit', resetKey = 0, color }: DuckSceneProps): React.ReactElement {
+export function DuckScene({ result, timeMs, theme, follow = false, camera = 'orbit', resetKey = 0, color, explode = 0, highlightBody, onPick }: DuckSceneProps): React.ReactElement {
     const host = React.useRef<HTMLDivElement>(null);
     const stage = React.useRef<DuckStage>();
     const [failed, setFailed] = React.useState<string>();
@@ -54,6 +61,9 @@ export function DuckScene({ result, timeMs, theme, follow = false, camera = 'orb
     React.useEffect(() => stage.current?.setFollow(follow), [follow, failed]);
     React.useEffect(() => stage.current?.setCameraMode(camera), [camera, failed]);
     React.useEffect(() => stage.current?.setColor(color), [color, result.field, failed]);
+    React.useEffect(() => stage.current?.setExplode(explode), [explode, result.field, failed]);
+    React.useEffect(() => stage.current?.highlightBody(highlightBody), [highlightBody, result.field, failed]);
+    React.useEffect(() => stage.current?.setPickListener(onPick), [onPick, result.field, failed]);
     React.useEffect(() => {
         if (resetKey) {
             stage.current?.resetView();
