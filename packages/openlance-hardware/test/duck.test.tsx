@@ -107,6 +107,15 @@ test('the readout says what has happened by the replay time', () => {
     assert.match(after, new RegExp(`score ${result.score}`));
 });
 
+test('a run that never kicks (sitting, standing up) shows no kick count', () => {
+    const still = { ...result, kicks: [], scoredAtS: null, outcome: 'no-goal' } as typeof result;
+    const readout = renderToStaticMarkup(<DuckReadout result={still} timeMs={1000} />);
+    assert.doesNotMatch(readout, /kick/);
+    const line = describeDuckRun({ ...readDuckRuns(files)[0], result: still });
+    assert.doesNotMatch(line, /kick/);
+    assert.match(line, /score \d+/);
+});
+
 test('the runs view lists runs with notes, the mission log and the mission', () => {
     const runs = readDuckRuns(files);
     const html = renderToStaticMarkup(<DuckRunsView runs={runs} selected={0} onSelect={() => undefined} onWatch={() => undefined} />);

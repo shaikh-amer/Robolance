@@ -137,7 +137,9 @@ export function describeDuckRun(run: DuckRun): string {
     }
     const goal = r.scoredAtS !== null ? `goal at ${r.scoredAtS.toFixed(1)} s` : outcomeLabel(r);
     const kicks = r.kicks.length;
-    return `${r.simS.toFixed(1)} s · score ${r.score} · ${goal} · ${kicks} kick${kicks === 1 ? '' : 's'}`;
+    // A mission that never kicks (sitting, standing up, walking) says nothing about kicks.
+    const kickText = kicks > 0 ? ` · ${kicks} kick${kicks === 1 ? '' : 's'}` : '';
+    return `${r.simS.toFixed(1)} s · score ${r.score} · ${goal}${kickText}`;
 }
 
 /** "walk: policies/walk/policy.onnx · getUp: …", or '' when the run used only the built-in skills. */
