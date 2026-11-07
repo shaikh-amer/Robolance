@@ -227,7 +227,8 @@ export function DuckReadout({ result, timeMs }: { result: MissionResult; timeMs:
     return (
         <div className="robolance-arena-readout robolance-duck-readout">
             <span>{t.toFixed(1)} s</span>
-            {!laptop && <span>{kicks} kick{kicks === 1 ? '' : 's'}</span>}
+            {/* Only missions that kick count kicks: a sit or stand-up run shows none. */}
+            {!laptop && result.kicks.length > 0 && <span>{kicks} kick{kicks === 1 ? '' : 's'}</span>}
             {scored && <span className="robolance-goal-yes robolance-goal-banner">GOAL!</span>}
             {closed && <span className="robolance-goal-yes robolance-goal-banner">LAPTOP CLOSED!</span>}
             {fell && <span className="robolance-error">fell over</span>}
