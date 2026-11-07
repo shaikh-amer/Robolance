@@ -71,11 +71,7 @@ export function ShareRun({ run, base, storeShare }: { run: RunEntry; base: strin
 }
 
 /** The share button for any run: `makeUrl` builds the link, `id` resets it when the run changes. */
-/**
- * Copies a replay link for one run. `trigger` lets a run's card start the
- * same share (each new value shares once).
- */
-export function ShareLink({ id, makeUrl, trigger = 0 }: { id: string; makeUrl(): Promise<string>; trigger?: number }): React.ReactElement {
+export function ShareLink({ id, makeUrl }: { id: string; makeUrl(): Promise<string> }): React.ReactElement {
     const [state, setState] = React.useState<{ kind: 'idle' | 'working' | 'copied' | 'failed' | 'show'; url?: string }>({ kind: 'idle' });
     const timer = React.useRef<ReturnType<typeof setTimeout>>();
     const mounted = React.useRef(true);
@@ -113,16 +109,6 @@ export function ShareLink({ id, makeUrl, trigger = 0 }: { id: string; makeUrl():
             timer.current = setTimeout(() => setState({ kind: 'idle' }), 4000);
         }
     };
-
-    const lastTrigger = React.useRef(trigger);
-    React.useEffect(() => {
-        if (trigger !== lastTrigger.current) {
-            lastTrigger.current = trigger;
-            void share();
-        }
-    // share is rebuilt every render; the trigger alone decides.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [trigger]);
 
     return (
         <div className="robolance-share">
