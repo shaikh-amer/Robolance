@@ -24,10 +24,11 @@ export const BLENDER_PROPERTIES_HELP = `Custom properties on a Blender object (O
 - joint_axis: "x" | "y" | "z" — in the object's own axes (default "z"); put the object's origin on the joint.
 - joint_range: "lo,hi" — degrees for a hinge, metres for a slide. joint_damping, joint_armature: numbers.
 - actuator: "motor" | "position" | "velocity" on a hinge or slide; gear, kp, kv and ctrl_range ("lo,hi") tune it. The actuator is named after the object.
-- mass (kg) or density (kg/m³; default 1000) — mass is spread over the collision shapes by volume.
+  ctrl_range is in the actuator's own units, not degrees: N·m (N on a slide) for a motor, rad/s for velocity, radians (metres on a slide) for position — and sim.ctrl() takes the same units. A position servo without ctrl_range follows joint_range.
+- mass (kg, above 0) or density (kg/m³; default 1000) — mass is spread over the collision shapes by volume; an object with collision "none" gets its bounding box's inertia.
 - collision: "hull" (default: the convex hull) | "parts" (one hull per loose part: a table's legs and top) | "box" | "none".
 - skip: true leaves the object out.
-Blender parents become body parents. Units are metres, Z up, the floor at z = 0. Scale and modifiers are applied on export.`;
+Blender parents become body parents. Units are metres, Z up, the floor at z = 0. Scale (also negative, for mirrored parts) and modifiers are applied on export, and joint axes follow the object's axes as they really point.`;
 
 export interface BlenderExportResult {
     [key: string]: unknown;
@@ -84,7 +85,8 @@ export async function runBlenderExport(opts: BlenderRunOptions): Promise<Blender
     const bin = opts.blender || process.env.ROBOLANCE_BLENDER || 'blender';
     const argv = blenderArgs(opts.blend, exportScriptPath(), opts.args);
     const timeoutMs = opts.timeoutMs ?? 180_000;
-    const output = await new Promise<{ code: number | null; text: string }>((resolveRun, reject) => {
+    let timedOut = false;
+    const output = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; text: string }>((resolveRun, reject) => {
         const child = spawn(bin, argv, { stdio: ['ignore', 'pipe', 'pipe'] });
         let text = '';
         const keep = (chunk: Buffer) => {
@@ -95,16 +97,19 @@ export async function runBlenderExport(opts: BlenderRunOptions): Promise<Blender
         };
         child.stdout.on('data', keep);
         child.stderr.on('data', keep);
-        const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
+        const timer = setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGKILL');
+        }, timeoutMs);
         child.on('error', err => {
             clearTimeout(timer);
             reject((err as NodeJS.ErrnoException).code === 'ENOENT'
                 ? new Error(`Blender is not installed here (looked for "${bin}"); set ROBOLANCE_BLENDER to its path`)
                 : err);
         });
-        child.on('close', code => {
+        child.on('close', (code, signal) => {
             clearTimeout(timer);
-            resolveRun({ code, text });
+            resolveRun({ code, signal, text });
         });
     });
     const result = parseBlenderResult(output.text);
@@ -114,7 +119,12 @@ export async function runBlenderExport(opts: BlenderRunOptions): Promise<Blender
     if (!result || output.code !== 0) {
         const tail = output.text.split('\n').filter(l => /error|Error|Traceback|line \d+/.test(l)).slice(-8).join('\n')
             || output.text.trim().split('\n').slice(-8).join('\n');
-        throw new Error(`Blender ${output.code === null ? 'was stopped after ' + Math.round(timeoutMs / 1000) + ' s' : 'failed (exit ' + output.code + ')'}:\n${tail}`);
+        const how = timedOut
+            ? `was stopped after ${Math.round(timeoutMs / 1000)} s`
+            : output.code === null
+                ? `was killed (${output.signal ?? 'signal'}; out of memory?)`
+                : `failed (exit ${output.code})`;
+        throw new Error(`Blender ${how}:\n${tail}`);
     }
     return result;
 }

@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { blenderArgs, createHardwareServer, exportScriptPath, parseBlenderResult } from '../src/index.js';
+import { DEFAULT_FIELD, MAX_OBSTACLES, validateField, type Obstacle } from 'robolance-duck-sim';
 
 test('parseBlenderResult reads the last result line among Blender\'s noise', () => {
     const out = 'Blender 4.5.15\nRead blend: x.blend\nROBOLANCE_RESULT {"scene":"old.xml"}\nsaving\nROBOLANCE_RESULT {"scene":"scene.xml","bodies":3}\nBlender quit\n';
@@ -194,6 +195,104 @@ test('real Blender: a rigged .blend becomes a MuJoCo scene whose motors move, an
         const leg = legs.find(l => l.x < 0.7)!;
         assert.ok(Math.abs(leg.x - 0.6029) < 0.01 && Math.abs(leg.y + 0.017) < 0.01, `a leg turned 20° about the table centre: ${obs.text}`);
         assert.ok(!boxes.some(b => b.name === 'Sign'), 'the sign is above the duck');
+    } finally {
+        await close();
+    }
+});
+
+/** The cases the first review found: mirrored parts, reserved and clashing names, massless movers, heavy modifiers, bad properties, a room too big for the pitch. */
+const MAKE_EDGES = `
+import bpy, math, sys
+out = sys.argv[sys.argv.index("--") + 1]
+bpy.ops.wm.read_factory_settings(use_empty=True)
+def cube(name, loc, scale=(0.1, 0.1, 0.1), **props):
+    bpy.ops.mesh.primitive_cube_add(location=loc)
+    o = bpy.context.object
+    o.name = name
+    o.scale = scale
+    for k, v in props.items():
+        o[k] = v
+    return o
+cube("world", (0, 0, 1.0), joint="free", collision="none", mass=1.0)
+cube("Box", (1, 0, 0.1)); cube("box", (1.5, 0, 0.1))
+cube("Mirror", (2, 0, 0.5), (-0.1, 0.1, 0.1), joint="hinge", joint_axis="z", actuator="motor", mass="heavy")
+smooth = cube("Smooth", (3, 0, 0.5))
+m = smooth.modifiers.new("subd", "SUBSURF"); m.levels = 5; m.render_levels = 5
+cube("A very long name for a kitchen cabinet that goes on and on", (0, 2, 0.4), (0.3, 0.2, 0.4))
+cube("Wall", (0, -3, 0.6), (3.5, 0.05, 1.1))
+for i in range(30):
+    cube("Post %d" % i, (-4 + i * 0.25, 4, 0.1), (0.02, 0.02, 0.1))
+bpy.context.view_layer.update()
+bpy.ops.wm.save_as_mainfile(filepath=out)
+`;
+
+function stlSignedVolume(path: string): number {
+    const buf = readFileSync(path);
+    const n = buf.readUInt32LE(80);
+    let vol = 0;
+    for (let i = 0; i < n; i++) {
+        const o = 84 + i * 50 + 12;
+        const v = [0, 1, 2].map(k => [0, 1, 2].map(c => buf.readFloatLE(o + k * 12 + c * 4)));
+        const [a, b, c] = v;
+        vol += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+    }
+    return vol;
+}
+
+/** Rotates v by the quaternion (w, x, y, z). */
+function rotate(q: number[], v: number[]): number[] {
+    const [w, x, y, z] = q;
+    const t = [2 * (y * v[2] - z * v[1]), 2 * (z * v[0] - x * v[2]), 2 * (x * v[1] - y * v[0])];
+    return [v[0] + w * t[0] + (y * t[2] - z * t[1]), v[1] + w * t[1] + (z * t[0] - x * t[2]), v[2] + w * t[2] + (x * t[1] - y * t[0])];
+}
+
+test('real Blender: mirrored parts, reserved and clashing names, massless movers, heavy meshes, bad properties, a big room', { skip: !realBlender && 'set ROBOLANCE_BLENDER to run', timeout: 300_000 }, async () => {
+    const project = mkdtempSync(join(tmpdir(), 'rl-blend-edges-'));
+    const maker = join(project, 'make.py');
+    writeFileSync(maker, MAKE_EDGES);
+    execFileSync(realBlender!, ['-b', '--factory-startup', '--python-exit-code', '1', '-P', maker, '--', join(project, 'edges.blend')], { stdio: 'ignore' });
+    const { client, close } = await connect(project, realBlender!);
+    try {
+        const res = body(await client.callTool({ name: 'scene_from_blender', arguments: { blend: 'edges.blend', maxFaces: 2000 } }));
+        assert.equal(res.isError, false, res.text);
+        const out = JSON.parse(res.text);
+        assert.equal(out.check.ok, true, `loads in MuJoCo (no repeated "world", the massless mover has inertia): ${res.text}`);
+        const warnings = out.exported.warnings.join('\n');
+        assert.match(warnings, /Mirror: mass='heavy' is not a number/);
+        assert.match(warnings, /Smooth: \d+ triangles simplified to \d+/, 'counted after the Subdivision modifier');
+
+        const xml = readFileSync(join(project, 'edges-mjcf', 'scene.xml'), 'utf8');
+        assert.match(xml, /<body name="world_2"/);
+        assert.match(xml, /<body name="Box"/);
+        assert.match(xml, /<body name="box_2"/, 'case-only differences get their own mesh files');
+        assert.match(xml, /<inertial pos="[^"]*" mass="1"/);
+        const mirror = /<body name="Mirror" pos="[^"]*" quat="([^"]*)">\s*<joint [^>]*axis="([^"]*)"/.exec(xml);
+        assert.ok(mirror, xml);
+        const worldAxis = rotate(mirror[1].split(' ').map(Number), mirror[2].split(' ').map(Number));
+        assert.ok(Math.abs(worldAxis[2] - 1) < 1e-4, `the hinge turns about the object's own +Z: ${worldAxis}`);
+        assert.ok(stlSignedVolume(join(project, 'edges-mjcf', 'meshes', 'Mirror_visual.stl')) > 0, 'the mirrored mesh faces out');
+        const smoothTris = readFileSync(join(project, 'edges-mjcf', 'meshes', 'Smooth_visual.stl')).readUInt32LE(80);
+        assert.ok(smoothTris <= 2200, `simplified to about the limit: ${smoothTris}`);
+
+        const run = body(await client.callTool({
+            name: 'scene_run', arguments: { scene: out.scene, seconds: 1, controller: `function control(sim){ sim.metric('z', sim.body('world_2').pos[2]); }` },
+        }));
+        assert.equal(run.isError, false, run.text);
+        assert.ok(JSON.parse(run.text).metrics.z.last < 0.9, `the collision-less free body falls: ${run.text}`);
+
+        const obs = body(await client.callTool({ name: 'duck_obstacles_from_blender', arguments: { blend: 'edges.blend' } }));
+        assert.equal(obs.isError, false, obs.text);
+        const parsed = JSON.parse(obs.text);
+        const boxes = parsed.obstacles as Obstacle[];
+        assert.equal(boxes.length, MAX_OBSTACLES, obs.text);
+        assert.ok(boxes.filter(b => (b.name ?? '').startsWith('Wall')).length >= 3, `the 7 m wall is a row of boxes: ${obs.text}`);
+        assert.ok(boxes.every(b => (b.name ?? '').length <= 40 && b.height <= 2 && b.width <= 3 && b.width >= 0.02 && b.depth >= 0.02), obs.text);
+        assert.match(parsed.warnings.join('\n'), /kept the 24 largest/);
+        const field = { ...DEFAULT_FIELD, bounds: { xMin: -5, xMax: 5, yMin: -5, yMax: 5 }, duck: { x: 3.6, y: -4.2, heading: 0 }, ball: { x: 3.9, y: -4.2 }, goal: { x: 4.5, y: -4.2, width: 0.4 }, obstacles: boxes };
+        assert.equal(validateField(field), undefined, 'the pitch accepts every box');
+
+        const badOut = body(await client.callTool({ name: 'duck_obstacles_from_blender', arguments: { blend: 'edges.blend', out: 'package.json.txt' } }));
+        assert.match(badOut.text, /out must be a \.json file/);
     } finally {
         await close();
     }

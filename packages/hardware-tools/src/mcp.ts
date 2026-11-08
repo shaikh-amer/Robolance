@@ -473,19 +473,23 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
         description: 'Turns a room modelled in Blender into obstacles for the Microduck\'s pitch (field.obstacles): every part of every mesh object '
             + 'that reaches below the duck\'s head (default 0.3 m) becomes a box standing on the floor, turned like the object; table legs become '
             + 'four posts the duck walks between, while a table top or a shelf above it is left out. Blender metres map to pitch metres '
-            + '(x towards the goal, y to the duck\'s left); offset shifts them. Returns the boxes, and writes them as JSON when out is given.',
+            + '(x towards the goal, y to the duck\'s left); offset shifts them. The boxes fit the pitch\'s limits (at most 24, 0.02-3 m wide and deep, up to 2 m tall; a long wall becomes a row of boxes); '
+            + 'widen field.bounds to hold them. Returns the boxes, and writes them as JSON when out is given.',
         inputSchema: {
             blend: z.string().min(1).describe('Project path of the .blend'),
             collection: z.string().optional().describe('Only the objects in this Blender collection'),
             maxHeight: z.number().min(0.02).max(3).optional().describe('Parts entirely above this height (m) are left out (default 0.3)'),
             offset: z.object({ x: z.number(), y: z.number() }).optional().describe('Added to every box\'s position (pitch metres)'),
-            out: z.string().optional().describe('Project path to also write {"obstacles": [...]} to'),
+            out: z.string().optional().describe('Project path of a .json file to also write {"obstacles": [...]} to'),
         },
     }, async ({ blend, collection, maxHeight, offset, out }) => {
         try {
             const blendPath = insideProject(projectDir, blend);
             if (!/\.blend$/i.test(blendPath) || !(await stat(blendPath).catch(() => null))?.isFile()) {
                 throw new Error(`${blend} is not a .blend in the project`);
+            }
+            if (out && !/\.json$/i.test(out)) {
+                throw new Error('out must be a .json file');
             }
             const outPath = out ? insideProject(projectDir, out) : undefined;
             if (outPath) {

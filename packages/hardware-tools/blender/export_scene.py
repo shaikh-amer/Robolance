@@ -50,6 +50,22 @@ def warn(msg):
         warnings.append(msg)
 
 
+def num(obj, key, default=None):
+    """A number custom property; a value that is not one is a warning, never a crash."""
+    v = obj.get(key)
+    if v is None:
+        return default
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        warn("%s: %s=%r is not a number; ignored" % (obj.name, key, v))
+        return default
+    if not math.isfinite(f):
+        warn("%s: %s=%r is not finite; ignored" % (obj.name, key, v))
+        return default
+    return f
+
+
 def objects():
     coll = A.get("collection")
     if coll:
@@ -72,26 +88,39 @@ def rigid(m):
     return Matrix.Translation(loc) @ rot.to_matrix().to_4x4()
 
 
-def evaluated_bmesh(obj, transform, max_faces=0):
-    """Triangulated geometry of obj after modifiers, in `transform` space."""
-    dg = bpy.context.evaluated_depsgraph_get()
-    added = None
-    faces = len(obj.data.polygons)
-    if max_faces and faces > max_faces:
-        added = obj.modifiers.new("robolance_decimate", "DECIMATE")
-        added.ratio = max(0.01, max_faces / faces)
-        dg.update()
-        warn("%s: %d faces simplified to about %d" % (obj.name, faces, max_faces))
+def _evaluated(obj, dg):
     ev = obj.evaluated_get(dg)
     me = ev.to_mesh()
     bm = bmesh.new()
     bm.from_mesh(me)
     ev.to_mesh_clear()
-    if added is not None:
-        obj.modifiers.remove(added)
-        dg.update()
-    bm.transform(transform)
     bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    return bm
+
+
+def evaluated_bmesh(obj, transform, max_faces=0):
+    """Triangulated geometry of obj after modifiers, in `transform` space,
+    simplified when it has more than max_faces triangles (counted after
+    modifiers, so a Subdivision Surface cannot slip past the limit)."""
+    dg = bpy.context.evaluated_depsgraph_get()
+    bm = _evaluated(obj, dg)
+    tris = len(bm.faces)
+    if max_faces and tris > max_faces:
+        bm.free()
+        added = obj.modifiers.new("robolance_decimate", "DECIMATE")
+        added.ratio = max(0.001, max_faces / tris)
+        try:
+            dg.update()
+            bm = _evaluated(obj, dg)
+        finally:
+            obj.modifiers.remove(added)
+            dg.update()
+        warn("%s: %d triangles simplified to %d" % (obj.name, tris, len(bm.faces)))
+    bm.transform(transform)
+    if transform.determinant() < 0:
+        # A mirrored object (negative scale): keep the faces pointing out.
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+    bm.normal_update()
     return bm
 
 
@@ -128,18 +157,18 @@ def islands(bm):
     seen = set()
     parts = []
     for f in bm.faces:
-        if f.index in seen:
+        if f in seen:
             continue
         stack, verts = [f], set()
-        seen.add(f.index)
+        seen.add(f)
         while stack:
             g = stack.pop()
             for v in g.verts:
                 verts.add(v)
             for e in g.edges:
                 for h in e.link_faces:
-                    if h.index not in seen:
-                        seen.add(h.index)
+                    if h not in seen:
+                        seen.add(h)
                         stack.append(h)
         parts.append([v.co.copy() for v in verts])
     return parts
@@ -187,16 +216,18 @@ def material_rgba(obj):
     return None
 
 
-names = {}
+# MuJoCo names its root body "world"; names are compared without case so
+# two bodies never share a mesh file on a case-insensitive file system.
+names = {"world": True}
 
 
 def unique(name):
     base = re.sub(r"[^A-Za-z0-9_\-]+", "_", name).strip("_") or "part"
     n, i = base, 2
-    while n in names:
+    while n.lower() in names:
         n = "%s_%d" % (base, i)
         i += 1
-    names[n] = True
+    names[n.lower()] = True
     return n
 
 
@@ -244,6 +275,12 @@ def export_mjcf():
         local = parent_rigid.inverted() @ world_rigid
         loc, rot, _ = local.decompose()
         lines = ['%s<body name="%s" pos="%s" quat="%s">' % (ind, esc(name), fmt(*loc), fmt(rot.w, rot.x, rot.y, rot.z))]
+        # Object space -> body space: the scale, shear and any mirroring the
+        # body's rigid pose leaves out. Meshes and joint axes go through it.
+        to_body = world_rigid.inverted() @ o.matrix_world
+        degenerate = abs(o.matrix_world.to_3x3().determinant()) < 1e-12
+        if degenerate:
+            warn("%s: scaled to zero along an axis; exported without geometry" % o.name)
 
         joint = str(o.get("joint", "")).strip().lower()
         jname = None
@@ -258,17 +295,24 @@ def export_mjcf():
             jname = name + "_joint"
             attrs = ['name="%s"' % esc(jname), 'type="%s"' % joint]
             if joint != "ball":
-                axis = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}.get(str(o.get("joint_axis", "z")).lower())
-                if axis is None:
+                local_axis = {"x": Vector((1, 0, 0)), "y": Vector((0, 1, 0)), "z": Vector((0, 0, 1))}.get(str(o.get("joint_axis", "z")).lower())
+                if local_axis is None:
                     warn("%s: joint_axis must be x, y or z; using z" % o.name)
-                    axis = (0, 0, 1)
+                    local_axis = Vector((0, 0, 1))
+                # The object's own axis as it really points, in the body's
+                # frame (a sheared or mirrored parent turns it).
+                axis = to_body.to_3x3() @ local_axis
+                if degenerate or axis.length < 1e-9:
+                    axis = local_axis
+                axis.normalize()
                 attrs.append('axis="%s"' % fmt(*axis))
                 rng = pair(o.get("joint_range"), o.name + " joint_range")
                 if rng:
                     attrs.append('range="%s" limited="true"' % fmt(*rng))
-            attrs.append('damping="%s"' % fmt(float(o.get("joint_damping", 0.05))))
-            if o.get("joint_armature") is not None:
-                attrs.append('armature="%s"' % fmt(float(o.get("joint_armature"))))
+            attrs.append('damping="%s"' % fmt(num(o, "joint_damping", 0.05)))
+            armature = num(o, "joint_armature")
+            if armature is not None:
+                attrs.append('armature="%s"' % fmt(armature))
             lines.append("%s  <joint %s/>" % (ind, " ".join(attrs)))
             stats["joints"] += 1
             if parent_name:
@@ -287,23 +331,42 @@ def export_mjcf():
                 warn("%s: actuator %r is not motor, position or velocity; ignored" % (o.name, act))
             else:
                 attrs = ['name="%s"' % esc(name), 'joint="%s"' % esc(jname)]
+                # Controls are in the actuator's own units: N.m (or N) for a
+                # motor, rad/s for a velocity servo, and radians (or metres)
+                # for a position servo, since the compiler's degree setting
+                # converts joint ranges only. A position servo with no
+                # ctrl_range follows the joint's range.
                 cr = pair(o.get("ctrl_range"), o.name + " ctrl_range")
+                if cr is None and act == "position" and joint != "ball":
+                    jr = pair(o.get("joint_range"), o.name + " joint_range")
+                    if jr:
+                        cr = tuple(math.radians(v) for v in jr) if joint == "hinge" else jr
                 if cr:
                     attrs.append('ctrlrange="%s" ctrllimited="true"' % fmt(*cr))
                 if act == "motor":
-                    attrs.append('gear="%s"' % fmt(float(o.get("gear", 1.0))))
+                    attrs.append('gear="%s"' % fmt(num(o, "gear", 1.0)))
                 elif act == "position":
-                    attrs.append('kp="%s"' % fmt(float(o.get("kp", 10.0))))
+                    attrs.append('kp="%s"' % fmt(num(o, "kp", 10.0)))
                 else:
-                    attrs.append('kv="%s"' % fmt(float(o.get("kv", 1.0))))
+                    attrs.append('kv="%s"' % fmt(num(o, "kv", 1.0)))
                 actuators.append("    <%s %s/>" % (act, " ".join(attrs)))
                 stats["actuators"] += 1
 
         # Geometry in the body's frame (scale and shear baked in).
-        to_body = world_rigid.inverted() @ o.matrix_world
-        bm = evaluated_bmesh(o, to_body, max_faces)
+        mass = num(o, "mass")
+        if mass is not None and mass <= 0:
+            warn("%s: mass must be above 0; ignored" % o.name)
+            mass = None
+        body_density = num(o, "density", density)
+        if body_density is None or body_density <= 0:
+            warn("%s: density must be above 0; using %g" % (o.name, density))
+            body_density = density
+        bm = bmesh.new() if degenerate else evaluated_bmesh(o, to_body, max_faces)
+        shapes = []  # (xml without mass, volume, name)
+        box_lo = box_hi = None
         if not bm.faces:
-            warn("%s: no faces" % o.name)
+            if not degenerate:
+                warn("%s: no faces" % o.name)
         else:
             vis = name + "_visual"
             stats["triangles"] += write_stl(os.path.join(mesh_dir, vis + ".stl"), bm)
@@ -318,8 +381,8 @@ def export_mjcf():
                     materials[key] = "mat%d" % (len(materials) + 1)
                 mat = ' material="%s"' % materials[key]
             lines.append('%s  <geom name="%s" class="visual" type="mesh" mesh="%s"%s/>' % (ind, esc(vis), esc(vis), mat))
-            wverts = [o.matrix_world @ (to_body.inverted() @ v.co) for v in bm.verts]
-            lo, hi = bounds(wverts)
+            box_lo, box_hi = bounds([v.co for v in bm.verts])
+            lo, hi = bounds([world_rigid @ v.co for v in bm.verts])
             for i in range(3):
                 lo_all[i] = min(lo_all[i], lo[i])
                 hi_all[i] = max(hi_all[i], hi[i])
@@ -336,7 +399,6 @@ def export_mjcf():
                     groups = [[v.co.copy() for v in bm.verts]]
             elif mode in ("hull", "box"):
                 groups = [[v.co.copy() for v in bm.verts]]
-            shapes = []  # (xml without mass, volume)
             for gi, verts in enumerate(groups):
                 cname = "%s_collision%s" % (name, "" if len(groups) == 1 else str(gi + 1))
                 hull, vol = (None, 0.0) if mode == "box" else hull_of(verts)
@@ -357,14 +419,25 @@ def export_mjcf():
                     warn("%s: flat or open shape, colliding as a box" % o.name)
                 shapes.append(('type="box" size="%s" pos="%s"' % (fmt(*half), fmt(*c)), 8 * half[0] * half[1] * half[2], cname))
             total = sum(v for _, v, _ in shapes) or 1.0
-            mass = o.get("mass")
             for shape, vol, cname in shapes:
                 if mass is not None:
-                    weight = 'mass="%s"' % fmt(float(mass) * vol / total)
+                    weight = 'mass="%s"' % fmt(mass * vol / total)
                 else:
-                    weight = 'density="%s"' % fmt(float(o.get("density", density)))
+                    weight = 'density="%s"' % fmt(body_density)
                 lines.append('%s  <geom name="%s" class="collision" %s %s/>' % (ind, esc(cname), shape, weight))
         bm.free()
+        if not shapes:
+            # Nothing to collide with (collision "none", or no faces), and
+            # the visual geom weighs nothing: give the body the inertia of
+            # its bounding box, or MuJoCo refuses a moving massless body.
+            if box_lo is not None:
+                half = [max((box_hi[i] - box_lo[i]) / 2, 0.0005) for i in range(3)]
+                c = (box_lo + box_hi) / 2
+            else:
+                half, c = [0.005, 0.005, 0.005], Vector((0, 0, 0))
+            m = mass if mass is not None else max(body_density * 8 * half[0] * half[1] * half[2], 1e-3)
+            inertia = [m / 3 * (half[1] ** 2 + half[2] ** 2), m / 3 * (half[0] ** 2 + half[2] ** 2), m / 3 * (half[0] ** 2 + half[1] ** 2)]
+            lines.append('%s  <inertial pos="%s" mass="%s" diaginertia="%s"/>' % (ind, fmt(*c), fmt(m), fmt(*inertia)))
         stats["bodies"] += 1
         for ch in children.get(o, []):
             lines.extend(body_xml(ch, world_rigid, depth + 1, name))
@@ -416,9 +489,14 @@ def export_mjcf():
 
 
 # ----------------------------------------------------------- obstacles ----
+# The Microduck pitch's limits (duck-sim field.ts): every box must pass them.
+FIELD_MAX_OBSTACLES = 24
+FIELD_MIN_SIZE, FIELD_MAX_SIZE, FIELD_MAX_HEIGHT, FIELD_MAX_NAME = 0.02, 3.0, 2.0, 40
+
+
 def export_obstacles():
     max_height = float(A.get("maxHeight") or 0.3)
-    min_size = float(A.get("minSize") or 0.01)
+    min_size = max(float(A.get("minSize") or FIELD_MIN_SIZE), FIELD_MIN_SIZE)
     ox, oy = float(A.get("offsetX") or 0.0), float(A.get("offsetY") or 0.0)
     obstacles = []
     for o in objects():
@@ -444,21 +522,41 @@ def export_obstacles():
             w, d = hi.x - lo.x, hi.y - lo.y
             if w < min_size and d < min_size:
                 continue
-            c = Matrix.Rotation(yaw, 4, "Z") @ Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, 0))
-            kept += 1
-            obstacles.append({
-                "name": name if len(parts) == 1 else "%s %d" % (name, kept),
-                "x": round(c.x + ox, 4), "y": round(c.y + oy, 4),
-                "width": round(max(w, min_size), 4), "depth": round(max(d, min_size), 4),
-                "height": round(max(hi_z, 0.01), 4),
-                "heading": round(math.degrees(yaw), 2),
-            })
+            if hi_z > FIELD_MAX_HEIGHT:
+                warn("%s: %.2f m tall, kept as %.0f m (the pitch's limit)" % (name, hi_z, FIELD_MAX_HEIGHT))
+            # A part longer than the pitch allows (a wall) becomes a row of
+            # boxes that each fit.
+            nx = max(1, math.ceil(w / FIELD_MAX_SIZE - 1e-9))
+            ny = max(1, math.ceil(d / FIELD_MAX_SIZE - 1e-9))
+            rot = Matrix.Rotation(yaw, 4, "Z")
+            for ix in range(nx):
+                for iy in range(ny):
+                    cx = lo.x + (ix + 0.5) * w / nx
+                    cy = lo.y + (iy + 0.5) * d / ny
+                    c = rot @ Vector((cx, cy, 0))
+                    kept += 1
+                    obstacles.append({
+                        "name": name, "part": kept,
+                        "x": round(c.x + ox, 4), "y": round(c.y + oy, 4),
+                        "width": round(min(max(w / nx, min_size), FIELD_MAX_SIZE), 4),
+                        "depth": round(min(max(d / ny, min_size), FIELD_MAX_SIZE), 4),
+                        "height": round(min(max(hi_z, FIELD_MIN_SIZE), FIELD_MAX_HEIGHT), 4),
+                        "heading": round(math.degrees(yaw), 2),
+                    })
         if kept == 0:
             warn("%s: nothing below %.2f m, left out" % (name, max_height))
-    if len(obstacles) > 200:
-        warn("%d obstacles; kept the 200 largest" % len(obstacles))
+        # Names: the object's own when it gave one box, else "<name> N";
+        # trimmed to what the pitch accepts.
+        for b in obstacles:
+            if "part" in b and b["name"] == name:
+                suffix = "" if kept == 1 else " %d" % b["part"]
+                b["name"] = name[:FIELD_MAX_NAME - len(suffix)].rstrip() + suffix
+                del b["part"]
+    if len(obstacles) > FIELD_MAX_OBSTACLES:
+        warn("%d boxes; kept the %d largest (the pitch holds at most %d): use a collection or split the room" % (
+            len(obstacles), FIELD_MAX_OBSTACLES, FIELD_MAX_OBSTACLES))
         obstacles.sort(key=lambda b: -b["width"] * b["depth"])
-        obstacles = obstacles[:200]
+        obstacles = obstacles[:FIELD_MAX_OBSTACLES]
     out = A.get("out")
     if out:
         os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
