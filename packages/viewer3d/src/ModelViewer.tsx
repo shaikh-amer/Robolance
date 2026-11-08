@@ -49,6 +49,10 @@ export function ModelViewer(props: ModelViewerProps): React.ReactElement {
 
     React.useEffect(() => {
         let cancelled = false;
+        if (!stage.current) {
+            // No stage (no WebGL): keep the error the first effect showed.
+            return undefined;
+        }
         const format = modelFormat(props.fileName);
         if (!props.data) {
             setStatus({ kind: 'loading' });
