@@ -1,0 +1,40 @@
+{
+  "name": "robolance-viewer3d",
+  "version": "0.1.0",
+  "description": "A 3D model viewer for the browser: glTF/GLB, OBJ, STL and FBX on a studio stage with orbit, zoom, wireframe, animation playback and model stats. Used by OpenLance's 3D tab and Robolance's Hardware tab.",
+  "license": "Apache-2.0",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.test.json && node --test '.build/test/*.test.js'",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.12",
+    "@types/three": "^0.170.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shaikh-amer/robolance.git",
+    "directory": "packages/viewer3d"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
