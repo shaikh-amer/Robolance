@@ -9,6 +9,7 @@
     "packages/hardware-sim",
     "packages/duck-sim",
     "packages/hardware-tools",
+    "packages/viewer3d",
     "packages/openlance-hardware",
     "demo"
   ],
