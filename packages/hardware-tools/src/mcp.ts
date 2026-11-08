@@ -32,6 +32,7 @@ import { Scene, meshoptSimplifier, type SceneRun } from 'robolance-mujoco';
 import { readSceneDir } from 'robolance-mujoco/node-files';
 import { buildSketch, type BuildOptions, type BuildResult } from './avrbuild.js';
 import { obstaclesFromSegments, type SegmentsFile } from './photo-obstacles.js';
+import { BLENDER_PROPERTIES_HELP, runBlenderExport } from './blender.js';
 
 const pinSchema = z.union([z.number().int().min(0).max(13), z.enum(['A0', 'A1', 'A2', 'A3', 'A4', 'A5'])]);
 
@@ -77,6 +78,8 @@ export interface ServerOptions extends BuildOptions {
     duckWallMs?: number;
     /** The project folder scene paths are relative to (default: the working directory). */
     projectDir?: string;
+    /** The Blender binary for the *_from_blender tools (default $ROBOLANCE_BLENDER, else "blender"). */
+    blender?: string;
     /** Real-time limit for one scene_run, ms (default 60 000). */
     sceneWallMs?: number;
 }
@@ -412,6 +415,97 @@ export function createHardwareServer(options: ServerOptions = {}): McpServer {
             return { content: [{ type: 'text', text: JSON.stringify(recorded ? { ...summary, recordedAs: recorded } : summary, null, 1) }] };
         } finally {
             loaded.dispose();
+        }
+    });
+
+    server.registerTool('scene_from_blender', {
+        description: 'Turns a Blender file in the project into a MuJoCo scene for scene_check and scene_run: every mesh object becomes a body '
+            + '(Blender parents become body parents) drawn with its full mesh and colliding as its convex hull, with joints, motors and mass from '
+            + 'custom properties on the objects (see below). Writes <out>/scene.xml and <out>/meshes/, then loads it in MuJoCo and returns the check. '
+            + 'Make or edit the .blend with the Blender tools first (set the properties in the same script).\n\n' + BLENDER_PROPERTIES_HELP,
+        inputSchema: {
+            blend: z.string().min(1).describe('Project path of the .blend'),
+            out: z.string().optional().describe('Project folder for scene.xml and meshes/ (default <blend folder>/<name>-mjcf)'),
+            collection: z.string().optional().describe('Only the objects in this Blender collection (default: every visible mesh object)'),
+            density: z.number().positive().max(100_000).optional().describe('kg/m³ for objects without mass or density (default 1000)'),
+            floor: z.boolean().optional().describe('Add a floor plane at z = 0 and a light (default true)'),
+            maxFaces: z.number().int().min(100).max(500_000).optional().describe('Simplify meshes above this many faces (default 50 000)'),
+        },
+    }, async ({ blend, out, collection, density, floor, maxFaces }) => {
+        let blendPath: string;
+        let outDir: string;
+        try {
+            blendPath = insideProject(projectDir, blend);
+            if (!/\.blend$/i.test(blendPath) || !(await stat(blendPath).catch(() => null))?.isFile()) {
+                throw new Error(`${blend} is not a .blend in the project`);
+            }
+            const name = basename(blendPath).replace(/\.blend$/i, '');
+            outDir = insideProject(projectDir, out?.trim() || join(relative(projectDir, dirname(blendPath)), `${name}-mjcf`));
+        } catch (err) {
+            return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true };
+        }
+        let exported;
+        try {
+            await mkdir(outDir, { recursive: true });
+            exported = await runBlenderExport({
+                blend: blendPath, blender: options.blender,
+                args: { mode: 'mjcf', out: outDir, collection, density, floor: floor ?? true, maxFaces },
+            });
+        } catch (err) {
+            return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true };
+        }
+        const scenePath = toPosix(relative(projectDir, join(outDir, String(exported.scene ?? 'scene.xml'))));
+        let check: unknown;
+        try {
+            const loaded = await loadProjectScene(projectDir, scenePath);
+            try {
+                check = loaded.check();
+            } finally {
+                loaded.dispose();
+            }
+        } catch (err) {
+            check = { ok: false, error: err instanceof Error ? err.message : String(err) };
+        }
+        return { content: [{ type: 'text', text: JSON.stringify({ scene: scenePath, exported, check }, null, 1) }] };
+    });
+
+    server.registerTool('duck_obstacles_from_blender', {
+        description: 'Turns a room modelled in Blender into obstacles for the Microduck\'s pitch (field.obstacles): every part of every mesh object '
+            + 'that reaches below the duck\'s head (default 0.3 m) becomes a box standing on the floor, turned like the object; table legs become '
+            + 'four posts the duck walks between, while a table top or a shelf above it is left out. Blender metres map to pitch metres '
+            + '(x towards the goal, y to the duck\'s left); offset shifts them. Returns the boxes, and writes them as JSON when out is given.',
+        inputSchema: {
+            blend: z.string().min(1).describe('Project path of the .blend'),
+            collection: z.string().optional().describe('Only the objects in this Blender collection'),
+            maxHeight: z.number().min(0.02).max(3).optional().describe('Parts entirely above this height (m) are left out (default 0.3)'),
+            offset: z.object({ x: z.number(), y: z.number() }).optional().describe('Added to every box\'s position (pitch metres)'),
+            out: z.string().optional().describe('Project path to also write {"obstacles": [...]} to'),
+        },
+    }, async ({ blend, collection, maxHeight, offset, out }) => {
+        try {
+            const blendPath = insideProject(projectDir, blend);
+            if (!/\.blend$/i.test(blendPath) || !(await stat(blendPath).catch(() => null))?.isFile()) {
+                throw new Error(`${blend} is not a .blend in the project`);
+            }
+            const outPath = out ? insideProject(projectDir, out) : undefined;
+            if (outPath) {
+                await mkdir(dirname(outPath), { recursive: true });
+            }
+            const exported = await runBlenderExport({
+                blend: blendPath, blender: options.blender,
+                args: { mode: 'obstacles', out: outPath, collection, maxHeight, offsetX: offset?.x, offsetY: offset?.y },
+            });
+            const obstacles = Array.isArray(exported.obstacles) ? exported.obstacles : [];
+            return {
+                content: [{
+                    type: 'text', text: JSON.stringify({
+                        obstacles, warnings: exported.warnings,
+                        ...(outPath ? { written: toPosix(relative(projectDir, outPath)) } : {}),
+                    }, null, 1),
+                }],
+            };
+        } catch (err) {
+            return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true };
         }
     });
 

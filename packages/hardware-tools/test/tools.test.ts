@@ -66,7 +66,7 @@ test('the MCP server lists the hardware tools', async () => {
     const { client, close } = await connect();
     try {
         const { tools } = await client.listTools();
-        assert.deepEqual(tools.map(t => t.name).sort(), ['duck_api', 'duck_obstacles_from_photo', 'duck_run', 'hardware_arena', 'hardware_compile', 'hardware_parts', 'hardware_run', 'scene_api', 'scene_check', 'scene_run']);
+        assert.deepEqual(tools.map(t => t.name).sort(), ['duck_api', 'duck_obstacles_from_blender', 'duck_obstacles_from_photo', 'duck_run', 'hardware_arena', 'hardware_compile', 'hardware_parts', 'hardware_run', 'scene_api', 'scene_check', 'scene_from_blender', 'scene_run']);
         const parts = await client.callTool({ name: 'hardware_parts', arguments: {} });
         assert.match(text(parts), /INPUT_PULLUP/);
         const arena = await client.callTool({ name: 'hardware_arena', arguments: {} });
